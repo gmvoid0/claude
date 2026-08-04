@@ -57,6 +57,18 @@ picks up where this one left off without being told.
 
 ---
 
+## The field guide
+
+A phone-readable quick reference for use **between calls** — compliance stop signs, the
+legacy-rate script, a filterable objection library, the math you run live, and the
+90-second self-score.
+
+**https://claude.ai/code/artifact/7e592212-0c20-40dc-ae0d-f3014803cb12**
+
+Source is `field-guide.html` in this repo. Edit it and republish to the same URL.
+
+---
+
 ## A warning about the source material
 
 This system was built partly from four real cold-call transcripts. Those calls were

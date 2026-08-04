@@ -1,0 +1,867 @@
+<title>MLO Field Guide</title>
+
+<style>
+  :root {
+    --paper:      #F5F5F2;
+    --card:       #FFFFFF;
+    --ink:        #16181C;
+    --graphite:   #5C626B;
+    --hairline:   #D8D9D4;
+    --accent:     #0B6B6E;
+    --accent-dim: #0B6B6E1A;
+    --alert:      #A8261C;
+    --alert-dim:  #A8261C14;
+    --shadow:     0 1px 2px #16181C0D;
+
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+    --gut: 1.15rem;
+    --rad: 3px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #0E1013;
+      --card:       #16191E;
+      --ink:        #E8E8E4;
+      --graphite:   #969CA6;
+      --hairline:   #282C33;
+      --accent:     #4FB3B0;
+      --accent-dim: #4FB3B01F;
+      --alert:      #E8695C;
+      --alert-dim:  #E8695C1A;
+      --shadow:     none;
+    }
+  }
+
+  :root[data-theme="light"] {
+    --paper:      #F5F5F2;
+    --card:       #FFFFFF;
+    --ink:        #16181C;
+    --graphite:   #5C626B;
+    --hairline:   #D8D9D4;
+    --accent:     #0B6B6E;
+    --accent-dim: #0B6B6E1A;
+    --alert:      #A8261C;
+    --alert-dim:  #A8261C14;
+    --shadow:     0 1px 2px #16181C0D;
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0E1013;
+    --card:       #16191E;
+    --ink:        #E8E8E4;
+    --graphite:   #969CA6;
+    --hairline:   #282C33;
+    --accent:     #4FB3B0;
+    --accent-dim: #4FB3B01F;
+    --alert:      #E8695C;
+    --alert-dim:  #E8695C1A;
+    --shadow:     none;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 0 var(--gut) 5rem;
+  }
+
+  /* ── masthead ─────────────────────────────── */
+
+  .mast {
+    padding: 2.4rem 0 1.4rem;
+    border-bottom: 2px solid var(--ink);
+  }
+  .mast h1 {
+    margin: 0;
+    font-size: clamp(1.7rem, 7vw, 2.3rem);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .mast .sub {
+    margin: 0.5rem 0 0;
+    color: var(--graphite);
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+  .stamp {
+    display: inline-block;
+    margin-bottom: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: var(--rad);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ── sticky jump bar ──────────────────────── */
+
+  .jump {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    gap: 0.4rem;
+    margin: 0 calc(var(--gut) * -1);
+    padding: 0.6rem var(--gut);
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--hairline);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .jump::-webkit-scrollbar { display: none; }
+  .jump a {
+    flex: none;
+    padding: 0.3rem 0.62rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--rad);
+    background: var(--card);
+    color: var(--graphite);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .jump a:hover, .jump a:focus-visible { color: var(--ink); border-color: var(--ink); }
+  .jump a.hot { color: var(--alert); border-color: var(--alert); }
+
+  /* ── sections ─────────────────────────────── */
+
+  section { padding-top: 2.6rem; scroll-margin-top: 3.6rem; }
+
+  .shead {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .tab {
+    flex: none;
+    min-width: 1.55rem;
+    padding: 0.1rem 0.3rem;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: var(--rad);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+  section.danger .tab { background: var(--alert); color: #fff; }
+  .shead h2 {
+    margin: 0;
+    font-size: 1.16rem;
+    font-weight: 750;
+    letter-spacing: -0.012em;
+  }
+  .shead .note {
+    margin-left: auto;
+    color: var(--graphite);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .lede {
+    margin: 0.9rem 0 0;
+    color: var(--graphite);
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
+
+  /* ── stack + cards ────────────────────────── */
+
+  .stack { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 1rem; }
+
+  .card {
+    padding: 0.85rem 0.95rem;
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--rad);
+    box-shadow: var(--shadow);
+  }
+  .card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--graphite);
+  }
+
+  /* the STOP block — inverted, unmistakable */
+  .stopblock {
+    padding: 1rem;
+    background: var(--alert);
+    border-radius: var(--rad);
+    color: #fff;
+  }
+  .stopblock .k {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+  .stopblock ul { margin: 0.55rem 0 0; padding-left: 1.05rem; }
+  .stopblock li { margin-bottom: 0.24rem; font-weight: 600; }
+  .stopblock .then {
+    margin: 0.8rem 0 0;
+    padding-top: 0.7rem;
+    border-top: 1px solid #ffffff40;
+    font-family: var(--mono);
+    font-size: 0.83rem;
+    line-height: 1.5;
+  }
+
+  /* say-this: monospace = verbatim */
+  .say {
+    margin: 0;
+    padding: 0.6rem 0.75rem;
+    background: var(--accent-dim);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 var(--rad) var(--rad) 0;
+    font-family: var(--mono);
+    font-size: 0.83rem;
+    line-height: 1.62;
+  }
+  .say + .say { margin-top: 0.5rem; }
+
+  .never {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem 0.65rem;
+    background: var(--alert-dim);
+    border-radius: var(--rad);
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+  .never + .never { margin-top: 0.4rem; }
+  .never .x { flex: none; color: var(--alert); font-weight: 800; }
+
+  .beat { display: flex; gap: 0.7rem; padding: 0.5rem 0; }
+  .beat + .beat { border-top: 1px solid var(--hairline); }
+  .beat .n {
+    flex: none;
+    width: 1.4rem;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding-top: 0.1rem;
+  }
+  .beat .b { font-weight: 700; font-size: 0.92rem; }
+  .beat .d { color: var(--graphite); font-size: 0.84rem; line-height: 1.45; }
+
+  /* ── tables ───────────────────────────────── */
+
+  .scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th {
+    padding: 0.4rem 0.5rem 0.4rem 0;
+    border-bottom: 1px solid var(--ink);
+    color: var(--graphite);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
+  }
+  td {
+    padding: 0.5rem 0.5rem 0.5rem 0;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: top;
+    line-height: 1.45;
+  }
+  tr:last-child td { border-bottom: none; }
+  td:last-child, th:last-child { padding-right: 0; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lbl { font-weight: 650; }
+
+  /* ── objection filter ─────────────────────── */
+
+  .filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.5rem 0.7rem;
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--rad);
+  }
+  .filter svg { flex: none; color: var(--graphite); }
+  .filter input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 0.9rem;
+  }
+  .filter input:focus { outline: none; }
+  .filter:focus-within { border-color: var(--accent); }
+
+  .obj { padding: 0.7rem 0; border-bottom: 1px solid var(--hairline); }
+  .obj:last-child { border-bottom: none; }
+  .obj .q { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.45rem; }
+  .obj .q::before { content: "“"; color: var(--graphite); }
+  .obj .q::after  { content: "”"; color: var(--graphite); }
+  .obj.hide { display: none; }
+  .empty { padding: 1.2rem 0; color: var(--graphite); font-size: 0.87rem; text-align: center; }
+
+  /* ── math ─────────────────────────────────── */
+
+  .formula {
+    margin: 0;
+    padding: 0.7rem 0.8rem;
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--rad);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    line-height: 1.75;
+    font-variant-numeric: tabular-nums;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .facts { display: grid; grid-template-columns: 1fr; gap: 0.5rem; margin-top: 1rem; }
+  @media (min-width: 30rem) { .facts { grid-template-columns: 1fr 1fr; } }
+  .fact {
+    padding: 0.65rem 0.8rem;
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--rad);
+  }
+  .fact .v {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .fact .l {
+    margin-top: 0.1rem;
+    color: var(--graphite);
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  /* ── checklist ────────────────────────────── */
+
+  .checks { margin-top: 1rem; display: flex; flex-direction: column; gap: 0; }
+  .chk {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--hairline);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+  .chk:last-child { border-bottom: none; }
+  .chk input { flex: none; margin: 0.22rem 0 0; accent-color: var(--accent); width: 1rem; height: 1rem; }
+  .chk input:checked + span { color: var(--graphite); text-decoration: line-through; }
+  .chk.crit span strong { color: var(--alert); }
+
+  footer {
+    margin-top: 3.2rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--hairline);
+    color: var(--graphite);
+    font-size: 0.78rem;
+    line-height: 1.6;
+  }
+  footer strong { color: var(--ink); }
+
+  a { color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+  html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <div class="stamp">Quick reference · Aug 2026</div>
+    <h1>MLO Field Guide</h1>
+    <p class="sub">For use between calls. Wholesale broker desk, aged and internet leads. Everything here is drawn from the full curriculum — this is the version you can read one-handed.</p>
+  </header>
+
+  <nav class="jump" aria-label="Jump to section">
+    <a href="#stop" class="hot">A · STOP</a>
+    <a href="#legacy">B · Legacy rate</a>
+    <a href="#obj">C · Objections</a>
+    <a href="#arc">D · Call arc</a>
+    <a href="#math">E · Math</a>
+    <a href="#fit">F · Product fit</a>
+    <a href="#ask">G · Discovery</a>
+    <a href="#mkt">H · Market</a>
+    <a href="#pre">I · Pre-flight</a>
+  </nav>
+
+  <!-- ══ A ══════════════════════════════════ -->
+  <section id="stop" class="danger">
+    <div class="shead">
+      <span class="tab">A</span>
+      <h2>Stop signs</h2>
+      <span class="note">Read first</span>
+    </div>
+    <p class="lede">Compliance beats the close, every time. A lost deal costs you a Tuesday. A revoked license costs you the career.</p>
+
+    <div class="stack">
+      <div class="stopblock">
+        <div class="k">Stop the call immediately</div>
+        <ul>
+          <li>“Take me off your list”</li>
+          <li>“Stop calling me” / “Remove my number”</li>
+          <li>“This is harassment”</li>
+          <li>“I’m not interested” — <em>second clear time</em></li>
+        </ul>
+        <p class="then">“Understood — I’ll take you off our list right<br>now. Sorry to have bothered you.”<br><br>→ Log it. Internal DNC. Permanently.</p>
+      </div>
+
+      <div class="card">
+        <h3>Never say</h3>
+        <div class="never"><span class="x">✗</span><span>“You submitted an inquiry” — unless they actually did</span></div>
+        <div class="never"><span class="x">✗</span><span>“I know I can beat that rate” — before credit and pricing</span></div>
+        <div class="never"><span class="x">✗</span><span>“My manager will approve it if we lock today” — if untrue</span></div>
+        <div class="never"><span class="x">✗</span><span>“We take scores as low as 500” — without the 10%-down reality</span></div>
+        <div class="never"><span class="x">✗</span><span>“They’ll refuse to transfer the appraisal”</span></div>
+        <div class="never"><span class="x">✗</span><span>Anything implying you can approach a sub-4% legacy rate</span></div>
+      </div>
+
+      <div class="card">
+        <h3>Always</h3>
+        <p class="say">Name · company · NMLS · recorded line — up front, and true.</p>
+        <p class="say">“If I can’t beat it, I’ll tell you to stay where you are.”</p>
+      </div>
+
+      <div class="card">
+        <h3>Dialing limits</h3>
+        <div class="scroller">
+          <table>
+            <tbody>
+              <tr><td class="lbl">Hours</td><td>8am–8pm in <strong>their</strong> time zone</td></tr>
+              <tr><td class="lbl">Attempts</td><td>Max 3 per person per day</td></tr>
+              <tr><td class="lbl">DNC scrub</td><td>Every 31 days</td></tr>
+              <tr><td class="lbl">EBR — inquiry</td><td><strong>3 months</strong> (not 12)</td></tr>
+              <tr><td class="lbl">EBR — transaction</td><td>18 months</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ B ══════════════════════════════════ -->
+  <section id="legacy">
+    <div class="shead">
+      <span class="tab">B</span>
+      <h2>The legacy-rate script</h2>
+      <span class="note">Most-used</span>
+    </div>
+    <p class="lede">Every borrower who transacted 2020–22 holds 2.5–4%. You cannot lower it. Saying so in the first minute is the highest-trust move available to you.</p>
+
+    <div class="stack">
+      <div class="card">
+        <h3>Ask first</h3>
+        <p class="say">“What’s the rate on your current mortgage?”</p>
+      </div>
+
+      <div class="card">
+        <h3>Then, immediately</h3>
+        <p class="say">“Okay, stop me right there. Three-one is phenomenal. I can’t beat it, nobody can — the market’s at about six-eight. So this isn’t a ‘lower your rate’ call.
+
+The real question is whether we can get you what you need <em>without touching that rate</em>. Two ways:
+
+  1 · Cash-out refi — you get the money, but you give
+      up the 3.1% on your entire balance.
+
+  2 · Second lien — first mortgage untouched, market
+      rate only on the new money.
+
+Usually option two is dramatically better. Can I price both?
+
+And tell me — what’s the money actually for?”</p>
+      </div>
+
+      <div class="card">
+        <h3>Why it works</h3>
+        <p style="margin:0;font-size:0.87rem;line-height:1.55;color:var(--graphite)">It disqualifies you from the “another guy promising a lower rate” category in about eight seconds, and it plants the second-lien solution <em>before</em> they raise the objection. Across four real transcripts with ~$1.5M in combined equity behind legacy-rate first mortgages, the second lien was never mentioned once.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ C ══════════════════════════════════ -->
+  <section id="obj">
+    <div class="shead">
+      <span class="tab">C</span>
+      <h2>Objections</h2>
+      <span class="note">Filterable</span>
+    </div>
+
+    <label class="filter" for="q">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" type="search" placeholder="Type what they said — rate, spouse, thinking…" autocomplete="off">
+    </label>
+
+    <div class="card" style="margin-top:0.7rem" id="objlist">
+      <div class="obj">
+        <div class="q">What’s your rate?</div>
+        <p class="say">“I’ll get you a real number, and I don’t want to give you a fake one. Rate depends on your score, your equity, the purpose, and occupancy. Four questions and I’ll give you something I can stand behind. Fair?”</p>
+      </div>
+      <div class="obj">
+        <div class="q">I’m already working with someone</div>
+        <p class="say">“Good — you should be. I’m not calling to get you to leave them. One question: have you locked yet?”</p>
+      </div>
+      <div class="obj">
+        <div class="q">Their rate is lower than yours</div>
+        <p class="say">“Could well be. Send me their Loan Estimate — the actual form, not a screenshot. If it genuinely beats mine, I’ll tell you to sign it.”</p>
+      </div>
+      <div class="obj">
+        <div class="q">I want to wait for rates to drop</div>
+        <p class="say">“Then a second is even better — you get the money now, and we consolidate when rates come down. A cash-out today locks you into today’s rate on everything.”</p>
+      </div>
+      <div class="obj">
+        <div class="q">I need to think about it</div>
+        <p class="say">“I understand. What else can I give you to help your thinking?”
+
+[ SILENCE — say nothing until they speak ]</p>
+      </div>
+      <div class="obj">
+        <div class="q">I need to talk to my spouse</div>
+        <p class="say">“Absolutely. What do you think their first question will be? And would it be easier if I got you both on for ten minutes so I can answer it directly?”</p>
+      </div>
+      <div class="obj">
+        <div class="q">How did you get my number?</div>
+        <p class="say">“Fair question. You filled out a request on [site] on [date] and it came through their network. If you don’t remember doing that, say so and I’ll take you off right now.”</p>
+      </div>
+      <div class="obj">
+        <div class="q">My credit’s bad</div>
+        <p class="say">“Tell me what ‘bad’ means to you — people say that about a 640 and about a 540, and those are completely different conversations.”</p>
+      </div>
+      <div class="obj">
+        <div class="q">Send me something in writing</div>
+        <p class="say">“Sending it now. I’ll call you at 3:00 to walk through it — those forms are dense and I don’t want you guessing at page two. Does 3:00 work?”</p>
+      </div>
+      <div class="obj">
+        <div class="q">The closing costs are too high</div>
+        <p class="say">“They’re real money and I won’t pretend otherwise. Three ways: pay them, roll them in, or I take a slightly higher rate and the lender credits them back. Which fits how long you’re staying?”</p>
+      </div>
+      <div class="obj">
+        <div class="q">I’ve never heard of your company</div>
+        <p class="say">“Fair. Look me up while we’re talking — NMLS Consumer Access, my ID is [number]. Honestly, you should do that with anyone who asks you for a Social over the phone.”</p>
+      </div>
+      <div class="obj">
+        <div class="q">I don’t want to restart my 30 years</div>
+        <p class="say">“Good instinct. You’re three years in — so instead of resetting to thirty, let’s look at a twenty-five. You cut the payment without giving back the three years you’ve paid.”</p>
+      </div>
+      <div class="obj">
+        <div class="q">I don’t want my card debt on my house</div>
+        <p class="say">“That’s a real concern. Two things have to be true: the blended rate has to actually drop, and you have to actually close the cards. If you’d run them back up, I’d rather you didn’t do this at all. Can you close them?”</p>
+      </div>
+      <div class="obj">
+        <div class="q">I’m self-employed, I write everything off</div>
+        <p class="say">“Classic problem — great business owner, poor on paper. If the returns show enough we go conventional. If they don’t, there’s a bank-statement program that ignores tax returns and qualifies you off deposits. Which fits?”</p>
+      </div>
+      <div class="obj">
+        <div class="q">You sound young</div>
+        <p class="say">“I am. Which is why I check everything twice and answer my phone at nine at night. Ask me anything and see if I know the answer.”</p>
+      </div>
+      <div class="obj">
+        <div class="q">I’m not interested</div>
+        <p class="say">[ FIRST TIME — one reframe only ]
+
+“Totally fair — you don’t know what this is yet. Ten seconds, then you can decide.”
+
+[ SECOND TIME — STOP. See section A. ]</p>
+      </div>
+      <div class="empty" id="noresult" style="display:none">Nothing matches. Try “rate”, “spouse”, “credit”, “think”.</div>
+    </div>
+  </section>
+
+  <!-- ══ D ══════════════════════════════════ -->
+  <section id="arc">
+    <div class="shead">
+      <span class="tab">D</span>
+      <h2>The call arc</h2>
+      <span class="note">Half is discovery</span>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="beat"><span class="n">1</span><div><div class="b">Open · 15 sec</div><div class="d">Name? → who you are + NMLS → true reason → easy question</div></div></div>
+      <div class="beat"><span class="n">2</span><div><div class="b">Frame · 30 sec</div><div class="d">“Six questions, then I’ll tell you yes or no. Fair?”</div></div></div>
+      <div class="beat"><span class="n">3</span><div><div class="b">Discover · 50%</div><div class="d">What’s the money for? What happens if you don’t get it?</div></div></div>
+      <div class="beat"><span class="n">4</span><div><div class="b">Diagnose</div><div class="d">Tell them one true thing they didn’t know</div></div></div>
+      <div class="beat"><span class="n">5</span><div><div class="b">Position</div><div class="d">Tie back to <em>their</em> words. Get the reaffirming yes.</div></div></div>
+      <div class="beat"><span class="n">6</span><div><div class="b">Present</div><div class="d">Payment → benefit → delta → rate → then silence</div></div></div>
+      <div class="beat"><span class="n">7</span><div><div class="b">Close</div><div class="d">Ask for the next small step. Then stop talking.</div></div></div>
+      <div class="beat"><span class="n">8</span><div><div class="b">Lock</div><div class="d">Time + task + channel. Never “I’ll call you later.”</div></div></div>
+    </div>
+  </section>
+
+  <!-- ══ E ══════════════════════════════════ -->
+  <section id="math">
+    <div class="shead">
+      <span class="tab">E</span>
+      <h2>The math</h2>
+      <span class="note">Do it live</span>
+    </div>
+    <p class="lede">Being able to run these while they’re still talking is most of the difference between sounding like an advisor and reading off a screen.</p>
+
+    <div class="stack">
+      <div class="card">
+        <h3>P&amp;I per $1,000 · 30-year</h3>
+        <div class="scroller">
+          <table>
+            <thead><tr><th>Rate</th><th>Factor</th><th>Rate</th><th>Factor</th></tr></thead>
+            <tbody>
+              <tr><td class="num">3.0%</td><td class="num">4.22</td><td class="num">6.50%</td><td class="num">6.32</td></tr>
+              <tr><td class="num">4.0%</td><td class="num">4.77</td><td class="num">6.75%</td><td class="num"><strong>6.49</strong></td></tr>
+              <tr><td class="num">5.0%</td><td class="num">5.37</td><td class="num">7.00%</td><td class="num"><strong>6.65</strong></td></tr>
+              <tr><td class="num">6.0%</td><td class="num">6.00</td><td class="num">7.50%</td><td class="num">6.99</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="margin:0.7rem 0 0;font-family:var(--mono);font-size:0.8rem;line-height:1.6">P&amp;I = (loan ÷ 1,000) × factor<br><span style="color:var(--graphite)">$285,000 @ 7% → 285 × 6.65 = $1,895</span></p>
+      </div>
+
+      <div class="card">
+        <h3>The rest</h3>
+        <p class="formula">PITI      = P&I + taxes + insurance + MI + HOA
+            taxes ≈ value × 1.0–1.5% ÷ 12
+
+DTI       = monthly debt ÷ gross monthly income
+Max PITI  = (income × 0.45) − existing debts
+
+LTV       = loan ÷ value
+CLTV      = all liens ÷ value
+Cash-out  = (value × 0.80) − balance − costs
+
+Blended   = total annual interest ÷ total balance
+Breakeven = cost ÷ monthly savings
+Gross-up  = non-taxable × 1.25
+Bank stmt = (deposits ÷ months) × 0.50
+Rental    = gross rent × 0.75</p>
+      </div>
+
+      <div class="card">
+        <h3>Blended rate — the consolidation sale</h3>
+        <p style="margin:0 0 0.6rem;font-size:0.87rem;line-height:1.55;color:var(--graphite)">The mortgage rate is the wrong number. Sell the weighted average across everything they owe.</p>
+        <div class="scroller">
+          <table>
+            <thead><tr><th>Debt</th><th>Balance</th><th>Rate</th><th>Interest/yr</th></tr></thead>
+            <tbody>
+              <tr><td>Mortgage</td><td class="num">$105,000</td><td class="num">4.25%</td><td class="num">$4,463</td></tr>
+              <tr><td>Cards</td><td class="num">$28,000</td><td class="num">23%</td><td class="num">$6,440</td></tr>
+              <tr><td>Car</td><td class="num">$22,000</td><td class="num">11%</td><td class="num">$2,420</td></tr>
+              <tr><td>Personal</td><td class="num">$12,000</td><td class="num">16%</td><td class="num">$1,920</td></tr>
+              <tr><td class="lbl">Total</td><td class="num lbl">$167,000</td><td class="num lbl">9.13%</td><td class="num lbl">$15,243</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="margin:0.7rem 0 0;font-family:var(--mono);font-size:0.8rem;line-height:1.6">Consolidate @ 7% → $11,690/yr<br><strong>Saves $3,553/yr</strong> — while the mortgage rate <em>rose</em>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ F ══════════════════════════════════ -->
+  <section id="fit">
+    <div class="shead">
+      <span class="tab">F</span>
+      <h2>Product fit</h2>
+      <span class="note">Reflexes</span>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Situation</th><th>Product</th></tr></thead>
+          <tbody>
+            <tr><td class="lbl">Sub-4.5% first, needs cash</td><td><strong>Second lien</strong> — almost always</td></tr>
+            <tr><td class="lbl">Moving in under 3 years</td><td>ARM + lender credits, no points</td></tr>
+            <tr><td class="lbl">Self-employed, heavy write-offs</td><td>Bank statement</td></tr>
+            <tr><td class="lbl">Tax returns not filed</td><td>Bank statement</td></tr>
+            <tr><td class="lbl">Investor, DTI blown out</td><td>DSCR</td></tr>
+            <tr><td class="lbl">Veteran</td><td>VA — check disability for funding-fee exemption</td></tr>
+            <tr><td class="lbl">Retired, assets not income</td><td>Asset depletion</td></tr>
+            <tr><td class="lbl">FICO under 620</td><td>FHA</td></tr>
+            <tr><td class="lbl">FICO 620–680</td><td>Run <em>both</em> FHA and conventional</td></tr>
+            <tr><td class="lbl">FICO 680+</td><td>Conventional — PMI cancels</td></tr>
+            <tr><td class="lbl">Zero down, rural-ish, moderate income</td><td>Check the USDA map first</td></tr>
+            <tr><td class="lbl">Cards at 20%+</td><td>Consolidation — run the blended rate</td></tr>
+            <tr><td class="lbl">Seller won’t drop the price</td><td>Seller-paid buydown</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ G ══════════════════════════════════ -->
+  <section id="ask">
+    <div class="shead">
+      <span class="tab">G</span>
+      <h2>Discovery</h2>
+      <span class="note">Ask, don’t pitch</span>
+    </div>
+
+    <div class="stack">
+      <div class="card">
+        <h3>Situation</h3>
+        <p class="say">How long have you been in the house?
+Is this your primary residence?
+Is anyone else part of this decision?   ← prevents the spouse objection</p>
+      </div>
+      <div class="card">
+        <h3>Purpose — the one everybody skips</h3>
+        <p class="say">What got you looking at this?
+What would a successful outcome look like to you?
+WHAT IS THE MONEY FOR?
+Is there a timeline, or are you just exploring?</p>
+      </div>
+      <div class="card">
+        <h3>Pain</h3>
+        <p class="say">What happens if this doesn’t get done?
+How long has that been a problem?
+What’s it costing you every month right now?</p>
+      </div>
+      <div class="card">
+        <h3>Income — six questions, two minutes</h3>
+        <p class="say">W-2, 1099, or self-employed?
+  → if self-employed: how long? entity? returns filed?
+    “In a normal month, how much is DEPOSITED into
+     the business account? Gross deposits, not profit.”
+Any other income — rental, retirement, disability?
+Is any of it non-taxable?          ← gross up ×1.25
+Any employment gaps in the last two years?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ H ══════════════════════════════════ -->
+  <section id="mkt">
+    <div class="shead">
+      <span class="tab">H</span>
+      <h2>Market</h2>
+      <span class="note">Aug 2026</span>
+    </div>
+
+    <div class="facts">
+      <div class="fact"><div class="v">6.8–7.0%</div><div class="l">30-year fixed</div></div>
+      <div class="fact"><div class="v">6.2–6.5%</div><div class="l">Projected year-end · Fannie Mae, MBA</div></div>
+      <div class="fact"><div class="v">$832,750</div><div class="l">Conforming baseline, 1-unit</div></div>
+      <div class="fact"><div class="v">$1,249,125</div><div class="l">High-cost ceiling</div></div>
+      <div class="fact"><div class="v">3 / 5 / 2026</div><div class="l">Trigger leads banned — Homebuyers Privacy Protection Act</div></div>
+      <div class="fact"><div class="v">+45%</div><div class="l">Internet lead cost, year over year</div></div>
+    </div>
+
+    <div class="card" style="margin-top:0.7rem">
+      <h3>What this means</h3>
+      <p style="margin:0;font-size:0.88rem;line-height:1.6">Everyone who transacted 2020–22 holds <strong>2.5–4%</strong>. Rate-and-term refinance is dead. The live business is <strong>cash-out, debt consolidation, second liens, and purchase</strong> — and it is sold on monthly cash flow and problem resolution, never on rate.</p>
+    </div>
+  </section>
+
+  <!-- ══ I ══════════════════════════════════ -->
+  <section id="pre">
+    <div class="shead">
+      <span class="tab">I</span>
+      <h2>Pre-flight</h2>
+      <span class="note">Before every block</span>
+    </div>
+
+    <div class="checks">
+      <label class="chk crit"><input type="checkbox"><span><strong>DNC scrubbed</strong> within 31 days, internal DNC current</span></label>
+      <label class="chk crit"><input type="checkbox"><span><strong>Consent records verified</strong> for aged leads</span></label>
+      <label class="chk crit"><input type="checkbox"><span><strong>Time zones</strong> checked by address, not area code</span></label>
+      <label class="chk"><input type="checkbox"><span>Dial goal written down</span></label>
+      <label class="chk"><input type="checkbox"><span>Opening rehearsed out loud</span></label>
+      <label class="chk"><input type="checkbox"><span>Second-lien reframe loaded and ready</span></label>
+      <label class="chk"><input type="checkbox"><span>Phone away, email closed, standing up</span></label>
+    </div>
+
+    <div class="card" style="margin-top:1.1rem">
+      <h3>The 90-second self-score</h3>
+      <div class="checks" style="margin-top:0">
+        <label class="chk crit"><input type="checkbox"><span>Told the truth about why I called — <strong>if no, FAIL</strong></span></label>
+        <label class="chk crit"><input type="checkbox"><span>Honored any revocation — <strong>if no, FAIL</strong></span></label>
+        <label class="chk crit"><input type="checkbox"><span>Did not promise a rate before pricing — <strong>if no, FAIL</strong></span></label>
+        <label class="chk"><input type="checkbox"><span>Asked what the money is for</span></label>
+        <label class="chk"><input type="checkbox"><span>Handled their existing rate honestly</span></label>
+        <label class="chk"><input type="checkbox"><span>Raised the second lien, if legacy rate</span></label>
+        <label class="chk"><input type="checkbox"><span>Went silent when they disclosed something</span></label>
+        <label class="chk"><input type="checkbox"><span>Told them one true thing they didn’t know</span></label>
+        <label class="chk"><input type="checkbox"><span>Closed</span></label>
+        <label class="chk"><input type="checkbox"><span>Locked time + task + channel</span></label>
+      </div>
+      <p style="margin:0.9rem 0 0;font-size:0.84rem;line-height:1.55;color:var(--graphite)">Eight or more, consistently, puts you in the top decile of mortgage cold callers. For calibration: the best of the four analyzed transcripts scored <strong style="color:var(--ink)">49 out of 110</strong>, from an originator with genuinely good instincts.</p>
+    </div>
+  </section>
+
+  <footer>
+    <strong>Currency.</strong> Every rate, limit, and regulatory claim here is stamped as of <strong>August 2026</strong>. Mortgage facts rot fast. Re-verify before you put a number in front of a borrower, and confirm anything compliance-related with your compliance officer — this is training material, not legal advice.
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var q    = document.getElementById('q');
+    var list = document.getElementById('objlist');
+    var none = document.getElementById('noresult');
+    if (!q || !list || !none) return;
+
+    var items = Array.prototype.slice.call(list.querySelectorAll('.obj'));
+
+    q.addEventListener('input', function () {
+      var term = q.value.trim().toLowerCase();
+      var shown = 0;
+
+      items.forEach(function (el) {
+        var match = !term || el.textContent.toLowerCase().indexOf(term) !== -1;
+        el.classList.toggle('hide', !match);
+        if (match) shown++;
+      });
+
+      none.style.display = shown ? 'none' : 'block';
+    });
+  })();
+</script>
