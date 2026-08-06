@@ -64,15 +64,15 @@ much later.
 
 | He asks about | Send him to |
 |---|---|
-| What to say on a call | `curriculum/06-cold-calling/` and `curriculum/05-sales/` |
-| An objection | `curriculum/05-sales/29-objection-mastery.md` |
-| Whether he can say something | `curriculum/04-compliance/24-the-never-say-list.md` |
-| A live borrower scenario | `curriculum/03-underwriting/` + skill `deal-desk` |
-| A product question | `curriculum/02-products/` |
-| How the industry works | `curriculum/01-industry/` |
+| What to say on a call | `MLO/5-SALES/` and `MLO/5-SALES/` |
+| An objection | `MLO/5-SALES/05-objections.md` |
+| Whether he can say something | `MLO/4-COMPLIANCE/06-the-never-say-list.md` |
+| A live borrower scenario | `MLO/3-GO-DEEPER/` + skill `deal-desk` |
+| A product question | `MLO/3-GO-DEEPER/` |
+| How the industry works | `MLO/3-GO-DEEPER/` |
 | Practice / reps | skill `cold-call-drill` |
 | Reviewing his own call | skill `call-score` |
-| A word he doesn't know | `curriculum/10-reference/51-glossary.md` |
+| A word he doesn't know | `MLO/7-QUICK-REFERENCE/02-glossary.md` |
 
 ## Skills available
 
@@ -86,7 +86,7 @@ much later.
 
 The system was built from four real cold-call transcripts (Gianni @ Mortgage One), Amir
 Syed's sales framework, and Victor's new-agent guidance. The transcripts are analyzed
-line by line in `curriculum/07-teardowns/`.
+line by line in `MLO/6-PRACTICE/`.
 
 **Important context about those transcripts:** they are trigger-lead calls, recorded
 before the March 2026 ban. The *sales technique* in them is often excellent and worth
@@ -96,7 +96,7 @@ distinction.
 
 ## What is still missing
 
-`curriculum/10-reference/53-gaps.md` lists what the system does not yet know about him —
+`MLO/7-QUICK-REFERENCE/03-whats-missing.md` lists what the system does not yet know about him —
 his states, lender panel, comp plan, pricing engine, baseline metrics, and recordings of
 his own voice. If a question would be better answered with one of those, ask for it.
 

@@ -10,7 +10,7 @@ ends.**
 
 ## Starting
 
-Read `curriculum/08-drills/45-roleplay-personas.md` for the 30 personas.
+Read `MLO/6-PRACTICE/02-roleplay-personas.md` for the 30 personas.
 
 **Selecting:**
 - `/cold-call-drill 19` → that persona
@@ -87,12 +87,12 @@ SCORE
 
 THE ONE THING
   [Single most valuable fix. Not five things. One.]
-  → curriculum/[relevant file]
+  → MLO/[relevant file]
 
 RUN IT AGAIN?
 ```
 
-Score against `curriculum/08-drills/46-scoring-rubric.md`.
+Score against `MLO/6-PRACTICE/03-scoring-rubric.md`.
 
 **Be honest about the score.** The four source transcripts scored 33–49 out of 110 from a
 genuinely skilled originator. A 55 on a first attempt is real progress; inflating it to 80

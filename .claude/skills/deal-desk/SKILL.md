@@ -11,9 +11,9 @@ sales manager standing behind his desk.
 ## Before answering
 
 Read as needed:
-- `curriculum/03-underwriting/17-the-math-in-your-head.md` — the calculations
-- `curriculum/02-products/` — product fit
-- `curriculum/03-underwriting/13-the-four-cs.md` — qualification framing
+- `MLO/3-GO-DEEPER/underwriting-5-math-in-your-head.md` — the calculations
+- `MLO/3-GO-DEEPER/` — product fit
+- `MLO/3-GO-DEEPER/underwriting-1-the-four-cs.md` — qualification framing
 
 ## Output format
 
@@ -83,7 +83,7 @@ review.
 ## Flag the compensating factors
 
 When something looks marginal, look for the offset before concluding no
-(`curriculum/03-underwriting/13-the-four-cs.md`):
+(`MLO/3-GO-DEEPER/underwriting-1-the-four-cs.md`):
 
 - High DTI → reserves, job tenure, low LTV, high FICO
 - Low FICO → large down payment, low DTI, reserves

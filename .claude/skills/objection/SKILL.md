@@ -23,7 +23,7 @@ Fast, specific answers. He's probably about to dial.
 
 > That's a revocation, not an objection. Say: *"Understood — I'll take you off our list
 > right now. Sorry to have bothered you."* Then log it, internal DNC, permanently.
-> `curriculum/04-compliance/19-cold-calling-law.md`
+> `MLO/4-COMPLIANCE/01-cold-calling-law.md`
 
 ## Output format
 
@@ -47,7 +47,7 @@ PREVENT IT NEXT TIME
 
 ## The source
 
-Full matrix in `curriculum/05-sales/29-objection-mastery.md` — roughly 40 objections
+Full matrix in `MLO/5-SALES/05-objections.md` — roughly 40 objections
 organized by family (brush-offs, competitor, rate/price, trust/stalling, qualification,
 product, hostile). Read it and adapt; don't paste it wholesale.
 
@@ -72,7 +72,7 @@ common objections in this market, and both have the same answer:
 > untouched. When rates come down we consolidate."*
 
 If he's getting either objection and hasn't raised a second lien, that's the actual fix.
-`curriculum/02-products/11-seconds-heloc-heloan.md`
+`MLO/3-GO-DEEPER/product-6-second-liens-heloc.md`
 
 ## Never give him
 
@@ -84,7 +84,7 @@ If he's getting either objection and hasn't raised a second lien, that's the act
 
 If he asks for one of these, tell him why it's a problem and give the honest version —
 which usually converts better anyway.
-`curriculum/04-compliance/24-the-never-say-list.md`
+`MLO/4-COMPLIANCE/06-the-never-say-list.md`
 
 ## If he keeps hitting the same objection
 

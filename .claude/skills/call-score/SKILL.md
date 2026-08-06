@@ -6,14 +6,14 @@ description: Score a real mortgage sales call transcript against the 110-point r
 # Call Score
 
 Score a real call transcript the way the four source calls were scored in
-`curriculum/07-teardowns/`.
+`MLO/6-PRACTICE/`.
 
 ## Before scoring
 
 Read:
-- `curriculum/08-drills/46-scoring-rubric.md` — the rubric
-- `curriculum/04-compliance/24-the-never-say-list.md` — the compliance flags
-- `curriculum/07-teardowns/43-what-the-four-calls-teach.md` — the five patterns to look for
+- `MLO/6-PRACTICE/03-scoring-rubric.md` — the rubric
+- `MLO/4-COMPLIANCE/06-the-never-say-list.md` — the compliance flags
+- `MLO/6-PRACTICE/08-what-the-calls-teach.md` — the five patterns to look for
 
 If the user hasn't provided a transcript, ask for one. If they describe a call from memory,
 score what you can and say which categories you couldn't assess.
@@ -53,7 +53,7 @@ SCORE
 
 THE ONE THING
   [Single highest-value fix. One.]
-  → curriculum/[file]
+  → MLO/[file]
 ```
 
 ## Scoring principles
@@ -82,7 +82,7 @@ Auto-zero conditions:
 
 ## The five patterns to check for
 
-From `curriculum/07-teardowns/43-what-the-four-calls-teach.md`. Check every transcript
+From `MLO/6-PRACTICE/08-what-the-calls-teach.md`. Check every transcript
 against these — they're the failures that recur:
 
 1. **Did he ask what the money is for?** (All four transcripts failed this.)
@@ -108,7 +108,7 @@ You can't hear the call. Infer from tells and **say that you're inferring**:
 | Re-selling a point already agreed to | Not hearing the yes |
 
 Then note: *"To actually coach your tonality I need audio — see
-`curriculum/10-reference/53-gaps.md`."*
+`MLO/7-QUICK-REFERENCE/03-whats-missing.md`."*
 
 ## Tracking
 

@@ -37,18 +37,18 @@ substantive. Cite the path so he can go deeper.
 
 | Topic | File |
 |---|---|
-| What to say on a call | `curriculum/06-cold-calling/` |
-| Objections | `curriculum/05-sales/29-objection-mastery.md` |
-| "Can I say this?" | `curriculum/04-compliance/24-the-never-say-list.md` |
-| Cold calling law | `curriculum/04-compliance/19-cold-calling-law.md` |
+| What to say on a call | `MLO/5-SALES/` |
+| Objections | `MLO/5-SALES/05-objections.md` |
+| "Can I say this?" | `MLO/4-COMPLIANCE/06-the-never-say-list.md` |
+| Cold calling law | `MLO/4-COMPLIANCE/01-cold-calling-law.md` |
 | Live borrower scenario | skill `deal-desk` |
-| Products | `curriculum/02-products/` |
-| Math | `curriculum/03-underwriting/17-the-math-in-your-head.md` |
-| Industry mechanics | `curriculum/01-industry/` |
+| Products | `MLO/3-GO-DEEPER/` |
+| Math | `MLO/3-GO-DEEPER/underwriting-5-math-in-your-head.md` |
+| Industry mechanics | `MLO/3-GO-DEEPER/` |
 | Practice | skill `cold-call-drill` |
 | Reviewing his call | skill `call-score` |
-| A word he doesn't know | `curriculum/10-reference/51-glossary.md` |
-| What's missing | `curriculum/10-reference/53-gaps.md` |
+| A word he doesn't know | `MLO/7-QUICK-REFERENCE/02-glossary.md` |
+| What's missing | `MLO/7-QUICK-REFERENCE/03-whats-missing.md` |
 
 ## Non-negotiables
 
@@ -75,7 +75,7 @@ that rate and neither can anyone else."
 
 ## About the source transcripts
 
-Four real cold calls are analyzed in `curriculum/07-teardowns/`. The originator is
+Four real cold calls are analyzed in `MLO/6-PRACTICE/`. The originator is
 genuinely skilled — good tonality, good persistence, good forward motion. He is also
 working a lead source that no longer exists, and several of his specific lines carry real
 regulatory exposure.
@@ -86,7 +86,7 @@ him a line from those calls without that distinction.
 ## When you don't know
 
 Say so. Then say what would let you answer — usually something from
-`curriculum/10-reference/53-gaps.md` (his states, his lender panel, his comp plan, his
+`MLO/7-QUICK-REFERENCE/03-whats-missing.md` (his states, his lender panel, his comp plan, his
 numbers, recordings of his own calls).
 
 **Never invent a guideline, a rate, or a statistic.** If a number matters, tell him to
