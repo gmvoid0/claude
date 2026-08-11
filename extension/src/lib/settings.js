@@ -25,6 +25,12 @@ export const DEFAULT_PREFS = {
   defaultClosingCosts: 0,
   /** Show the "look up value" links built from the scraped address. */
   showLookupLinks: true,
+  /**
+   * Read the home value from a Zillow or Redfin tab you have open and offer
+   * it to the panel. Only the value and the property address are read, only
+   * on property pages, and only once you have enabled at least one site.
+   */
+  readValuationSites: true,
   /** Treat the VA funding fee as financed. */
   financeFee: true,
 };
@@ -55,6 +61,15 @@ export async function getEnabledSites() {
 export async function isSiteEnabled(origin) {
   const sites = await getEnabledSites();
   return sites[origin] === true;
+}
+
+/**
+ * True when the user has enabled the panel somewhere. Valuation-site reading
+ * stays off entirely until then, so a fresh install reads nothing anywhere.
+ */
+export async function anySiteEnabled() {
+  const sites = await getEnabledSites();
+  return Object.keys(sites).length > 0;
 }
 
 export async function setSiteEnabled(origin, enabled) {

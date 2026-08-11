@@ -69,6 +69,7 @@ function renderPrefs() {
   $('pollMs').value = prefs.pollMs ?? 400;
   $('resetValueOnNewRecord').checked = prefs.resetValueOnNewRecord !== false;
   $('showLookupLinks').checked = prefs.showLookupLinks !== false;
+  $('readValuationSites').checked = prefs.readValuationSites !== false;
   $('financeFee').checked = prefs.financeFee !== false;
   $('startCollapsed').checked = !!prefs.startCollapsed;
 }
@@ -163,6 +164,7 @@ async function save() {
     pollMs: clampInt($('pollMs').value, 0, 5000, 400),
     resetValueOnNewRecord: $('resetValueOnNewRecord').checked,
     showLookupLinks: $('showLookupLinks').checked,
+    readValuationSites: $('readValuationSites').checked,
     financeFee: $('financeFee').checked,
     startCollapsed: $('startCollapsed').checked,
   });

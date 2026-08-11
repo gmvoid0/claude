@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>809 SE 37th St, Battle Ground, WA 98604 | MLS #24601234 | Zillow</title>
+  <meta property="og:title" content="809 SE 37th St, Battle Ground, WA 98604 | MLS #24601234 | Zillow" />
+</head>
+<body>
+
+<!--
+  Stand-in for a Zillow property page.
+
+  Deliberately exercises the layered extraction: the Zestimate is present in
+  an embedded JSON payload (the structured path), and also rendered in the
+  DOM behind a trademark symbol (the fallback path). The page also carries
+  decoy figures a naive scrape would grab — a list price, a rent estimate, a
+  monthly payment, and tax history.
+-->
+
+<h1>809 SE 37th St, Battle Ground, WA 98604</h1>
+
+<div class="summary">
+  <div>Zestimate&reg;</div>
+  <div>$661,400</div>
+</div>
+
+<div class="facts">
+  <span>3 beds</span> <span>2 baths</span> <span>2,243 sqft</span>
+</div>
+
+<div class="decoys">
+  <div>Rent Zestimate&reg;: $3,150/mo</div>
+  <div>Est. payment: $4,027/mo</div>
+  <div>Last sold price: $412,000</div>
+  <div>Annual tax amount: $5,880</div>
+</div>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SingleFamilyResidence",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "809 SE 37th St",
+    "addressLocality": "Battle Ground",
+    "addressRegion": "WA",
+    "postalCode": "98604"
+  }
+}
+</script>
+
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"componentProps":{"gdpClientCache":"{\"property\":{\"zpid\":12345678,\"streetAddress\":\"809 SE 37th St\",\"city\":\"Battle Ground\",\"state\":\"WA\",\"zipcode\":\"98604\",\"price\":412000,\"zestimate\":661400,\"rentZestimate\":3150,\"livingArea\":2243,\"bedrooms\":3,\"bathrooms\":2,\"homeStatus\":\"OFF_MARKET\",\"taxAnnualAmount\":5880}}"}}},"page":"/homedetails/[zpid]","padding":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+</script>
+
+</body>
+</html>

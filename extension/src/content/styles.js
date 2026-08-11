@@ -61,6 +61,7 @@ export const PANEL_CSS = `
 .row .src.auto { color: #0d9488; }
 .row .src.manual { color: #c2410c; }
 .row .src.bound { color: #7c3aed; }
+.row .src.external { color: #15803d; }
 
 input[type=text], input[type=number], select {
   width: 100%; padding: 6px 8px; font-size: 13px; font-family: inherit;
@@ -131,6 +132,30 @@ input.warnval { border-color: #f59e0b; background: #fffbeb; }
 .btn.primary:hover { background: #1d4ed8; }
 .btn.picking { background: #7c3aed; border-color: #7c3aed; color: #fff; }
 .btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+/* --- value pulled from a Zillow / Redfin tab --- */
+.ext {
+  margin-top: 6px; padding: 6px 7px; border-radius: 6px;
+  border: 1px solid #e2e8f0; background: #f8fafc;
+}
+.ext.ok   { border-color: #86efac; background: #f0fdf4; }
+.ext.warn { border-color: #fcd34d; background: #fffbeb; }
+.ext.bad  { border-color: #e2e8f0; background: #f8fafc; }
+
+.ext-top { display: flex; align-items: center; gap: 6px; }
+.ext-top b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.ext-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 6px; border-radius: 999px; flex: none;
+}
+.ext-badge.ok   { background: #dcfce7; color: #15803d; }
+.ext-badge.warn { background: #fef3c7; color: #92400e; }
+.ext-badge.bad  { background: #e2e8f0; color: #475569; }
+.ext-addr {
+  font-size: 10px; color: #64748b; margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.btn.tiny { margin-left: auto; padding: 3px 8px; font-size: 10px; }
 
 .lookup { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 .lookup a {

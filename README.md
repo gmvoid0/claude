@@ -81,6 +81,51 @@ failure this tool could have.
 
 ---
 
+## Pulling the value from Zillow
+
+Click **Open in Zillow** on the panel and it opens the lead's address. When
+that tab loads, the value and the property address come back to the panel
+automatically.
+
+```
+Home value  [ 661,400 ]  pulled · Zillow Zestimate
+┌──────────────────────────────────────────────┐
+│ ZILLOW · MATCHED   $661,400                  │
+│ 809 SE 37th St, Battle Ground, WA 98604      │
+└──────────────────────────────────────────────┘
+```
+
+**It only fills itself in on an exact address match.** House number and
+street must agree, and if both sides carry a ZIP those must agree too.
+Anything less is shown as a suggestion with the address visible and a **Use**
+button, for you to accept. The house next door does not match. A different
+lead does not match.
+
+That restraint is the whole point. On a call floor you may have several
+property tabs open, and silently attaching the last one's value to whoever is
+on the line would produce a confident, wrong cash-out number — worse than no
+number at all.
+
+### What this deliberately isn't
+
+It reads a page **you have open**, in your own session, rendered normally —
+the same thing any browser extension does. It does not fetch, crawl, or
+request anything from Zillow in the background. That restraint is not
+squeamishness:
+
+- Zillow retired its public Zestimate API, so there is no sanctioned
+  programmatic route left.
+- Their terms of use prohibit automated access.
+- It wouldn't work anyway. Background requests carry no real session and hit
+  bot protection within minutes; at call-centre volume that means CAPTCHAs
+  and then a blocked office IP.
+
+Reading a tab you opened yourself has none of those problems and gets you the
+same number.
+
+Redfin works the same way. Turn the whole behaviour off in settings if you
+don't want it.
+
 ## The rules it encodes
 
 Defaults for a **cash-out refinance, owner-occupied, one unit**:
@@ -145,9 +190,10 @@ The extension flags any value it read from an AVM and can apply a haircut
 below the headline figure. It cannot tell you what the property will actually
 appraise for. Nothing can.
 
-### Reading the other extension's panel is not guaranteed
+### Reading another extension's panel is not guaranteed
 
-Whether the AVM value can be read depends on how that extension renders it:
+If you'd rather keep using MOF Assistant than open Zillow directly, whether
+its value can be read depends on how that extension renders its panel:
 
 | How it renders | Readable? |
 | --- | --- |
@@ -158,11 +204,9 @@ Whether the AVM value can be read depends on how that extension renders it:
 | Separate popup window | no |
 | `<canvas>` / WebGL | no |
 
-The first three cover the overwhelming majority of injected panels, but I
-can't tell which one applies without running it on your machine. If it turns
-out to be a closed shadow root or a separate window, the fallback is
-unchanged: read the number off the panel and type it, which is one field and
-about two seconds. Everything else still auto-fills.
+The first three cover the overwhelming majority of injected panels. If it
+turns out to be a closed shadow root or a separate window, use **Open in
+Zillow** instead — that path doesn't depend on another extension at all.
 
 ### Detection breaks when pages change
 
@@ -219,6 +263,12 @@ you've enabled. The extension declares broad host permissions because it
 can't know in advance which site you'll use it on, but it stays completely
 inert on every site until you explicitly enable that site.
 
+Zillow and Redfin are the one qualified exception, and it is narrow: once
+you've enabled at least one site, those two are read for a home value and a
+property address and nothing else, only on property pages, and the value is
+held in memory rather than written to disk. Turn it off in settings and they
+are treated like any other site.
+
 ---
 
 ## Development
@@ -231,10 +281,15 @@ npm run test:dom     # detection against real DOM fixtures in Chromium
 npm run icons        # regenerate the PNGs
 ```
 
-57 tests. The DOM tests run against fixtures reproducing the real screens:
-a VICIdial form with deliberately misleading `name` attributes, an
-absolutely-positioned layout with no attributes at all, and an AVM card in a
-shadow root with bed/bath/sqft decoys around it.
+72 tests. The DOM tests run against fixtures reproducing the real screens: a
+VICIdial form with deliberately misleading `name` attributes, an
+absolutely-positioned layout with no attributes at all, an AVM card in a
+shadow root, and a Zillow property page carrying a list price, a rent
+estimate and a tax figure as decoys around the Zestimate.
+
+The address matcher is tested hardest in the direction that matters — that a
+neighbouring house, a same-named street in another state, and an unrelated
+lead all fail to match.
 
 ```
 extension/
@@ -246,6 +301,8 @@ extension/
       equity.js     the calculation engine — pure, no DOM
       detect.js     field detection: pure scoring + DOM harvesting
       selector.js   stable selectors for click-to-bind
+      address.js    address normalization and match confidence
+      valuation.js  reading a value off a Zillow / Redfin tab
       settings.js   chrome.storage wrapper
     content/        panel, picker, orchestrator
     background/     frame relay + settings broadcast

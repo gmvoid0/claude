@@ -20,8 +20,10 @@ import { computeEquity, solveBalanceFromPayment } from '../lib/equity.js';
 import { mergeRules, normalizeProgram, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
+import { extractValuation, valuationSite } from '../lib/valuation.js';
+import { compareAddresses, joinAddress, zillowSearchUrl, redfinSearchUrl } from '../lib/address.js';
 import {
-  isSiteEnabled, setSiteEnabled, getBindings, setBinding,
+  isSiteEnabled, setSiteEnabled, getBindings, setBinding, anySiteEnabled,
   getRuleOverrides, getPrefs, getPanelPos, setPanelPos, setPrefs,
 } from '../lib/settings.js';
 import { Panel } from './panel.js';
@@ -50,6 +52,7 @@ const state = {
   },
   avmTouched: false,     // true once the agent sets the AVM flag by hand
   frameFields: {},       // fields harvested from child frames
+  externalValue: null,   // latest value seen on a Zillow/Redfin tab
   recordKey: null,
   recordLabel: '',
   lastSignature: '',
@@ -61,6 +64,18 @@ const state = {
 
 export async function start() {
   state.prefs = await getPrefs();
+
+  // On a valuation site this runs as a reporter only: it reads the home value
+  // and the property address, hands them to the panel on the dialer tab, and
+  // renders nothing itself.
+  const site = valuationSite(location.hostname);
+  if (site) {
+    if (state.prefs.readValuationSites !== false && await anySiteEnabled()) {
+      startValuationReporter();
+    }
+    return;
+  }
+
   state.rules = mergeRules(await getRuleOverrides());
   state.enabled = await isSiteEnabled(state.origin);
 
@@ -113,6 +128,13 @@ function handleMessage(msg, _sender, sendResponse) {
       }
       return;
 
+    case 'EQ_EXTERNAL_VALUE':
+      if (IS_TOP && msg.valuation) {
+        state.externalValue = msg.valuation;
+        recompute();
+      }
+      return;
+
     case 'EQ_SETTINGS_CHANGED':
       reloadSettings();
       return;
@@ -124,6 +146,56 @@ async function reloadSettings() {
   state.rules = mergeRules(await getRuleOverrides());
   state.bindings = await getBindings(state.page);
   scheduleRecompute();
+}
+
+/* ------------------------------------------------------------------ *
+ * Valuation-site reporter
+ * ------------------------------------------------------------------ */
+
+/**
+ * Watch a Zillow/Redfin tab and report the property value it is showing.
+ *
+ * These sites are single-page apps: navigating between properties swaps the
+ * content without a page load, so this re-reads on mutation as well as on a
+ * slow interval, and only sends when the value or address actually changes.
+ */
+function startValuationReporter() {
+  let lastSignature = null;
+
+  const report = () => {
+    let found = null;
+    try {
+      found = extractValuation(document, location);
+    } catch { /* markup changed under us; try again next tick */ }
+    if (!found) return;
+
+    const signature = `${found.value}|${found.address}`;
+    if (signature === lastSignature) return;
+    lastSignature = signature;
+
+    try {
+      chrome.runtime.sendMessage({ type: 'EQ_VALUATION_REPORT', valuation: found });
+    } catch { /* worker asleep or context torn down */ }
+  };
+
+  const debounced = debounce(report, 400);
+
+  report();
+  try {
+    new MutationObserver(debounced).observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  } catch { /* interval still covers it */ }
+  setInterval(report, 2000);
+}
+
+function debounce(fn, ms) {
+  let timer = null;
+  return () => {
+    clearTimeout(timer);
+    timer = setTimeout(fn, ms);
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -148,6 +220,14 @@ async function activate() {
         recompute();
       },
       onPick: (field) => beginPick(field),
+      onUseExternal: () => {
+        const ext = state.externalValue;
+        if (!ext?.value) return;
+        state.manual.propertyValue = String(ext.value);
+        state.overrides.valueIsAvm = true;
+        state.avmTouched = true;
+        recompute();
+      },
       onSolveChange: (fields) => showSolvedBalance(fields),
       onUseSolved: (fields) => {
         const solved = solveFrom(fields);
@@ -182,6 +262,12 @@ async function activate() {
     });
 
     window.addEventListener('keydown', onHotkey, true);
+
+    // A valuation tab may have been read before this panel existed.
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'EQ_REQUEST_VALUATION' });
+      if (res?.valuation) state.externalValue = res.valuation;
+    } catch { /* worker asleep; the next report will push it */ }
   }
 
   installWatchers();
@@ -276,6 +362,7 @@ function scan(force) {
       state.overrides.ltvOverride = '';
       state.overrides.loanLimit = '';
       state.avmTouched = false;
+      state.appliedExternalFor = null;
     }
   }
 
@@ -396,6 +483,7 @@ function recompute() {
   if (!IS_TOP || !state.panel) return;
 
   const inputs = effectiveInputs();
+  const external = applyExternalValue(inputs);
 
   // The AVM flag follows detection until the agent overrides it by hand;
   // the override then sticks until the next record.
@@ -423,11 +511,74 @@ function recompute() {
     inputs,
     overrides: state.overrides,
     result,
+    external,
     recordLabel: state.recordLabel,
     live: state.running,
     picking: state.picking,
     showLookupLinks: state.prefs?.showLookupLinks !== false,
+    lookupUrls: buildLookupUrls(inputs),
   });
+}
+
+/** The lead's address as one line, for matching and for lookup links. */
+function leadAddress(inputs) {
+  return joinAddress({
+    street: inputs.street?.value,
+    city: inputs.city?.value,
+    state: inputs.state?.value,
+    zip: inputs.zip?.value,
+  });
+}
+
+function buildLookupUrls(inputs) {
+  const address = leadAddress(inputs);
+  if (!address) return null;
+  return {
+    address,
+    zillow: zillowSearchUrl(address),
+    redfin: redfinSearchUrl(address),
+  };
+}
+
+/**
+ * Decide what to do with a value read from a Zillow/Redfin tab.
+ *
+ * It is only filled in automatically when the address is an exact match for
+ * the lead on screen. Anything less is shown as a suggestion for the agent to
+ * accept, because quietly attaching one property's value to a different
+ * borrower is the most damaging mistake this tool could make.
+ *
+ * Mutates `inputs.propertyValue` when it applies. Returns the state the panel
+ * needs to render the suggestion row.
+ */
+function applyExternalValue(inputs) {
+  const ext = state.externalValue;
+  if (!ext?.value) return null;
+
+  const address = leadAddress(inputs);
+  const comparison = address
+    ? compareAddresses(address, ext.address)
+    : { confidence: 'none', reason: 'no address on the lead' };
+
+  const alreadySet = inputs.propertyValue.value !== '';
+  const applied =
+    comparison.confidence === 'exact' &&
+    (!alreadySet || state.appliedExternalFor === ext.address);
+
+  if (applied) {
+    state.appliedExternalFor = ext.address;
+    inputs.propertyValue = {
+      value: String(ext.value),
+      num: ext.value,
+      source: 'external',
+      sourceLabel: `${ext.siteLabel} ${ext.valueLabel}`,
+      isAvm: true,
+      implausible: false,
+      normalized: null,
+    };
+  }
+
+  return { ...ext, comparison, applied };
 }
 
 /**

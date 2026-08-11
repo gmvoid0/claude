@@ -77,6 +77,18 @@
     <label class="check"><input type="checkbox" id="showLookupLinks" />
       Show value-lookup links built from the scraped address
     </label>
+    <label class="check"><input type="checkbox" id="readValuationSites" />
+      Pull the home value from Zillow / Redfin tabs you open
+      <span class="help">
+        Reads the value and property address from a Zillow or Redfin page you
+        have open, and offers it to the panel. It only ever reads a page you
+        loaded yourself — nothing is fetched or crawled in the background.
+        The value is filled in automatically only when the address is an exact
+        match for the lead on screen; otherwise it is shown as a suggestion
+        with the address, for you to accept. Stays off entirely until you have
+        enabled at least one site.
+      </span>
+    </label>
     <label class="check"><input type="checkbox" id="financeFee" />
       Assume the upfront fee is financed
     </label>

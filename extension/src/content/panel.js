@@ -66,6 +66,12 @@ export class Panel {
       valueSrc: q('[data-src=propertyValue]'),
       lookup: q('.lookup'),
 
+      extRow: q('[data-ext=row]'),
+      extBadge: q('[data-ext=badge]'),
+      extValue: q('[data-ext=value]'),
+      extAddr: q('[data-ext=addr]'),
+      btnUseExt: q('[data-act=use-ext]'),
+
       first: q('[data-in=firstLien]'),
       firstSrc: q('[data-src=firstLien]'),
       second: q('[data-in=secondLien]'),
@@ -140,6 +146,7 @@ export class Panel {
     }
     els.btnUseSolved.addEventListener('click', () => this.h.onUseSolved?.(this.readSolver()));
 
+    els.btnUseExt.addEventListener('click', () => this.h.onUseExternal?.());
     els.btnCopy.addEventListener('click', () => this.h.onCopy?.());
     els.btnReset.addEventListener('click', () => this.h.onReset?.());
     els.btnPickValue.addEventListener('click', () => this.h.onPick?.('propertyValue'));
@@ -261,6 +268,9 @@ export class Panel {
     els.btnPickValue.classList.toggle('picking', picking === 'propertyValue');
     els.btnPickFirst.classList.toggle('picking', picking === 'firstLien');
 
+    // --- value read from a Zillow / Redfin tab
+    this.renderExternal(state.external);
+
     // --- lookup links
     this.renderLookup(state);
 
@@ -359,33 +369,65 @@ export class Panel {
     }
   }
 
-  renderLookup(state) {
-    const { inputs, showLookupLinks } = state;
-    const host = this.els.lookup;
-    const street = inputs.street?.value;
-    const city = inputs.city?.value;
-    const st = inputs.state?.value;
-    const zip = inputs.zip?.value;
+  /**
+   * The value seen on a Zillow/Redfin tab.
+   *
+   * Whether it was applied or is merely on offer is the important thing to
+   * communicate, so the address it belongs to is always visible and a
+   * non-matching address is called out rather than quietly ignored.
+   */
+  renderExternal(external) {
+    const { els } = this;
+    if (!external?.value) {
+      els.extRow.style.display = 'none';
+      return;
+    }
 
-    if (!showLookupLinks || !street) {
+    els.extRow.style.display = '';
+
+    const confidence = external.comparison?.confidence ?? 'none';
+    const applied = !!external.applied;
+
+    els.extValue.textContent = formatMoney(external.value);
+    els.extAddr.textContent = external.address ?? '';
+    els.btnUseExt.style.display = applied ? 'none' : '';
+
+    if (applied) {
+      els.extBadge.textContent = `${external.siteLabel} · matched`;
+      els.extBadge.className = 'ext-badge ok';
+      els.extRow.className = 'ext ok';
+    } else if (confidence === 'likely') {
+      els.extBadge.textContent = `${external.siteLabel} · check address`;
+      els.extBadge.className = 'ext-badge warn';
+      els.extRow.className = 'ext warn';
+    } else {
+      els.extBadge.textContent = `${external.siteLabel} · different address`;
+      els.extBadge.className = 'ext-badge bad';
+      els.extRow.className = 'ext bad';
+    }
+  }
+
+  renderLookup(state) {
+    const { showLookupLinks, lookupUrls } = state;
+    const host = this.els.lookup;
+
+    if (!showLookupLinks || !lookupUrls?.address) {
       host.style.display = 'none';
       return;
     }
 
-    const full = [street, city, st, zip].filter(Boolean).join(', ');
-    const sig = full;
-    if (host.dataset.sig === sig) return;
-    host.dataset.sig = sig;
+    if (host.dataset.sig === lookupUrls.address) return;
+    host.dataset.sig = lookupUrls.address;
 
     host.style.display = '';
     host.textContent = '';
-    const q = encodeURIComponent(full);
+
     const links = [
-      ['Zillow', `https://www.zillow.com/homes/${q}_rb/`],
-      ['Redfin', `https://www.redfin.com/search?query=${q}`],
-      ['Search', `https://www.google.com/search?q=${q}+home+value`],
+      ['Open in Zillow', lookupUrls.zillow],
+      ['Redfin', lookupUrls.redfin],
     ];
     for (const [text, href] of links) {
+      if (!href) continue;
       const a = document.createElement('a');
       a.href = href;
       a.target = '_blank';
@@ -403,7 +445,7 @@ function setSrc(el, field) {
     el.className = 'src';
     return;
   }
-  const map = { auto: 'auto', manual: 'typed', bound: 'bound' };
+  const map = { auto: 'auto', manual: 'typed', bound: 'bound', external: 'pulled' };
   el.textContent = field.sourceLabel
     ? `${map[field.source] ?? field.source} · ${field.sourceLabel}`
     : (map[field.source] ?? '');
@@ -428,6 +470,16 @@ const TEMPLATE = `
     <label>Home value <span class="src" data-src="propertyValue"></span></label>
     <input type="text" class="hero" data-in="propertyValue" placeholder="$0" inputmode="decimal" />
     <div class="hint" data-hint="propertyValue"></div>
+
+    <div class="ext" data-ext="row" style="display:none">
+      <div class="ext-top">
+        <span class="ext-badge" data-ext="badge"></span>
+        <b data-ext="value"></b>
+        <button class="btn tiny" data-act="use-ext">Use</button>
+      </div>
+      <div class="ext-addr" data-ext="addr"></div>
+    </div>
+
     <div class="lookup"></div>
   </div>
 

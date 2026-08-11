@@ -330,6 +330,95 @@ test('AVM value plus dialer balance produces a haircut screening figure', { skip
   }
 });
 
+test('extracts the Zestimate and address from a Zillow property page', { skip }, async () => {
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/zillow-property.html`);
+
+    const found = await page.evaluate(async (origin) => {
+      const { extractValuation } = await import(`${origin}/extension/src/lib/valuation.js`);
+      // The fixture is served from localhost, so pass a Zillow-shaped location.
+      return extractValuation(document, {
+        hostname: 'www.zillow.com',
+        href: 'https://www.zillow.com/homedetails/12345678_zpid/',
+      });
+    }, `http://127.0.0.1:${port}`);
+
+    assert.ok(found, 'expected a valuation');
+    assert.equal(found.value, 661400);
+    assert.equal(found.site, 'zillow');
+    assert.equal(found.isAvm, true);
+    assert.match(found.address, /809 SE 37th St/);
+    assert.match(found.address, /98604/);
+
+    // Decoys on the same page must not win.
+    assert.notEqual(found.value, 412000);   // last sold price
+    assert.notEqual(found.value, 3150);     // rent estimate
+    assert.notEqual(found.value, 5880);     // annual tax
+  } finally {
+    await page.close();
+  }
+});
+
+test('a Zillow value still resolves when the embedded JSON is gone', { skip }, async () => {
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/zillow-property.html`);
+
+    // Simulate Zillow changing its payload shape, which they do regularly.
+    const found = await page.evaluate(async (origin) => {
+      document.getElementById('__NEXT_DATA__')?.remove();
+      const { extractValuation } = await import(`${origin}/extension/src/lib/valuation.js`);
+      return extractValuation(document, {
+        hostname: 'www.zillow.com',
+        href: 'https://www.zillow.com/homedetails/12345678_zpid/',
+      });
+    }, `http://127.0.0.1:${port}`);
+
+    assert.ok(found, 'should fall back to reading the rendered page');
+    assert.equal(found.value, 661400);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a Zillow value only auto-fills when the address matches the lead', { skip }, async () => {
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/zillow-property.html`);
+
+    const out = await page.evaluate(async (origin) => {
+      const { extractValuation } = await import(`${origin}/extension/src/lib/valuation.js`);
+      const { compareAddresses } = await import(`${origin}/extension/src/lib/address.js`);
+
+      const found = extractValuation(document, {
+        hostname: 'www.zillow.com',
+        href: 'https://www.zillow.com/homedetails/12345678_zpid/',
+      });
+
+      return {
+        value: found.value,
+        // The lead actually on screen.
+        sameLead: compareAddresses('809 SE 37TH ST, BATTLE GROUND, WA 98604', found.address).confidence,
+        // A different lead the agent happens to be talking to.
+        otherLead: compareAddresses('189 LEDGERWOOD LN, ROCKWOOD, TN 37854', found.address).confidence,
+        // Same street, wrong house.
+        neighbour: compareAddresses('811 SE 37TH ST, BATTLE GROUND, WA 98604', found.address).confidence,
+      };
+    }, `http://127.0.0.1:${port}`);
+
+    assert.equal(out.value, 661400);
+    assert.equal(out.sameLead, 'exact', 'the matching lead should auto-fill');
+    assert.equal(out.otherLead, 'none', 'a different property must never auto-fill');
+    assert.equal(out.neighbour, 'none', 'the house next door must never auto-fill');
+  } finally {
+    await page.close();
+  }
+});
+
 test('a Texas record produces the 80% cap end to end', { skip }, async () => {
   const { browser, port } = await setup();
   const page = await browser.newPage();
