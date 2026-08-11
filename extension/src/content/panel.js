@@ -314,14 +314,7 @@ export class Panel {
 
     els.maxLoan.textContent = formatMoney(result?.maxBaseLoan);
 
-    // Equity sits beside the value the agent is typing, so it carries the same
-    // red/green reading as the headline: green when there is something to work
-    // with, red when the borrower is underwater.
-    const equity = result?.grossEquity;
-    els.equity.textContent = formatMoney(equity);
-    els.equity.className = equity == null
-      ? 'bignum none'
-      : `bignum ${equity > 0 ? 'good' : 'bad'}`;
+    els.equity.textContent = formatMoney(result?.grossEquity);
 
     // An assumed loan type is a question for the borrower, not a detail.
     els.programRow.classList.toggle('flagged', !!result?.programAssumed);
@@ -507,10 +500,6 @@ const TEMPLATE = `
       <label>Home value <span class="src" data-src="propertyValue"></span></label>
       <input type="text" class="hero" data-in="propertyValue" placeholder="$0" inputmode="decimal" />
     </div>
-    <div class="pair-cell">
-      <label>Equity available</label>
-      <div class="bignum" data-out="equity">—</div>
-    </div>
   </div>
   <div class="hint" data-hint="propertyValue"></div>
 
@@ -559,6 +548,7 @@ const TEMPLATE = `
     <summary>Detail</summary>
     <div class="grid">
       <div class="cell"><div class="k">Max loan</div><div class="v" data-out="maxLoan">—</div></div>
+      <div class="cell"><div class="k">Gross equity</div><div class="v" data-out="equity">—</div></div>
       <div class="cell"><div class="k">Current LTV</div><div class="v sub" data-out="currentLtv">—</div></div>
       <div class="cell"><div class="k">Max LTV</div><div class="v sub" data-out="maxLtv">—</div></div>
       <div class="cell" data-row="fee"><div class="k">Fee</div><div class="v sub" data-out="fee">—</div></div>

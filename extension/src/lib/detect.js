@@ -338,6 +338,16 @@ export function looksLikeFigure(text) {
   return MONEY_TEXT_RE.test(String(text ?? '').trim());
 }
 
+/**
+ * Traversal caps.
+ *
+ * Per-root rather than one shared pool, so a text-heavy host document can
+ * never starve a small injected panel. The total keeps a pathological page
+ * from making each scan expensive — this runs several times a second.
+ */
+const TEXT_NODE_ROOT_CAP = 3000;
+const TEXT_NODE_TOTAL_CAP = 9000;
+
 /** Labels that mean the figure is an automated estimate, not an appraisal. */
 const AVM_LABEL_RE = /\b(zestimate|redfin\s*estimate|avm|rvm|automated\s*valuation|estimated\s*(home\s*)?value|home\s*value\s*estimate|estimate)\b/i;
 
@@ -391,26 +401,59 @@ export function collectCandidates(root = document) {
 
   // Text holders are pooled across every root so a label in the light DOM can
   // still be matched to a field inside a shadow root, and vice versa —
-  // getBoundingClientRect is in viewport coordinates either way. The budget
-  // is shared, so a page with many shadow roots costs the same as one with
-  // none.
+  // getBoundingClientRect is in viewport coordinates either way.
+  //
+  // Shadow roots are traversed *before* the host document, and every root gets
+  // its own cap rather than drawing from one shared pool. Both details matter:
+  // a dialer screen carries thousands of short text nodes, while the injected
+  // panel holding the home value carries a handful. Walking in document order
+  // against a shared budget let the host page exhaust it and the panel was
+  // never reached at all.
   const textHolders = [];
-  let budget = 4000;
-  for (const r of roots) {
-    if (budget <= 0) break;
-    const found = collectTextHolders(r, budget);
+  const ordered = roots.length > 1 ? [...roots.slice(1), roots[0]] : roots;
+
+  let used = 0;
+  for (const r of ordered) {
+    if (used >= TEXT_NODE_TOTAL_CAP) break;
+    const share = Math.min(TEXT_NODE_ROOT_CAP, TEXT_NODE_TOTAL_CAP - used);
+    const found = collectTextHolders(r, share);
     textHolders.push(...found);
-    budget -= found.length;
+    used += found.length;
   }
 
   const labelHolders = textHolders.filter((h) => !MONEY_TEXT_RE.test(h.text));
+
+  /**
+   * Labels grouped by the root they live in.
+   *
+   * Geometry alone is not enough to pair a label with a value. A panel
+   * injected over a host page has that page's text sitting immediately to its
+   * left, often closer than its own caption directly above — so the nearest
+   * text is frequently something from an unrelated interface. Restricting the
+   * search to the same root first keeps a card's caption bound to that card's
+   * figure. The full set stays available as a fallback, so a label in the
+   * light DOM can still describe a field inside a shadow root when there is
+   * genuinely nothing nearer.
+   */
+  const byRoot = new Map();
+  for (const holder of labelHolders) {
+    if (!byRoot.has(holder.root)) byRoot.set(holder.root, []);
+    byRoot.get(holder.root).push(holder);
+  }
+  const sameRegionAs = (el) => {
+    try {
+      return byRoot.get(el.getRootNode?.()) ?? null;
+    } catch {
+      return null;
+    }
+  };
 
   // --- form controls
   for (const r of roots) {
     for (const el of safeQueryAll(r, INPUT_SELECTOR)) {
       if (!isVisible(el)) continue;
       if (el.closest?.(`#${PANEL_HOST_ID}`)) continue;
-      const { label, labelSource } = findLabel(el, labelHolders);
+      const { label, labelSource } = findLabel(el, sameRegionAs(el) ?? labelHolders, labelHolders);
       if (!label) continue;
       candidates.push({
         uid: ++uid,
@@ -445,11 +488,13 @@ export function collectCandidates(root = document) {
     // --- a bare figure whose label sits above or beside it.
     //     This is the shape AVM cards use: "Zestimate®" then "$661,400".
     if (!MONEY_TEXT_RE.test(holder.text)) continue;
-    // Each of these costs a scan over every label, so cap how many are
-    // considered; a page with 40 figures on it is a listing index, not a
-    // property record.
-    if (++moneyCandidates > 40) break;
-    const label = nearestTextByPosition(holder.el, labelHolders);
+    // Each of these costs a scan over every label, so the count is capped.
+    // Generous enough that a busy dialer screen cannot push a valuation card
+    // past the limit before it is considered.
+    if (++moneyCandidates > 250) break;
+    const region = sameRegionAs(holder.el);
+    const label = (region && nearestTextByPosition(holder.el, region))
+      ?? nearestTextByPosition(holder.el, labelHolders);
     if (!label) continue;
     candidates.push({
       uid: ++uid,
@@ -480,7 +525,7 @@ export function readValue(el) {
 /**
  * Work out what an input is labelled, trying increasingly loose strategies.
  */
-function findLabel(el, textHolders) {
+function findLabel(el, textHolders, fallbackHolders = null) {
   // 1. Explicit <label for>
   const doc = el.ownerDocument;
   if (el.id) {
@@ -528,7 +573,10 @@ function findLabel(el, textHolders) {
 
   // 5. Geometric: nearest short text to the left, else directly above.
   //    This is what handles absolutely-positioned agent screens.
-  const geo = nearestTextByPosition(el, textHolders);
+  const geo = nearestTextByPosition(el, textHolders)
+    ?? (fallbackHolders && fallbackHolders !== textHolders
+      ? nearestTextByPosition(el, fallbackHolders)
+      : null);
   if (geo) return { label: geo, labelSource: 'geometric' };
 
   // 6. Attribute fallbacks
@@ -603,7 +651,7 @@ function collectTextHolders(root, budget = 4000) {
     const rect = rectOf(el);
     if (!rect || (rect.width === 0 && rect.height === 0)) continue;
 
-    holders.push({ el, text, rect });
+    holders.push({ el, text, rect, root });
   }
   return holders;
 }

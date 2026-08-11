@@ -272,6 +272,26 @@ test('reads an AVM value out of another extension\'s shadow-root panel', { skip 
   }
 });
 
+test('a busy host page does not starve the injected AVM panel', { skip }, async () => {
+  // Regression: traversal budget was consumed in document order, so a large
+  // host document exhausted it before any shadow root was reached and the one
+  // element carrying the home value was never examined. Invisible on a small
+  // fixture, total failure on a real dialer screen.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const got = await detectOn(page, 'busy-page-avm.html');
+
+    assert.equal(got.propertyValue?.raw, '$412,700',
+      'the AVM value must survive a text-heavy host page');
+    assert.equal(got.firstLien?.raw, '200000');
+    assert.equal(got.state?.raw, 'ID');
+    assert.equal(got.program?.raw, 'VA');
+  } finally {
+    await page.close();
+  }
+});
+
 test('bed / bath / sqft and a monthly payment are not mistaken for the value', { skip }, async () => {
   const { browser } = await setup();
   const page = await browser.newPage();

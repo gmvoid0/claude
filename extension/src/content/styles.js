@@ -390,9 +390,7 @@ input.warnval {
  * ------------------------------------------------------------------ */
 
 .pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  display: block;
   background: var(--card);
   border: 0.5px solid var(--hairline);
   border-radius: var(--r-card);
