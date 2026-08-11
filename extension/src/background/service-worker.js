@@ -78,7 +78,30 @@ function closeLookup(tabId) {
   chrome.tabs.remove(tabId).catch(() => { /* already gone */ });
 }
 
+/**
+ * An application waiting to be typed into Salesforce.
+ *
+ * Held rather than pushed, because the form may not be open yet. Whichever
+ * Salesforce tab reports itself next collects it, fills what it can, and
+ * reports back what actually landed.
+ */
+let pendingHandoff = null;
+const HANDOFF_TTL_MS = 10 * 60 * 1000;
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === 'SAM_HANDOFF') {
+    pendingHandoff = { plan: msg.plan, at: Date.now(), fromTab: sender?.tab?.id ?? null };
+    deliverHandoff().then((report) => sendResponse?.(report));
+    return true;
+  }
+
+  if (msg?.type === 'SAM_HANDOFF_CLAIM') {
+    const fresh = pendingHandoff && Date.now() - pendingHandoff.at < HANDOFF_TTL_MS;
+    sendResponse?.({ plan: fresh ? pendingHandoff.plan : null });
+    if (fresh) pendingHandoff = null;
+    return true;
+  }
+
   if (msg?.type === 'SAM_OPEN_LOOKUP') {
     openLookup(msg);
     sendResponse?.({ ok: true });
@@ -133,6 +156,41 @@ async function broadcastSettings() {
       ),
     );
   } catch { /* tabs permission unavailable */ }
+}
+
+/**
+ * Offer the pending application to an open Salesforce tab.
+ * Returns a report the panel can show verbatim.
+ */
+async function deliverHandoff() {
+  if (!pendingHandoff) return { ok: false, reason: 'nothing-to-send' };
+
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({
+      url: ['https://*.my.site.com/*', 'https://*.lightning.force.com/*', 'https://*.force.com/*'],
+    });
+  } catch {
+    return { ok: false, reason: 'no-permission' };
+  }
+
+  if (!tabs.length) return { ok: false, reason: 'no-tab' };
+
+  for (const tab of tabs) {
+    if (tab.id == null) continue;
+    try {
+      const report = await chrome.tabs.sendMessage(tab.id, {
+        type: 'SAM_FILL_FORM',
+        plan: pendingHandoff.plan,
+      });
+      if (report?.ok) {
+        pendingHandoff = null;
+        return { ...report, tabId: tab.id };
+      }
+    } catch { /* no listener on that tab; try the next */ }
+  }
+
+  return { ok: false, reason: 'no-form' };
 }
 
 chrome.runtime.onInstalled.addListener((details) => {

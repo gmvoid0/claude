@@ -34,8 +34,8 @@ import {
 import { saveApplication } from '../lib/settings.js';
 import { Panel } from './panel.js';
 import { pickElement } from './picker.js';
-import { startListening, speechSupported } from './listen.js';
-import { extractFacts, mergeProposals } from '../lib/speech.js';
+import { fillForm } from './fill.js';
+import { isSalesforceHost, planFill } from '../lib/salesforce.js';
 
 const IS_TOP = window.top === window;
 
@@ -64,9 +64,6 @@ const state = {
   avmTouched: false,     // true once the agent sets the AVM flag by hand
   app: {},               // application fields the agent typed
   appDraft: null,        // unsaved application carried over from the last record
-  listening: { listening: false, onDevice: false, error: null, turns: [], proposals: [] },
-  listener: null,
-  resolvedProposals: new Set(),
   coBorrower: false,     // second borrower section shown
   frameFields: {},       // fields harvested from child frames
   externalValue: null,   // latest value seen on a Zillow/Redfin tab
@@ -96,6 +93,19 @@ export async function start() {
         if (prefs.readValuationSites === false) reporter.stop();
       });
     }
+    return;
+  }
+
+  // On a Salesforce application page this runs as a receiver: it renders
+  // nothing and waits to be handed an application to type in.
+  if (isSalesforceHost(location.hostname)) {
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (msg?.type !== 'SAM_FILL_FORM') return;
+      sendResponse(applyHandoff(msg.plan));
+      return true;
+    });
+    // A form opened after the send still collects what is waiting.
+    claimPendingHandoff();
     return;
   }
 
@@ -286,6 +296,7 @@ async function activate() {
       },
       onSaveApplication: () => persistApplication(state.lastApplication, state.recordLabel),
       onCopyApplication: () => copyApplication(),
+      onSendToSalesforce: () => sendToSalesforce(),
       onSaveDraft: () => {
         if (state.appDraft) persistApplication(state.appDraft.application, state.appDraft.label);
         state.appDraft = null;
@@ -304,14 +315,6 @@ async function activate() {
             if (key.startsWith('co')) delete state.app[key];
           }
         }
-        recompute();
-      },
-      onToggleListening: () => toggleListening(),
-      onAcceptProposal: (proposal) => acceptProposal(proposal),
-      onDismissProposal: (proposal) => {
-        state.resolvedProposals.add(`${proposal.field}:${proposal.value}`);
-        state.listening.proposals = state.listening.proposals
-          .filter((p) => p.field !== proposal.field);
         recompute();
       },
       onUseExternal: () => {
@@ -478,10 +481,6 @@ function scan(force) {
       }
       state.app = {};
       state.manual = {};
-      // A new caller means a new conversation; the previous one's transcript
-      // and anything it suggested must not carry over.
-      state.listening = { ...state.listening, turns: [], proposals: [] };
-      state.resolvedProposals = new Set();
       state.coBorrower = false;
       state.overrides = overridesFromPrefs(state.prefs);
       state.avmTouched = false;
@@ -674,7 +673,6 @@ function recompute({ forceInputs = false } = {}) {
   state.lastApplication = application;
 
   state.panel.render({
-    listening: state.listening,
     inputs,
     overrides: state.overrides,
     result,
@@ -770,70 +768,80 @@ function effectiveInputs() {
   });
 }
 
-/**
- * Start or stop listening to the call.
- *
- * The microphone is the agent's, so every turn it produces is the agent's.
- * That is worth stating in the data rather than guessing at later: attributing
- * a turn by its source is exact, whereas inferring who spoke from one mixed
- * stream is not.
- */
-function toggleListening() {
-  if (state.listener) {
-    state.listener.stop();
-    state.listener = null;
-    state.listening = { ...state.listening, listening: false };
-    recompute();
+/* ------------------------------------------------------------------ *
+ * Salesforce handoff
+ * ------------------------------------------------------------------ */
+
+/** Type the current application into an open Salesforce form. */
+async function sendToSalesforce() {
+  const plan = planFill(state.lastApplication, { includeCoBorrower: state.coBorrower });
+
+  if (!plan.entries.length) {
+    state.panel?.setHandoffResult({
+      tone: 'warn',
+      text: 'Nothing to send yet.',
+      detail: 'Fill in at least a name or a figure first.',
+    });
     return;
   }
 
-  if (!speechSupported()) {
-    state.listening = { ...state.listening, listening: false, error: 'unsupported' };
-    recompute();
-    return;
+  state.panel?.setHandoffResult({ tone: 'info', text: 'Sending…' });
+
+  let report = null;
+  try {
+    report = await chrome.runtime.sendMessage({ type: 'SAM_HANDOFF', plan });
+  } catch {
+    report = { ok: false, reason: 'no-worker' };
   }
 
-  state.listening = { ...state.listening, error: null };
-
-  state.listener = startListening({
-    onState: (patch) => {
-      state.listening = { ...state.listening, ...patch };
-      if (patch.error) {
-        state.listener = null;
-      }
-      recompute();
-    },
-    onSegment: ({ text, isFinal }) => {
-      const turns = state.listening.turns.filter((t) => !t.interim);
-      turns.push({ speaker: 'agent', text, interim: !isFinal, at: Date.now() });
-
-      let proposals = state.listening.proposals;
-      if (isFinal) {
-        proposals = mergeProposals(proposals, extractFacts(text), {
-          resolved: state.resolvedProposals,
-        });
-      }
-
-      // Keep the transcript bounded; a long call should not grow without end.
-      state.listening = {
-        ...state.listening,
-        turns: turns.slice(-200),
-        proposals,
-      };
-      recompute();
-    },
-  });
-
-  recompute();
+  state.panel?.setHandoffResult(describeHandoff(report, plan));
 }
 
-/** Put a heard figure onto the application, where the agent can still edit it. */
-function acceptProposal(proposal) {
-  state.resolvedProposals.add(`${proposal.field}:${proposal.value}`);
-  state.app[proposal.field] = proposal.display;
-  state.listening.proposals = state.listening.proposals
-    .filter((p) => p.field !== proposal.field);
-  recompute();
+function describeHandoff(report, plan) {
+  if (report?.ok) {
+    const filled = report.filled?.length ?? 0;
+    const missed = report.notFound?.length ?? 0;
+    return {
+      tone: missed ? 'warn' : 'ok',
+      text: `Filled ${filled} field${filled === 1 ? '' : 's'} in Salesforce.`,
+      detail: [
+        missed ? `${missed} could not be matched on that form.` : '',
+        `Still yours: ${plan.skipped.join(', ')} — those need a record picked, not text.`,
+      ].filter(Boolean).join(' '),
+    };
+  }
+
+  const reasons = {
+    'no-tab': 'Open the LO Application in another tab, then send again.',
+    'no-form': 'That Salesforce tab does not look like the application form.',
+    'no-permission': 'S.A.M cannot see your tabs — check the extension permissions.',
+    'no-worker': 'The extension background stopped. Reload the tab and try again.',
+    'nothing-to-send': 'Nothing to send.',
+  };
+  return {
+    tone: 'bad',
+    text: 'Not sent.',
+    detail: reasons[report?.reason] ?? 'Salesforce did not accept the handoff.',
+  };
+}
+
+/** Salesforce side: type a handed-over application into the form. */
+function applyHandoff(plan) {
+  if (!plan?.entries?.length) return { ok: false, reason: 'nothing-to-send' };
+  try {
+    const { filled, notFound } = fillForm(plan.entries);
+    return { ok: filled.length > 0, filled, notFound, reason: filled.length ? null : 'no-form' };
+  } catch {
+    return { ok: false, reason: 'no-form' };
+  }
+}
+
+/** Collect anything sent before this form was open. */
+async function claimPendingHandoff() {
+  try {
+    const held = await chrome.runtime.sendMessage({ type: 'SAM_HANDOFF_CLAIM' });
+    if (held?.plan) applyHandoff(held.plan);
+  } catch { /* nothing waiting */ }
 }
 
 function truncate(text, max) {

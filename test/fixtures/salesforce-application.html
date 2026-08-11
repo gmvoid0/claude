@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>LO Application</title>
+  <style>
+    body { font: 13px "Salesforce Sans", Arial, sans-serif; margin: 20px; background: #f3f3f3; }
+    .card { background: #fff; border: 1px solid #dddbda; border-radius: 4px; padding: 16px; margin-bottom: 14px; }
+    h2 { font-size: 15px; color: #080707; font-weight: 400; margin: 0 0 14px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .field label { display: block; font-size: 12px; color: #3e3e3c; margin-bottom: 4px; }
+    .req::before { content: "*"; color: #c23934; margin-right: 2px; }
+    input, select, textarea {
+      width: 100%; padding: 5px 8px; font: inherit;
+      border: 1px solid #dddbda; border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<!--
+  Stand-in for the LO Mortgage Application.
+
+  The point of this fixture is that fields are found by their visible label
+  and nothing else: the name attributes here are opaque Salesforce ids, the
+  co-borrower repeats "First Name" and "Last Name" verbatim, and the lookups
+  and picklist are the controls that must be left alone because typing into
+  them selects no record.
+-->
+
+<div class="card">
+  <h2>Application Information</h2>
+  <div class="grid">
+    <div class="field"><label>Lead</label><input type="text" name="l-01" placeholder="Search Leads..." /></div>
+    <div class="field"><label>Transfer Agent</label><input type="text" name="l-02" placeholder="Search Contacts..." /></div>
+    <div class="field"><label class="req">Loan Officer</label><input type="text" name="l-03" placeholder="Search Users..." /></div>
+    <div class="field"><label>Loan Officer Assistant</label><input type="text" name="l-04" placeholder="Search Users..." /></div>
+  </div>
+</div>
+
+<div class="card" id="borrower">
+  <h2>Borrower Information</h2>
+  <div class="grid">
+    <div class="field"><label class="req">First Name</label><input type="text" name="b-01" /></div>
+    <div class="field"><label>Middle Name</label><input type="text" name="b-02" /></div>
+    <div class="field"><label class="req">Last Name</label><input type="text" name="b-03" /></div>
+    <div class="field"><label>Suffix</label><input type="text" name="b-04" /></div>
+    <div class="field"><label>Loan FICO</label><input type="text" name="b-05" /></div>
+    <div class="field"><label>Email</label><input type="text" name="b-06" /></div>
+    <div class="field"><label class="req">Phone</label><input type="text" name="b-07" /></div>
+    <div class="field"><label>Mobile</label><input type="text" name="b-08" /></div>
+    <div class="field"><label>Street</label><textarea name="b-09"></textarea></div>
+    <div class="field"><label>City</label><input type="text" name="b-10" /></div>
+    <div class="field"><label>State/Province</label><input type="text" name="b-11" /></div>
+    <div class="field"><label>Zip/Postal Code</label><input type="text" name="b-12" /></div>
+    <div class="field"><label>Employer</label><input type="text" name="b-13" /></div>
+    <div class="field"><label>Length Of Employment</label><input type="text" name="b-14" /></div>
+    <div class="field"><label>Borrower Income</label><input type="text" name="b-15" /></div>
+    <div class="field"><label>Title</label><input type="text" name="b-16" /></div>
+    <div class="field"><label>Borrower DOB</label><input type="text" name="b-17" /></div>
+    <div class="field"><label>SSN</label><input type="text" name="b-18" /></div>
+    <div class="field"><label>Marital Status</label>
+      <select name="b-19"><option>--None--</option><option>Single</option><option>Married</option></select>
+    </div>
+    <div class="field"><label>Disability %</label><input type="text" name="b-20" /></div>
+    <div class="field"><label>Disability Income</label><input type="text" name="b-21" /></div>
+    <div class="field"><label>Other Income</label><input type="text" name="b-22" /></div>
+    <div class="field"><label>SSI</label><input type="text" name="b-23" /></div>
+  </div>
+</div>
+
+<div class="card" id="coborrower" hidden>
+  <h2>Co-Borrower Information</h2>
+  <div class="grid">
+    <div class="field"><label class="req">First Name</label><input type="text" name="c-01" /></div>
+    <div class="field"><label class="req">Last Name</label><input type="text" name="c-02" /></div>
+    <div class="field"><label>Loan FICO</label><input type="text" name="c-03" /></div>
+    <div class="field"><label class="req">Phone</label><input type="text" name="c-04" /></div>
+    <div class="field"><label>Income</label><input type="text" name="c-05" /></div>
+    <div class="field"><label>Disability %</label><input type="text" name="c-06" /></div>
+  </div>
+</div>
+
+<button id="add-co" onclick="document.getElementById('coborrower').hidden = false">Add Co-Borrower</button>
+
+<script>
+  // Salesforce components hold their own copy of field state and only notice a
+  // change that arrives through the native setter with the events that follow
+  // it. This records what the framework would actually have seen.
+  window.__observed = {};
+  for (const el of document.querySelectorAll('input, textarea, select')) {
+    el.addEventListener('input', () => { window.__observed[el.name] = el.value; });
+    el.addEventListener('change', () => { window.__observed[el.name] = el.value; });
+  }
+</script>
+</body>
+</html>

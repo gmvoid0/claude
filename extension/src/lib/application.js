@@ -21,6 +21,8 @@ import { parseMoney, parsePercent, formatMoney, formatPercent } from './money.js
  * A field with no `from` is only ever filled by hand.
  */
 export const APPLICATION_FIELDS = [
+  { key: 'firstName',  label: 'First name',      kind: 'text',    from: 'firstName' },
+  { key: 'lastName',   label: 'Last name',       kind: 'text',    from: 'lastName' },
   { key: 'rate',       label: 'Rate',            kind: 'percent', from: 'interestRate' },
   { key: 'balance',    label: 'Mortgage balance', kind: 'money',  from: 'firstLien' },
   { key: 'fico',       label: 'FICO',            kind: 'number',  from: 'fico' },
@@ -49,7 +51,8 @@ export const APPLICATION_KEYS = APPLICATION_FIELDS.map((f) => f.key);
  * be worse than an empty field.
  */
 export const CO_BORROWER_FIELDS = [
-  { key: 'coName',       label: 'Name',         kind: 'text' },
+  { key: 'coFirstName',  label: 'First name',   kind: 'text' },
+  { key: 'coLastName',   label: 'Last name',    kind: 'text' },
   { key: 'coFico',       label: 'FICO',         kind: 'number' },
   { key: 'coIncome',     label: 'Income',       kind: 'money' },
   { key: 'coEmployment', label: 'W2 / 1099',    kind: 'choice', options: ['W2', '1099', 'Both'] },

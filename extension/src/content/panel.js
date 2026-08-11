@@ -9,22 +9,6 @@
 
 import { formatMoney, formatPercent } from '../lib/money.js';
 import { APPLICATION_FIELDS, CO_BORROWER_FIELDS } from '../lib/application.js';
-
-const FIELD_LABELS = Object.fromEntries(
-  [...APPLICATION_FIELDS, ...CO_BORROWER_FIELDS].map((f) => [f.key, f.label]),
-);
-
-const LISTEN_ERRORS = {
-  unsupported: 'not supported in this browser',
-  'microphone-blocked': 'microphone blocked',
-  'no-microphone': 'no microphone',
-  network: 'network error',
-};
-
-function escapeHtml(text) {
-  return String(text ?? '').replace(/[&<>"]/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-}
 import { PANEL_CSS } from './styles.js';
 import { PANEL_HOST_ID as HOST_ID } from '../lib/constants.js';
 
@@ -97,7 +81,6 @@ export class Panel {
       state: q('[data-in=state]'),
       stateSrc: q('[data-src=state]'),
 
-
       solvePayment: q('[data-solve=payment]'),
       solveRate: q('[data-solve=rate]'),
       solveYears: q('[data-solve=years]'),
@@ -130,15 +113,12 @@ export class Panel {
       btnApp: q('[data-act=app]'),
       btnAppSave: q('[data-act=app-save]'),
       btnAppCopy: q('[data-act=app-copy]'),
+      btnAppSend: q('[data-act=app-send]'),
+      handoff: q('[data-app=handoff]'),
       draft: q('[data-app=draft]'),
       draftText: q('[data-app=draft-text]'),
       btnDraftSave: q('[data-act=draft-save]'),
       btnDraftDiscard: q('[data-act=draft-discard]'),
-      listenDot: q('[data-listen=dot]'),
-      listenMode: q('[data-listen=mode]'),
-      btnListen: q('[data-act=listen-toggle]'),
-      proposals: q('[data-listen=proposals]'),
-      transcript: q('[data-listen=transcript]'),
       programRow: q('[data-field=program]'),
       resultBox: q('.result'),
       btnCopy: q('[data-act=copy]'),
@@ -151,8 +131,8 @@ export class Panel {
   wireEvents() {
     const { els } = this;
 
-    els.btnCollapse.addEventListener('click', () => this.toggleCollapse());
-    els.btnClose.addEventListener('click', () => this.h.onClose?.());
+    els.btnCollapse?.addEventListener('click', () => this.toggleCollapse());
+    els.btnClose?.addEventListener('click', () => this.h.onClose?.());
 
     for (const key of ['propertyValue', 'firstLien', 'secondLien', 'program', 'state']) {
       const el = this.root.querySelector(`[data-in=${key}]`);
@@ -164,20 +144,24 @@ export class Panel {
     for (const el of [els.solvePayment, els.solveRate, els.solveYears]) {
       el?.addEventListener('input', () => this.h.onSolveChange?.(this.readSolver()));
     }
-    els.btnUseSolved.addEventListener('click', () => this.h.onUseSolved?.(this.readSolver()));
+    // Optional chaining throughout, deliberately. A control that is missing
+    // from the template should cost that one button, not the whole panel —
+    // this threw on a single absent element and took the calculator down with
+    // it, mid-call, for the sake of a handoff button.
+    els.btnUseSolved?.addEventListener('click', () => this.h.onUseSolved?.(this.readSolver()));
 
-    els.btnApp.addEventListener('click', () => this.toggleDrawer());
-    els.btnAppSave.addEventListener('click', () => this.h.onSaveApplication?.());
-    els.btnAppCopy.addEventListener('click', () => this.h.onCopyApplication?.());
-    els.btnDraftSave.addEventListener('click', () => this.h.onSaveDraft?.());
-    els.btnDraftDiscard.addEventListener('click', () => this.h.onDiscardDraft?.());
-    els.btnListen.addEventListener('click', () => this.h.onToggleListening?.());
-    els.coToggle.addEventListener('change', () => this.h.onCoBorrowerToggle?.(els.coToggle.checked));
-    els.btnUseExt.addEventListener('click', () => this.h.onUseExternal?.());
-    els.btnCopy.addEventListener('click', () => this.h.onCopy?.());
-    els.btnReset.addEventListener('click', () => this.h.onReset?.());
-    els.btnPickValue.addEventListener('click', () => this.h.onPick?.('propertyValue'));
-    els.btnPickFirst.addEventListener('click', () => this.h.onPick?.('firstLien'));
+    els.btnApp?.addEventListener('click', () => this.toggleDrawer());
+    els.btnAppSave?.addEventListener('click', () => this.h.onSaveApplication?.());
+    els.btnAppCopy?.addEventListener('click', () => this.h.onCopyApplication?.());
+    els.btnAppSend?.addEventListener('click', () => this.h.onSendToSalesforce?.());
+    els.btnDraftSave?.addEventListener('click', () => this.h.onSaveDraft?.());
+    els.btnDraftDiscard?.addEventListener('click', () => this.h.onDiscardDraft?.());
+    els.coToggle?.addEventListener('change', () => this.h.onCoBorrowerToggle?.(els.coToggle.checked));
+    els.btnUseExt?.addEventListener('click', () => this.h.onUseExternal?.());
+    els.btnCopy?.addEventListener('click', () => this.h.onCopy?.());
+    els.btnReset?.addEventListener('click', () => this.h.onReset?.());
+    els.btnPickValue?.addEventListener('click', () => this.h.onPick?.('propertyValue'));
+    els.btnPickFirst?.addEventListener('click', () => this.h.onPick?.('firstLien'));
 
     this.enableDrag(this.root.querySelector('.hd'));
   }
@@ -232,74 +216,25 @@ export class Panel {
     this.h.onCollapse?.(this.collapsed);
   }
 
-  /**
-   * The transcript and anything it proposed.
-   *
-   * Turns are attributed by source rather than guessed at: the microphone is
-   * the agent. A proposal is never written to the form by itself — spoken
-   * numbers are misheard often enough that a silent wrong entry would be
-   * worse than no listening — so each one is offered with the words it came
-   * from and takes a click to accept.
-   */
-  renderListening({ listening, onDevice, error, turns = [], proposals = [] }) {
-    const { els } = this;
+  /** Report what a handoff actually did, rather than claiming it worked. */
+  setHandoffResult(report) {
+    const host = this.els.handoff;
+    if (!report) { host.hidden = true; return; }
 
-    els.listenDot.className = `listen-dot${listening ? ' on' : ''}${error ? ' bad' : ''}`;
-    els.btnListen.textContent = listening ? 'Stop' : 'Listen';
-    els.btnListen.classList.toggle('picking', listening);
+    host.hidden = false;
+    host.className = `handoff ${report.tone ?? 'info'}`;
+    host.textContent = '';
 
-    els.listenMode.textContent = error ? LISTEN_ERRORS[error] ?? error
-      : listening ? (onDevice ? 'on-device' : 'cloud')
-      : '';
-    els.listenMode.className = `listen-mode${error ? ' bad' : ''}`;
+    const line = document.createElement('div');
+    line.className = 'handoff-line';
+    line.textContent = report.text;
+    host.appendChild(line);
 
-    const proposalSig = proposals.map((p) => `${p.field}:${p.value}`).join('|');
-    if (els.proposals.dataset.sig !== proposalSig) {
-      els.proposals.dataset.sig = proposalSig;
-      els.proposals.textContent = '';
-      for (const proposal of proposals) {
-        const chip = document.createElement('div');
-        chip.className = 'chip';
-
-        const text = document.createElement('span');
-        text.className = 'chip-text';
-        text.innerHTML = `<b>${escapeHtml(FIELD_LABELS[proposal.field] ?? proposal.field)}</b> ${escapeHtml(proposal.display)}`;
-        text.title = proposal.evidence ?? '';
-
-        const yes = document.createElement('button');
-        yes.className = 'chip-yes';
-        yes.textContent = '✓';
-        yes.title = 'Use this';
-        yes.addEventListener('click', () => this.h.onAcceptProposal?.(proposal));
-
-        const no = document.createElement('button');
-        no.className = 'chip-no';
-        no.textContent = '✕';
-        no.title = 'Dismiss';
-        no.addEventListener('click', () => this.h.onDismissProposal?.(proposal));
-
-        chip.append(text, yes, no);
-        els.proposals.appendChild(chip);
-      }
-    }
-
-    const turnSig = `${turns.length}:${turns[turns.length - 1]?.text ?? ''}`;
-    if (els.transcript.dataset.sig !== turnSig) {
-      els.transcript.dataset.sig = turnSig;
-      els.transcript.textContent = '';
-      for (const turn of turns.slice(-40)) {
-        const row = document.createElement('div');
-        row.className = `turn ${turn.speaker}${turn.interim ? ' interim' : ''}`;
-        const who = document.createElement('span');
-        who.className = 'turn-who';
-        who.textContent = turn.speaker === 'agent' ? 'You' : 'Caller';
-        const body = document.createElement('span');
-        body.className = 'turn-text';
-        body.textContent = turn.text;
-        row.append(who, body);
-        els.transcript.appendChild(row);
-      }
-      els.transcript.scrollTop = els.transcript.scrollHeight;
+    if (report.detail) {
+      const detail = document.createElement('div');
+      detail.className = 'handoff-detail';
+      detail.textContent = report.detail;
+      host.appendChild(detail);
     }
   }
 
@@ -463,7 +398,6 @@ export class Panel {
     setSrc(els.programSrc, inputs.program);
     setSrc(els.stateSrc, inputs.state);
 
-
     els.btnPickValue.classList.toggle('picking', picking === 'propertyValue');
     els.btnPickFirst.classList.toggle('picking', picking === 'firstLien');
 
@@ -541,8 +475,6 @@ export class Panel {
     els.resultBox.dataset.tone = !hasValue ? 'idle'
       : result.meetsThreshold ? 'good'
       : (result.estimatedCashToBorrower > 0 ? 'thin' : 'bad');
-
-    this.renderListening(state.listening ?? {});
 
     this.renderApplication({
       application: state.application,
@@ -699,6 +631,7 @@ const TEMPLATE = `
   <div class="drawer-hd">
     <span class="drawer-title">Application</span>
     <span class="drawer-count" data-app="count"></span>
+    <button class="btn tiny" data-act="app-send">To Salesforce</button>
     <button class="btn tiny" data-act="app-copy">Copy</button>
     <button class="btn tiny" data-act="app-save" hidden>Save</button>
   </div>
@@ -724,16 +657,7 @@ const TEMPLATE = `
     </div>
   </div>
 
-  <div class="listen">
-    <div class="listen-hd">
-      <span class="listen-dot" data-listen="dot"></span>
-      <span class="listen-title">Call notes</span>
-      <span class="listen-mode" data-listen="mode"></span>
-      <button class="btn tiny" data-act="listen-toggle">Listen</button>
-    </div>
-    <div class="proposals" data-listen="proposals"></div>
-    <div class="transcript" data-listen="transcript"></div>
-  </div>
+  <div class="handoff" data-app="handoff" hidden></div>
 
   <div class="drawer-note">
     Clears with the record when the next call lands. Fill three or more and a

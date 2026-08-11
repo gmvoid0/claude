@@ -9,7 +9,7 @@ import { mergeInputs } from '../extension/src/lib/merge.js';
 import { computeEquity } from '../extension/src/lib/equity.js';
 
 const KEYS = ['propertyValue', 'firstLien', 'program', 'state', 'street', 'city', 'zip',
-              'interestRate', 'fico', 'payment', 'phone'];
+              'interestRate', 'fico', 'payment', 'phone', 'firstName', 'lastName'];
 
 const screen = {
   firstLien: { raw: '270900', label: 'Mortgage Balance', source: 'auto' },
@@ -22,6 +22,8 @@ const screen = {
   fico: { raw: '712', label: 'FICO', source: 'auto' },
   payment: { raw: '1806.42', label: 'Mortgage Payment', source: 'auto' },
   phone: { raw: '3024239504', label: 'Phone', source: 'auto' },
+  firstName: { raw: 'RANDY D', label: 'First', source: 'auto' },
+  lastName: { raw: 'ROLLINS', label: 'Last', source: 'auto' },
 };
 
 function scenario({ manual = {}, app = {} } = {}) {
@@ -41,15 +43,18 @@ function scenario({ manual = {}, app = {} } = {}) {
 
 test('the field list is exactly what was specified', () => {
   assert.deepEqual(APPLICATION_KEYS, [
+    'firstName', 'lastName',
     'rate', 'balance', 'fico', 'cashOut', 'value', 'payment',
     'income', 'employment', 'loanType', 'disability', 'address', 'phone',
   ]);
-  assert.equal(APPLICATION_FIELDS.length, 12);
+  assert.equal(APPLICATION_FIELDS.length, 14);
 });
 
 test('everything S.A.M already knows is filled in automatically', () => {
   const { application } = scenario();
 
+  assert.equal(application.firstName.value, 'RANDY D');
+  assert.equal(application.lastName.value, 'ROLLINS');
   assert.equal(application.balance.value, '$270,900');
   assert.equal(application.value.value, '$400,000');
   assert.equal(application.fico.value, '712');
@@ -189,7 +194,7 @@ test('only the fields that differ per person appear on the co-borrower', () => {
   // Rate, balance, value, payment and loan type belong to the property and
   // the loan. Repeating them would invite two answers to one question.
   assert.deepEqual(CO_BORROWER_KEYS,
-    ['coName', 'coFico', 'coIncome', 'coEmployment', 'coDisability', 'coPhone']);
+    ['coFirstName', 'coLastName', 'coFico', 'coIncome', 'coEmployment', 'coDisability', 'coPhone']);
 
   for (const key of ['rate', 'balance', 'value', 'payment', 'loanType', 'cashOut', 'address']) {
     assert.ok(!CO_BORROWER_KEYS.includes(`co${key[0].toUpperCase()}${key.slice(1)}`),
@@ -226,10 +231,10 @@ test('co-borrower entries count toward saving', () => {
   const { inputs, result } = scenario();
   const application = buildApplication({
     inputs, result, coBorrower: true,
-    manual: { coName: 'JANE ROLLINS', coFico: '698', coIncome: '54000' },
+    manual: { coFirstName: 'JANE', coLastName: 'ROLLINS', coFico: '698', coIncome: '54000' },
   });
 
-  assert.equal(application.coName.source, 'manual');
+  assert.equal(application.coFirstName.source, 'manual');
   assert.equal(isWorthSaving(application), true);
 });
 
@@ -244,22 +249,22 @@ test('the co-borrower is written out under its own heading', () => {
   const { inputs, result } = scenario();
   const application = buildApplication({
     inputs, result, coBorrower: true,
-    manual: { coName: 'JANE ROLLINS', coFico: '698' },
+    manual: { coFirstName: 'JANE', coLastName: 'ROLLINS', coFico: '698' },
   });
 
   const text = toText(application, { heading: 'RANDY D ROLLINS' });
   assert.match(text, /CO-BORROWER/);
-  assert.match(text, /JANE ROLLINS/);
+  assert.match(text, /JANE/);
   assert.ok(text.indexOf('CO-BORROWER') > text.indexOf('Mortgage balance'),
     'the primary borrower comes first');
 
   const plain = toPlain(application);
-  assert.equal(plain.coName, 'JANE ROLLINS');
+  assert.equal(plain.coFirstName, 'JANE');
   assert.equal(plain.coFico, '698');
 });
 
 test('no co-borrower heading when there is no co-borrower', () => {
   const { application } = scenario();
   assert.ok(!toText(application).includes('CO-BORROWER'));
-  assert.equal('coName' in toPlain(application), false);
+  assert.equal('coFirstName' in toPlain(application), false);
 });

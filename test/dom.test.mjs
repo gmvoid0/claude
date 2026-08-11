@@ -848,3 +848,149 @@ test('the loan type dropdown options are readable against their popup', { skip }
     await page.close();
   }
 });
+
+/* --- handing the application to Salesforce ------------------------------ */
+
+async function fillSalesforce(page, { coBorrower = false } = {}) {
+  const { port } = await setup();
+  const origin = `http://127.0.0.1:${port}`;
+  await page.goto(`${origin}/test/fixtures/salesforce-application.html`);
+  if (coBorrower) await page.click('#add-co');
+
+  return page.evaluate(async ({ base, withCo }) => {
+    const { planFill } = await import(`${base}/extension/src/lib/salesforce.js`);
+    const { fillForm } = await import(`${base}/extension/src/content/fill.js`);
+
+    const v = (value) => ({ value });
+    const application = {
+      firstName: v('RANDY D'), lastName: v('ROLLINS'),
+      fico: v('712'), phone: v('3024239504'),
+      income: v('$96,000'), disability: v('30%'),
+      street: v('189 LEDGERWOOD LN'), city: v('ROCKWOOD'),
+      state: v('TN'), zip: v('37854'),
+      coFirstName: v('JANE'), coLastName: v('ROLLINS'),
+      coFico: v('698'), coIncome: v('$54,000'),
+    };
+
+    const plan = planFill(application, { includeCoBorrower: withCo });
+    const result = fillForm(plan.entries);
+
+    const byName = (n) => document.querySelector(`[name="${n}"]`)?.value ?? null;
+    return {
+      result,
+      plan: { skipped: plan.skipped, missing: plan.missing },
+      // What the framework's own listeners saw, not just what the DOM holds.
+      observed: window.__observed,
+      values: {
+        first: byName('b-01'), last: byName('b-03'), fico: byName('b-05'),
+        phone: byName('b-07'), street: byName('b-09'), city: byName('b-10'),
+        state: byName('b-11'), zip: byName('b-12'), income: byName('b-15'),
+        disability: byName('b-20'),
+        lead: byName('l-01'), loanOfficer: byName('l-03'),
+        email: byName('b-06'), ssn: byName('b-18'), marital: byName('b-19'),
+        coFirst: byName('c-01'), coLast: byName('c-02'), coFico: byName('c-03'),
+        coIncome: byName('c-05'),
+      },
+    };
+  }, { base: origin, withCo: coBorrower });
+}
+
+test('fills the Salesforce borrower section by label', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { values, result } = await fillSalesforce(page);
+
+    assert.equal(values.first, 'RANDY D');
+    assert.equal(values.last, 'ROLLINS');
+    assert.equal(values.fico, '712');
+    assert.equal(values.phone, '3024239504');
+    assert.equal(values.street, '189 LEDGERWOOD LN');
+    assert.equal(values.city, 'ROCKWOOD');
+    assert.equal(values.state, 'TN');
+    assert.equal(values.zip, '37854');
+    assert.deepEqual(result.notFound, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test('figures arrive as numbers, not as formatted text', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { values } = await fillSalesforce(page);
+    assert.equal(values.income, '96000', 'currency formatting must be stripped');
+    assert.equal(values.disability, '30', 'the percent sign must be stripped');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the framework actually sees the change', { skip }, async () => {
+  // Assigning .value directly leaves a Salesforce component unaware — the box
+  // looks filled and submits empty. This asserts the events fired.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { observed } = await fillSalesforce(page);
+    assert.equal(observed['b-01'], 'RANDY D');
+    assert.equal(observed['b-15'], '96000');
+    assert.ok(Object.keys(observed).length >= 8);
+  } finally {
+    await page.close();
+  }
+});
+
+test('lookups, picklists and unknown fields are left alone', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { values, plan } = await fillSalesforce(page);
+
+    // A lookup that looks filled but holds no record is worse than an empty one.
+    assert.equal(values.lead, '');
+    assert.equal(values.loanOfficer, '');
+    assert.equal(values.marital, '--None--');
+
+    // Never captured, so never guessed at.
+    assert.equal(values.email, '');
+    assert.equal(values.ssn, '');
+
+    assert.ok(plan.skipped.includes('Loan Officer'));
+    assert.ok(plan.missing.includes('SSN'));
+  } finally {
+    await page.close();
+  }
+});
+
+test('the co-borrower fills its own section, not the borrower\'s', { skip }, async () => {
+  // Both sections label their fields "First Name". Landing a co-borrower in
+  // the primary's box would silently corrupt the application.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { values } = await fillSalesforce(page, { coBorrower: true });
+
+    assert.equal(values.first, 'RANDY D', 'primary keeps its own name');
+    assert.equal(values.last, 'ROLLINS');
+    assert.equal(values.coFirst, 'JANE');
+    assert.equal(values.coLast, 'ROLLINS');
+    assert.equal(values.coFico, '698');
+    assert.equal(values.coIncome, '54000');
+  } finally {
+    await page.close();
+  }
+});
+
+test('no co-borrower section means no co-borrower values anywhere', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { values } = await fillSalesforce(page, { coBorrower: false });
+    assert.equal(values.coFirst, '', 'the hidden section must be left untouched');
+    assert.equal(values.first, 'RANDY D');
+  } finally {
+    await page.close();
+  }
+});
