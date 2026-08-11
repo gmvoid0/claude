@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  APPLICATION_FIELDS, APPLICATION_KEYS, SAVE_THRESHOLD,
+  APPLICATION_FIELDS, APPLICATION_KEYS, CO_BORROWER_KEYS, SAVE_THRESHOLD,
   buildApplication, filledCount, isWorthSaving, impliesFeeExemption, toPlain, toText,
 } from '../extension/src/lib/application.js';
 import { mergeInputs } from '../extension/src/lib/merge.js';
@@ -181,4 +181,85 @@ test('renders a readable block with every field present', () => {
   }
   assert.match(text, /Income:\s+96000/);
   assert.match(text, /W2 \/ 1099:\s+—/, 'empty fields are shown rather than dropped');
+});
+
+/* --- the co-borrower ---------------------------------------------------- */
+
+test('only the fields that differ per person appear on the co-borrower', () => {
+  // Rate, balance, value, payment and loan type belong to the property and
+  // the loan. Repeating them would invite two answers to one question.
+  assert.deepEqual(CO_BORROWER_KEYS,
+    ['coName', 'coFico', 'coIncome', 'coEmployment', 'coDisability', 'coPhone']);
+
+  for (const key of ['rate', 'balance', 'value', 'payment', 'loanType', 'cashOut', 'address']) {
+    assert.ok(!CO_BORROWER_KEYS.includes(`co${key[0].toUpperCase()}${key.slice(1)}`),
+      `${key} must not be duplicated onto the co-borrower`);
+  }
+});
+
+test('the co-borrower is absent until asked for', () => {
+  const { inputs, result } = scenario();
+  const without = buildApplication({ inputs, result, manual: {} });
+  for (const key of CO_BORROWER_KEYS) {
+    assert.equal(without[key], undefined);
+  }
+
+  const withCo = buildApplication({ inputs, result, manual: {}, coBorrower: true });
+  for (const key of CO_BORROWER_KEYS) {
+    assert.ok(withCo[key], `${key} should exist once the section is on`);
+  }
+});
+
+test('nothing on the co-borrower is ever filled in automatically', () => {
+  // No lead screen carries a second borrower, so inventing a source for one
+  // would be worse than an empty field.
+  const { inputs, result } = scenario();
+  const application = buildApplication({ inputs, result, manual: {}, coBorrower: true });
+
+  for (const key of CO_BORROWER_KEYS) {
+    assert.equal(application[key].value, '', `${key} must start empty`);
+    assert.equal(application[key].source, 'none');
+  }
+});
+
+test('co-borrower entries count toward saving', () => {
+  const { inputs, result } = scenario();
+  const application = buildApplication({
+    inputs, result, coBorrower: true,
+    manual: { coName: 'JANE ROLLINS', coFico: '698', coIncome: '54000' },
+  });
+
+  assert.equal(application.coName.source, 'manual');
+  assert.equal(isWorthSaving(application), true);
+});
+
+test('a co-borrower disability waives the funding fee too', () => {
+  // The exemption follows the veteran, and the veteran may be either borrower.
+  assert.equal(impliesFeeExemption({ coDisability: { value: '40%' } }), true);
+  assert.equal(impliesFeeExemption({ disability: { value: '' }, coDisability: { value: '30' } }), true);
+  assert.equal(impliesFeeExemption({ coDisability: { value: '0' } }), false);
+});
+
+test('the co-borrower is written out under its own heading', () => {
+  const { inputs, result } = scenario();
+  const application = buildApplication({
+    inputs, result, coBorrower: true,
+    manual: { coName: 'JANE ROLLINS', coFico: '698' },
+  });
+
+  const text = toText(application, { heading: 'RANDY D ROLLINS' });
+  assert.match(text, /CO-BORROWER/);
+  assert.match(text, /JANE ROLLINS/);
+  assert.ok(text.indexOf('CO-BORROWER') > text.indexOf('Mortgage balance'),
+    'the primary borrower comes first');
+
+  const plain = toPlain(application);
+  assert.equal(plain.coName, 'JANE ROLLINS');
+  assert.equal(plain.coFico, '698');
+});
+
+test('no co-borrower heading when there is no co-borrower', () => {
+  const { application } = scenario();
+  assert.ok(!toText(application).includes('CO-BORROWER'));
+  assert.equal('coName' in toPlain(application), false);
 });

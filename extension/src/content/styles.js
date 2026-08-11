@@ -208,6 +208,37 @@ export const PANEL_CSS = `
   font-weight: 700;
 }
 
+.co { border-top: 0.5px solid var(--separator); padding: 4px 12px 0; }
+.co-toggle {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0;
+  font-size: 12px; font-weight: 700;
+  cursor: pointer;
+}
+.co-toggle input {
+  all: unset;
+  margin-left: auto;
+  position: relative;
+  width: 36px; height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--fill-strong);
+  cursor: pointer;
+  flex: none;
+  transition: background .22s cubic-bezier(.32,.72,0,1);
+}
+.co-toggle input::after {
+  content: "";
+  position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.24);
+  transition: transform .22s cubic-bezier(.32,.72,0,1);
+}
+.co-toggle input:checked { background: var(--green); }
+.co-toggle input:checked::after { transform: translateX(14px); }
+
+.co-note { font-size: 10px; color: var(--label-3); padding: 2px 0 8px; line-height: 1.4; }
+
 /* ------------------------------------------------------------------ *
  * Call notes
  * ------------------------------------------------------------------ */

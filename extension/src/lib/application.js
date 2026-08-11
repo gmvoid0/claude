@@ -37,6 +37,28 @@ export const APPLICATION_FIELDS = [
 
 export const APPLICATION_KEYS = APPLICATION_FIELDS.map((f) => f.key);
 
+/**
+ * The co-borrower.
+ *
+ * Only the fields that actually differ per person are here. Rate, balance,
+ * value, payment and loan type belong to the property and the loan, not to
+ * a borrower, so repeating them would invite two answers to one question.
+ *
+ * Every one of these is entered by hand. Nothing about a second borrower
+ * appears anywhere on a lead screen, and inventing a source for them would
+ * be worse than an empty field.
+ */
+export const CO_BORROWER_FIELDS = [
+  { key: 'coName',       label: 'Name',         kind: 'text' },
+  { key: 'coFico',       label: 'FICO',         kind: 'number' },
+  { key: 'coIncome',     label: 'Income',       kind: 'money' },
+  { key: 'coEmployment', label: 'W2 / 1099',    kind: 'choice', options: ['W2', '1099', 'Both'] },
+  { key: 'coDisability', label: 'Disability %', kind: 'percent' },
+  { key: 'coPhone',      label: 'Number',       kind: 'text' },
+];
+
+export const CO_BORROWER_KEYS = CO_BORROWER_FIELDS.map((f) => f.key);
+
 /** Fields that must be filled before an application is worth keeping. */
 export const SAVE_THRESHOLD = 3;
 
@@ -47,10 +69,16 @@ export const SAVE_THRESHOLD = 3;
  * Each field reports where its value came from so the UI can show what was
  * filled automatically and what a human entered.
  */
-export function buildApplication({ inputs = {}, result = null, manual = {}, address = '' } = {}) {
+export function buildApplication({
+  inputs = {}, result = null, manual = {}, address = '', coBorrower = false,
+} = {}) {
   const out = {};
 
-  for (const field of APPLICATION_FIELDS) {
+  const fields = coBorrower
+    ? [...APPLICATION_FIELDS, ...CO_BORROWER_FIELDS]
+    : APPLICATION_FIELDS;
+
+  for (const field of fields) {
     const typed = manual[field.key];
 
     if (typed != null) {
@@ -115,10 +143,15 @@ function autoValue(field, inputs, result, address) {
   return raw;
 }
 
+/** Every key present on an application, co-borrower included. */
+function keysOf(application) {
+  return Object.keys(application ?? {});
+}
+
 /** How many fields carry a value. */
 export function filledCount(application) {
-  return APPLICATION_KEYS.reduce(
-    (n, key) => n + (String(application?.[key]?.value ?? '').trim() ? 1 : 0),
+  return keysOf(application).reduce(
+    (n, key) => n + (String(application[key]?.value ?? '').trim() ? 1 : 0),
     0,
   );
 }
@@ -134,7 +167,7 @@ export function filledCount(application) {
 export function isWorthSaving(application) {
   if (!application) return false;
   if (filledCount(application) < SAVE_THRESHOLD) return false;
-  return APPLICATION_KEYS.some((key) => {
+  return keysOf(application).some((key) => {
     const field = application[key];
     return field?.source === 'manual' && String(field.value ?? '').trim() !== '';
   });
@@ -146,17 +179,22 @@ export function isWorthSaving(application) {
  * feeds straight back into the calculation.
  */
 export function impliesFeeExemption(application) {
-  const raw = application?.disability?.value;
-  if (raw == null || String(raw).trim() === '') return false;
-  const rate = parsePercent(raw);
-  return rate != null && rate >= 0.10;
+  // The exemption follows the veteran, and the veteran may be either
+  // borrower, so a rating on the co-borrower counts just the same.
+  return ['disability', 'coDisability'].some((key) => {
+    const raw = application?.[key]?.value;
+    if (raw == null || String(raw).trim() === '') return false;
+    const rate = parsePercent(raw);
+    return rate != null && rate >= 0.10;
+  });
 }
 
 /** Flatten to plain values for storage or the clipboard. */
 export function toPlain(application) {
   const out = {};
-  for (const field of APPLICATION_FIELDS) {
-    out[field.key] = String(application?.[field.key]?.value ?? '').trim();
+  for (const field of [...APPLICATION_FIELDS, ...CO_BORROWER_FIELDS]) {
+    if (!(field.key in (application ?? {}))) continue;
+    out[field.key] = String(application[field.key]?.value ?? '').trim();
   }
   return out;
 }
@@ -165,9 +203,20 @@ export function toPlain(application) {
 export function toText(application, { heading = '' } = {}) {
   const width = Math.max(...APPLICATION_FIELDS.map((f) => f.label.length)) + 2;
   const lines = heading ? [heading, ''] : [];
+
   for (const field of APPLICATION_FIELDS) {
     const value = String(application?.[field.key]?.value ?? '').trim();
     lines.push(`${(field.label + ':').padEnd(width)}${value || '—'}`);
   }
+
+  const hasCoBorrower = CO_BORROWER_KEYS.some((key) => key in (application ?? {}));
+  if (hasCoBorrower) {
+    lines.push('', 'CO-BORROWER', '');
+    for (const field of CO_BORROWER_FIELDS) {
+      const value = String(application?.[field.key]?.value ?? '').trim();
+      lines.push(`${(field.label + ':').padEnd(width)}${value || '—'}`);
+    }
+  }
+
   return lines.join('\n');
 }

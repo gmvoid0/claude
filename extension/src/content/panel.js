@@ -8,9 +8,11 @@
  */
 
 import { formatMoney, formatPercent } from '../lib/money.js';
-import { APPLICATION_FIELDS } from '../lib/application.js';
+import { APPLICATION_FIELDS, CO_BORROWER_FIELDS } from '../lib/application.js';
 
-const FIELD_LABELS = Object.fromEntries(APPLICATION_FIELDS.map((f) => [f.key, f.label]));
+const FIELD_LABELS = Object.fromEntries(
+  [...APPLICATION_FIELDS, ...CO_BORROWER_FIELDS].map((f) => [f.key, f.label]),
+);
 
 const LISTEN_ERRORS = {
   unsupported: 'not supported in this browser',
@@ -122,6 +124,9 @@ export class Panel {
       drawer: q('[data-app=drawer]'),
       appFields: q('[data-app=fields]'),
       appCount: q('[data-app=count]'),
+      coFields: q('[data-app=co-fields]'),
+      coNote: q('[data-app=co-note]'),
+      coToggle: q('[data-act=co-toggle]'),
       btnApp: q('[data-act=app]'),
       btnAppSave: q('[data-act=app-save]'),
       btnAppCopy: q('[data-act=app-copy]'),
@@ -167,6 +172,7 @@ export class Panel {
     els.btnDraftSave.addEventListener('click', () => this.h.onSaveDraft?.());
     els.btnDraftDiscard.addEventListener('click', () => this.h.onDiscardDraft?.());
     els.btnListen.addEventListener('click', () => this.h.onToggleListening?.());
+    els.coToggle.addEventListener('change', () => this.h.onCoBorrowerToggle?.(els.coToggle.checked));
     els.btnUseExt.addEventListener('click', () => this.h.onUseExternal?.());
     els.btnCopy.addEventListener('click', () => this.h.onCopy?.());
     els.btnReset.addEventListener('click', () => this.h.onReset?.());
@@ -315,10 +321,14 @@ export class Panel {
   buildApplicationFields() {
     if (this.appEls) return;
     this.appEls = {};
-    const host = this.els.appFields;
+    this.buildFieldRows(APPLICATION_FIELDS, this.els.appFields);
+    this.buildFieldRows(CO_BORROWER_FIELDS, this.els.coFields);
+  }
+
+  buildFieldRows(fields, host) {
     host.textContent = '';
 
-    for (const field of APPLICATION_FIELDS) {
+    for (const field of fields) {
       const row = document.createElement('label');
       row.className = 'app-row';
 
@@ -353,11 +363,17 @@ export class Panel {
     }
   }
 
-  renderApplication({ application, filled, canSave, draft, force }) {
+  renderApplication({ application, filled, canSave, draft, force, coBorrower }) {
     this.buildApplicationFields();
 
-    for (const field of APPLICATION_FIELDS) {
+    this.els.coToggle.checked = !!coBorrower;
+    this.els.coFields.hidden = !coBorrower;
+    this.els.coNote.hidden = !coBorrower;
+
+    const shown = coBorrower ? [...APPLICATION_FIELDS, ...CO_BORROWER_FIELDS] : APPLICATION_FIELDS;
+    for (const field of shown) {
       const cell = this.appEls[field.key];
+      if (!cell) continue;
       const entry = application?.[field.key];
       this.setInput(cell.input, entry?.value ?? '', force);
       if (cell.input.tagName === 'INPUT') {
@@ -368,7 +384,8 @@ export class Panel {
       cell.row.classList.toggle('suspect', !!entry?.suspect);
     }
 
-    this.els.appCount.textContent = `${filled} of ${APPLICATION_FIELDS.length}`;
+    const total = APPLICATION_FIELDS.length + (coBorrower ? CO_BORROWER_FIELDS.length : 0);
+    this.els.appCount.textContent = `${filled} of ${total}`;
     this.els.btnAppSave.hidden = !canSave;
 
     this.els.draft.hidden = !draft;
@@ -532,6 +549,7 @@ export class Panel {
       filled: state.applicationFilled ?? 0,
       canSave: !!state.canSaveApplication,
       draft: state.draft,
+      coBorrower: state.coBorrower,
       force,
     });
 
@@ -694,6 +712,17 @@ const TEMPLATE = `
   </div>
 
   <div class="drawer-body" data-app="fields"></div>
+
+  <div class="co">
+    <label class="co-toggle">
+      <span>Co-borrower</span>
+      <input type="checkbox" data-act="co-toggle" />
+    </label>
+    <div class="co-body" data-app="co-fields" hidden></div>
+    <div class="co-note" data-app="co-note" hidden>
+      Entered by hand — none of this appears on a lead screen.
+    </div>
+  </div>
 
   <div class="listen">
     <div class="listen-hd">

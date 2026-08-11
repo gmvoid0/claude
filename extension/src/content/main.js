@@ -67,6 +67,7 @@ const state = {
   listening: { listening: false, onDevice: false, error: null, turns: [], proposals: [] },
   listener: null,
   resolvedProposals: new Set(),
+  coBorrower: false,     // second borrower section shown
   frameFields: {},       // fields harvested from child frames
   externalValue: null,   // latest value seen on a Zillow/Redfin tab
   recordKey: null,
@@ -294,6 +295,17 @@ async function activate() {
         state.appDraft = null;
         recompute();
       },
+      onCoBorrowerToggle: (on) => {
+        state.coBorrower = on;
+        if (!on) {
+          // Hiding the section discards its entries rather than keeping them
+          // invisibly attached to the file.
+          for (const key of Object.keys(state.app)) {
+            if (key.startsWith('co')) delete state.app[key];
+          }
+        }
+        recompute();
+      },
       onToggleListening: () => toggleListening(),
       onAcceptProposal: (proposal) => acceptProposal(proposal),
       onDismissProposal: (proposal) => {
@@ -470,6 +482,7 @@ function scan(force) {
       // and anything it suggested must not carry over.
       state.listening = { ...state.listening, turns: [], proposals: [] };
       state.resolvedProposals = new Set();
+      state.coBorrower = false;
       state.overrides = overridesFromPrefs(state.prefs);
       state.avmTouched = false;
       state.lookupRequestedFor = null;
@@ -615,6 +628,7 @@ function recompute({ forceInputs = false } = {}) {
   // can waive the VA funding fee, which is what it does in reality.
   const preliminary = buildApplication({
     inputs, result: state.lastResult, manual: state.app, address: leadAddress(inputs),
+    coBorrower: state.coBorrower,
   });
   const feeExempt = !!state.overrides.feeExempt || impliesFeeExemption(preliminary);
 
@@ -652,6 +666,7 @@ function recompute({ forceInputs = false } = {}) {
   // Rebuilt against the final figures so Cash-out reflects this calculation.
   const application = buildApplication({
     inputs, result, manual: state.app, address: leadAddress(inputs),
+    coBorrower: state.coBorrower,
   });
 
   state.lastResult = result;
@@ -669,6 +684,7 @@ function recompute({ forceInputs = false } = {}) {
     applicationFilled: filledCount(application),
     canSaveApplication: isWorthSaving(application),
     draft: state.appDraft,
+    coBorrower: state.coBorrower,
     forceInputs,
     live: state.running,
     picking: state.picking,
