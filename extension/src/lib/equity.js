@@ -56,12 +56,27 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
   const loanLimit = numOrNull(input.loanLimit);
   const ltvOverride = numOrNull(input.ltvOverride);
 
-  const program = input.program || null;
   const state = input.state || null;
+
+  // Lead data frequently arrives with no usable loan type — one source screen
+  // carried an agent ID in that column. Refusing to calculate leaves the agent
+  // with nothing while the customer is on the line, so the most restrictive
+  // common program is assumed and the assumption is surfaced loudly. It is
+  // the conservative direction: Conventional's 80% cap never overstates what
+  // a VA borrower could take.
+  const requestedProgram = input.program || null;
+  const programAssumed = !requestedProgram;
+  const program = requestedProgram ?? (rules?.assumedProgram ?? 'CONV');
 
   if (value == null || value <= 0) missing.push('propertyValue');
   if (numOrNull(input.firstLien) == null) missing.push('firstLien');
-  if (!program) missing.push('program');
+
+  if (programAssumed) {
+    warnings.push({
+      level: 'error',
+      text: 'Loan type not confirmed — assuming Conventional at 80%. Ask the borrower; VA would open up materially more.',
+    });
+  }
 
   const cfg = program
     ? resolveProgramRules(rules, program, state, { subsequentUse: !!input.subsequentUse })
@@ -111,6 +126,7 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
       missing,
       warnings,
       program,
+      programAssumed,
       programLabel: cfg?.label ?? null,
       state,
       maxLtv,
@@ -243,6 +259,7 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
     warnings,
 
     program,
+    programAssumed,
     programLabel: cfg?.label ?? null,
     state,
 

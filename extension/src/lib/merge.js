@@ -90,6 +90,54 @@ function hasValue(entry) {
   return entry?.raw != null && String(entry.raw).trim() !== '';
 }
 
+/**
+ * Hold a detected field briefly when a scan fails to find it.
+ *
+ * Detection runs several times a second against a page that is repainting
+ * continuously — a dialer screen has a live call timer on it. An element
+ * momentarily reports no client rects mid-reflow, which reads as "not
+ * visible", so the field vanishes from one scan and comes back on the next.
+ * Dropped straight through to the UI that shows up as figures blinking out
+ * and the panel looking unreliable.
+ *
+ * A value is therefore carried forward for `graceMs` after it was last
+ * genuinely seen. A fresh reading always wins, and the caller must clear the
+ * previous map on a record change — carrying one caller's data into the next
+ * call is exactly what this must not do.
+ */
+export function carryForwardDetection(previous, current, { now = Date.now(), graceMs = 4000 } = {}) {
+  const out = {};
+
+  for (const [key, value] of Object.entries(current ?? {})) {
+    out[key] = hasValue(value) ? { ...value, seenAt: now, stale: false } : value;
+  }
+
+  for (const [key, prev] of Object.entries(previous ?? {})) {
+    if (hasValue(current?.[key])) continue;   // fresh reading wins outright
+    if (!hasValue(prev)) continue;
+
+    const seenAt = prev.seenAt ?? now;
+    if (now - seenAt > graceMs) continue;     // gone long enough to be real
+
+    out[key] = { ...prev, seenAt, stale: true };
+  }
+
+  return out;
+}
+
+/**
+ * A change signature for detected fields, ignoring the bookkeeping added by
+ * `carryForwardDetection` so timestamps alone never look like a change.
+ */
+export function detectionSignature(detected) {
+  const parts = [];
+  for (const key of Object.keys(detected ?? {}).sort()) {
+    const entry = detected[key];
+    parts.push(`${key}=${entry?.raw ?? ''}|${entry?.source ?? ''}`);
+  }
+  return parts.join(';');
+}
+
 function isImplausible(key, num) {
   const range = FIELDS[key]?.range;
   if (!range || num == null) return false;

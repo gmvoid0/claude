@@ -22,7 +22,8 @@ import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/mon
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
 import { extractValuation, valuationSite } from '../lib/valuation.js';
 import { zillowSearchUrl, redfinSearchUrl } from '../lib/address.js';
-import { mergeInputs, decideExternalValue, leadAddress } from '../lib/merge.js';
+import { mergeInputs, decideExternalValue, leadAddress, carryForwardDetection, detectionSignature }
+  from '../lib/merge.js';
 import {
   isSiteEnabled, setSiteEnabled, getBindings, setBinding, anySiteEnabled,
   getRuleOverrides, getPrefs, getPanelPos, setPanelPos, setPrefs,
@@ -375,9 +376,14 @@ function scheduleRecompute() {
 function scan(force) {
   if (!state.running) return;
 
-  const detected = harvest();
+  const scanned = harvest();
+
+  // Hold briefly onto fields a single scan failed to see, so a repaint on the
+  // host page does not blink values out of the panel.
+  const detected = carryForwardDetection(state.detected, scanned);
+
   const recordKey = buildRecordKey(detected);
-  const signature = JSON.stringify(detected);
+  const signature = detectionSignature(detected);
 
   const recordChanged = recordKey && recordKey !== state.recordKey;
 
@@ -392,6 +398,8 @@ function scan(force) {
       state.overrides.loanLimit = '';
       state.avmTouched = false;
     }
+    // Never let one caller's detected fields survive into the next call.
+    state.detected = {};
   }
 
   if (!force && !recordChanged && signature === state.lastSignature) return;

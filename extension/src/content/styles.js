@@ -287,6 +287,7 @@ input.warnval {
 
 .result {
   background: var(--card);
+  transition: background .25s, border-color .25s;
   border: 0.5px solid var(--hairline);
   border-radius: var(--r-card);
   padding: 14px 12px 12px;
@@ -306,7 +307,7 @@ input.warnval {
 }
 .headline .num {
   display: block;
-  font-size: 38px;
+  font-size: 44px;
   font-weight: 700;
   letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
@@ -383,6 +384,78 @@ input.warnval {
   text-align: right;
 }
 .cell .v.sub { font-weight: 500; color: var(--label-2); }
+
+/* ------------------------------------------------------------------ *
+ * Headline pairing: the value being typed, next to what it produces
+ * ------------------------------------------------------------------ */
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  background: var(--card);
+  border: 0.5px solid var(--hairline);
+  border-radius: var(--r-card);
+  padding: 11px 12px;
+  margin-bottom: 4px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.pair-cell { min-width: 0; }
+.pair-cell label {
+  display: flex; align-items: baseline; gap: 6px;
+  font-size: 11px; font-weight: 600; color: var(--label-2);
+  margin-bottom: 5px;
+}
+.bignum {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  padding: 10px 0 0;
+  line-height: 1.1;
+}
+.bignum.good { color: var(--green-deep); }
+.bignum.bad  { color: var(--red-deep); }
+.bignum.none { color: var(--label-3); }
+
+/* The result card takes a tint from the answer, so the verdict is legible
+   from across a desk without reading the number. */
+.result[data-tone="good"] {
+  background: linear-gradient(180deg, rgba(52,199,89,.14), rgba(52,199,89,.06));
+  border-color: rgba(52,199,89,.36);
+}
+.result[data-tone="bad"] {
+  background: linear-gradient(180deg, rgba(255,59,48,.13), rgba(255,59,48,.05));
+  border-color: rgba(255,59,48,.34);
+}
+.result[data-tone="thin"] {
+  background: linear-gradient(180deg, rgba(255,149,0,.13), rgba(255,149,0,.05));
+  border-color: rgba(255,149,0,.34);
+}
+
+/* A field the calculation had to assume. Red because it is a question for
+   the borrower, not a preference. */
+.row.flagged select,
+.row.flagged input {
+  border-color: var(--red);
+  background: rgba(255,59,48,.09);
+  box-shadow: 0 0 0 3px rgba(255,59,48,.12);
+}
+.row.flagged label { color: var(--red-deep); }
+.row.flagged label::after {
+  content: "confirm";
+  margin-left: auto;
+  font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: #fff; background: var(--red);
+  padding: 2px 7px; border-radius: var(--r-pill);
+}
+
+.msgs:empty { display: none; }
+.body > .msgs { margin-top: 0; margin-bottom: 10px; }
+.body > .hint { margin: 6px 2px 0; }
+.body > .lookup { margin: 7px 2px 10px; }
+.body > .ext { margin: 8px 0 10px; }
 
 /* ------------------------------------------------------------------ *
  * Messages

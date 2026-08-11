@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { mergeInputs, decideExternalValue, leadAddress }
+import { mergeInputs, decideExternalValue, leadAddress, carryForwardDetection, detectionSignature }
   from '../extension/src/lib/merge.js';
 
 const KEYS = ['propertyValue', 'firstLien', 'program', 'state', 'street', 'city', 'zip'];
@@ -212,4 +212,76 @@ test('builds the lead address from the separate fields', () => {
     '809 SE 37TH ST, BATTLE GROUND, WA 98604',
   );
   assert.equal(leadAddress(inputsFor({ street: '', city: '', state: '', zip: '' })), '');
+});
+
+/* --- holding a field through a repaint ---------------------------------- */
+
+const seen = (raw) => ({ raw, label: 'Mortgage Balance', source: 'auto' });
+
+test('a field that vanishes for one scan is held, not blanked', () => {
+  // The real failure: a dialer screen repaints around its live call timer, an
+  // input momentarily reports no client rects, and the field drops out of a
+  // single scan. Passed straight through, figures blink out of the panel.
+  const t0 = 1_000_000;
+  const first = carryForwardDetection({}, { firstLien: seen('200000') }, { now: t0 });
+  assert.equal(first.firstLien.raw, '200000');
+  assert.equal(first.firstLien.stale, false);
+
+  const dropout = carryForwardDetection(first, {}, { now: t0 + 400 });
+  assert.equal(dropout.firstLien.raw, '200000', 'held through the dropout');
+  assert.equal(dropout.firstLien.stale, true, 'and marked as held');
+});
+
+test('a fresh reading always beats a held one', () => {
+  const t0 = 1_000_000;
+  const prev = carryForwardDetection({}, { firstLien: seen('200000') }, { now: t0 });
+  const next = carryForwardDetection(prev, { firstLien: seen('318450') }, { now: t0 + 400 });
+
+  assert.equal(next.firstLien.raw, '318450');
+  assert.equal(next.firstLien.stale, false);
+});
+
+test('a field that is genuinely gone is released after the grace window', () => {
+  const t0 = 1_000_000;
+  const prev = carryForwardDetection({}, { firstLien: seen('200000') }, { now: t0 });
+
+  const held = carryForwardDetection(prev, {}, { now: t0 + 3000, graceMs: 4000 });
+  assert.ok(held.firstLien, 'still inside the window');
+
+  const released = carryForwardDetection(held, {}, { now: t0 + 9000, graceMs: 4000 });
+  assert.equal(released.firstLien, undefined, 'released once genuinely gone');
+});
+
+test('the held timestamp tracks the last real sighting, not the last scan', () => {
+  // Otherwise repeated dropouts keep renewing the lease and a stale value
+  // could survive indefinitely.
+  const t0 = 1_000_000;
+  let acc = carryForwardDetection({}, { firstLien: seen('200000') }, { now: t0 });
+
+  // Ten consecutive misses at the real poll cadence, taking us past the window.
+  for (let i = 1; i <= 10; i++) {
+    acc = carryForwardDetection(acc, {}, { now: t0 + i * 500, graceMs: 4000 });
+  }
+  assert.equal(acc.firstLien, undefined, 'must expire despite continuous dropouts');
+});
+
+test('an empty reading does not overwrite a held value', () => {
+  const t0 = 1_000_000;
+  const prev = carryForwardDetection({}, { firstLien: seen('200000') }, { now: t0 });
+  const blank = carryForwardDetection(prev, { firstLien: seen('   ') }, { now: t0 + 300 });
+  assert.equal(blank.firstLien.raw, '200000');
+});
+
+test('the change signature ignores hold bookkeeping', () => {
+  // Timestamps must not read as a change, or the panel re-renders on every
+  // tick and the early-out that keeps this cheap stops working.
+  const t0 = 1_000_000;
+  const a = carryForwardDetection({}, { firstLien: seen('200000') }, { now: t0 });
+  const b = carryForwardDetection(a, {}, { now: t0 + 400 });
+
+  assert.equal(detectionSignature(a), detectionSignature(b));
+  assert.notEqual(
+    detectionSignature(a),
+    detectionSignature(carryForwardDetection(a, { firstLien: seen('9') }, { now: t0 + 400 })),
+  );
 });

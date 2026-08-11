@@ -165,13 +165,47 @@ test('missing inputs are reported rather than guessed', () => {
   // The liens it *did* read are still reported, so the panel can show them.
   assert.equal(noValue.totalLiens, 270900);
 
-  const noProgram = computeEquity({ ...BASE, program: null });
-  assert.equal(noProgram.ok, false);
-  assert.ok(noProgram.missing.includes('program'));
-
   const nothing = computeEquity({});
   assert.equal(nothing.ok, false);
-  assert.deepEqual(nothing.missing.sort(), ['firstLien', 'program', 'propertyValue']);
+  assert.deepEqual(nothing.missing.sort(), ['firstLien', 'propertyValue']);
+});
+
+test('an unknown loan type still produces a figure, assumed conservatively', () => {
+  // An agent on a live call needs a number now. Refusing to calculate because
+  // the lead data has no loan type is the least useful possible response, so
+  // the most restrictive common program is assumed and said out loud.
+  const r = computeEquity({ ...BASE, program: null });
+
+  assert.equal(r.ok, true, 'a figure must still be produced');
+  assert.equal(r.programAssumed, true);
+  assert.equal(r.program, 'CONV');
+  assert.equal(r.maxLtv, 0.8);
+  assert.ok(r.estimatedCashToBorrower > 0);
+
+  const flagged = r.warnings.find((w) => /assuming Conventional/i.test(w.text));
+  assert.ok(flagged, 'the assumption must be surfaced');
+  assert.equal(flagged.level, 'error', 'and surfaced loudly enough to act on');
+});
+
+test('assuming Conventional never overstates what the borrower could take', () => {
+  // The assumption has to err downward: quoting a VA borrower 80% is a missed
+  // opportunity, quoting a Conventional borrower 100% is a dead file.
+  const assumed = computeEquity({ ...BASE, program: null });
+  for (const program of ['VA', 'FHA', 'CONV', 'USDA']) {
+    const known = computeEquity({ ...BASE, program });
+    assert.ok(
+      assumed.estimatedCashToBorrower <= known.estimatedCashToBorrower + 1
+      || program === 'USDA',
+      `assumed figure must not exceed the ${program} figure`,
+    );
+  }
+});
+
+test('a known loan type is never overridden by the assumption', () => {
+  const r = computeEquity({ ...BASE, program: 'VA' });
+  assert.equal(r.programAssumed, false);
+  assert.equal(r.maxLtv, 1);
+  assert.ok(!r.warnings.some((w) => /assuming Conventional/i.test(w.text)));
 });
 
 test('implausible figures raise a warning instead of being silently used', () => {

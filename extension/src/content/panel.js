@@ -111,6 +111,8 @@ export class Panel {
       barRight: q('[data-bar=right]'),
 
       msgs: q('.msgs'),
+      programRow: q('[data-field=program]'),
+      resultBox: q('.result'),
       btnCopy: q('[data-act=copy]'),
       btnPickValue: q('[data-act=pick-propertyValue]'),
       btnPickFirst: q('[data-act=pick-firstLien]'),
@@ -329,7 +331,18 @@ export class Panel {
     }
 
     els.maxLoan.textContent = formatMoney(result?.maxBaseLoan);
-    els.equity.textContent = formatMoney(result?.grossEquity);
+
+    // Equity sits beside the value the agent is typing, so it carries the same
+    // red/green reading as the headline: green when there is something to work
+    // with, red when the borrower is underwater.
+    const equity = result?.grossEquity;
+    els.equity.textContent = formatMoney(equity);
+    els.equity.className = equity == null
+      ? 'bignum none'
+      : `bignum ${equity > 0 ? 'good' : 'bad'}`;
+
+    // An assumed loan type is a question for the borrower, not a detail.
+    els.programRow.classList.toggle('flagged', !!result?.programAssumed);
     els.currentLtv.textContent = result?.currentLtv != null ? formatPercent(result.currentLtv, 1) : '—';
     els.maxLtv.textContent = result?.maxLtv != null
       ? `${formatPercent(result.maxLtv, result.maxLtv * 100 % 1 === 0 ? 0 : 2)}`
@@ -344,6 +357,10 @@ export class Panel {
     }
     els.total.textContent = formatMoney(result?.totalLoanAmount);
     els.breakeven.textContent = result?.programLabel ?? '—';
+
+    els.resultBox.dataset.tone = !hasValue ? 'idle'
+      : result.meetsThreshold ? 'good'
+      : (result.estimatedCashToBorrower > 0 ? 'thin' : 'bad');
 
     this.renderBar(result);
     this.renderMessages(result);
@@ -485,22 +502,45 @@ const TEMPLATE = `
 
 <div class="body">
 
-  <div class="group">
-    <div class="row">
-      <label>Home value <span class="src" data-src="propertyValue"></span></label>
-      <input type="text" class="hero" data-in="propertyValue" placeholder="$0" inputmode="decimal" />
-      <div class="hint" data-hint="propertyValue"></div>
-      <div class="ext" data-ext="row" style="display:none">
-        <div class="ext-top">
-          <span class="ext-badge" data-ext="badge"></span>
-          <b data-ext="value"></b>
-          <button class="btn tiny" data-act="use-ext">Use</button>
-        </div>
-        <div class="ext-addr" data-ext="addr"></div>
+  <!-- The answer, first and largest. Everything below it is supporting work. -->
+  <div class="result" data-tone="idle">
+    <div class="headline">
+      <span class="cap">Cash out</span>
+      <span class="num none" data-out="cash">—</span>
+    </div>
+    <span class="pill idle" data-out="verdict">—</span>
+
+    <div class="ltvbar">
+      <div class="track">
+        <div class="fill"></div>
+        <div class="cap"></div>
       </div>
-      <div class="lookup"></div>
+      <div class="lbl"><span data-bar="left"></span><span data-bar="right"></span></div>
     </div>
   </div>
+
+  <!-- Value and equity side by side: the two numbers that move the answer. -->
+  <div class="pair">
+    <div class="pair-cell">
+      <label>Home value <span class="src" data-src="propertyValue"></span></label>
+      <input type="text" class="hero" data-in="propertyValue" placeholder="$0" inputmode="decimal" />
+    </div>
+    <div class="pair-cell">
+      <label>Equity available</label>
+      <div class="bignum" data-out="equity">—</div>
+    </div>
+  </div>
+  <div class="hint" data-hint="propertyValue"></div>
+
+  <div class="ext" data-ext="row" style="display:none">
+    <div class="ext-top">
+      <span class="ext-badge" data-ext="badge"></span>
+      <b data-ext="value"></b>
+      <button class="btn tiny" data-act="use-ext">Use</button>
+    </div>
+    <div class="ext-addr" data-ext="addr"></div>
+  </div>
+  <div class="lookup"></div>
 
   <div class="group">
     <div class="two">
@@ -514,7 +554,7 @@ const TEMPLATE = `
       </div>
     </div>
     <div class="two">
-      <div class="row">
+      <div class="row" data-field="program">
         <label>Loan type <span class="src" data-src="program"></span></label>
         <select data-in="program">
           <option value="">—</option>
@@ -531,33 +571,19 @@ const TEMPLATE = `
     </div>
   </div>
 
-  <div class="result">
-    <div class="headline">
-      <span class="cap">Cash out</span>
-      <span class="num none" data-out="cash">—</span>
-    </div>
-    <span class="pill idle" data-out="verdict">—</span>
+  <div class="msgs"></div>
 
-    <div class="ltvbar">
-      <div class="track">
-        <div class="fill"></div>
-        <div class="cap"></div>
-      </div>
-      <div class="lbl"><span data-bar="left"></span><span data-bar="right"></span></div>
-    </div>
-
+  <details class="adv">
+    <summary>Detail</summary>
     <div class="grid">
       <div class="cell"><div class="k">Max loan</div><div class="v" data-out="maxLoan">—</div></div>
-      <div class="cell"><div class="k">Gross equity</div><div class="v" data-out="equity">—</div></div>
       <div class="cell"><div class="k">Current LTV</div><div class="v sub" data-out="currentLtv">—</div></div>
       <div class="cell"><div class="k">Max LTV</div><div class="v sub" data-out="maxLtv">—</div></div>
       <div class="cell" data-row="fee"><div class="k">Fee</div><div class="v sub" data-out="fee">—</div></div>
       <div class="cell"><div class="k">Total loan</div><div class="v sub" data-out="total">—</div></div>
       <div class="cell"><div class="k">Program</div><div class="v sub" data-out="breakeven">—</div></div>
     </div>
-
-    <div class="msgs"></div>
-  </div>
+  </details>
 
   <details class="adv">
     <summary>Assumptions &amp; overrides</summary>
@@ -599,10 +625,6 @@ const TEMPLATE = `
     </div>
     <div class="hint" data-solve="out">Enter all three to estimate the remaining balance.</div>
     <div class="foot"><button class="btn wide" data-act="use-solved">Use as balance</button></div>
-    <div class="hint">
-      Rough estimate from principal &amp; interest only. A payment that includes
-      taxes and insurance will overstate the balance. Always confirm the real payoff.
-    </div>
   </details>
 
   <div class="foot">
@@ -613,9 +635,8 @@ const TEMPLATE = `
   </div>
 
   <div class="disclaimer">
-    Estimate only — LTV cap and financed upfront fee. Does not model DTI, credit,
-    residual income, seasoning, entitlement, occupancy, county loan limits or
-    investor overlays. Not a quote, offer, or commitment to lend.
+    Estimate only — LTV cap and financed upfront fee. Not a quote, offer, or
+    commitment to lend.
   </div>
 </div>
 `;
