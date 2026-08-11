@@ -379,6 +379,14 @@ test('a Zillow value still resolves when the embedded JSON is gone', { skip }, a
 
     assert.ok(found, 'should fall back to reading the rendered page');
     assert.equal(found.value, 661400);
+    assert.equal(found.source, 'dom');
+
+    // The fallback must still refuse the other large figures on the page.
+    // A sold price silently driving a 100% LTV screen is the failure mode
+    // this restriction exists for.
+    assert.notEqual(found.value, 412000);   // last sold price
+    assert.notEqual(found.value, 3150);     // rent estimate
+    assert.notEqual(found.value, 5880);     // annual tax
   } finally {
     await page.close();
   }
@@ -414,6 +422,202 @@ test('a Zillow value only auto-fills when the address matches the lead', { skip 
     assert.equal(out.sameLead, 'exact', 'the matching lead should auto-fill');
     assert.equal(out.otherLead, 'none', 'a different property must never auto-fill');
     assert.equal(out.neighbour, 'none', 'the house next door must never auto-fill');
+  } finally {
+    await page.close();
+  }
+});
+
+/**
+ * Boot the actual content-script orchestrator against the agent screen, with
+ * a minimal chrome.* shim. This is the only test that exercises main.js —
+ * module wiring, panel mount, detection, merge and render together.
+ */
+async function bootPanel(page, fixture) {
+  const { port } = await setup();
+  const origin = `http://127.0.0.1:${port}`;
+  await page.goto(`${origin}/test/fixtures/${fixture}`);
+
+  await page.evaluate(async (base) => {
+    const store = { enabledSites: { [location.origin]: true } };
+    window.chrome = {
+      runtime: {
+        onMessage: { addListener() {} },
+        sendMessage: async () => ({}),
+        getURL: (path) => `${base}/extension/${path}`,
+      },
+      storage: {
+        local: {
+          async get(key) {
+            const keys = Array.isArray(key) ? key : [key];
+            const out = {};
+            for (const k of keys) if (k in store) out[k] = store[k];
+            return out;
+          },
+          async set(obj) { Object.assign(store, obj); },
+        },
+      },
+    };
+    const mod = await import(`${base}/extension/src/content/main.js`);
+    await mod.start();
+  }, origin);
+
+  await page.waitForFunction(() => !!document.getElementById('__equity_lens_host__'), null,
+    { timeout: 5000 });
+}
+
+const readPanel = () => {
+  const root = document.getElementById('__equity_lens_host__').shadowRoot;
+  const text = (sel) => root.querySelector(sel)?.textContent?.trim() ?? null;
+  const val = (sel) => root.querySelector(sel)?.value ?? null;
+  return {
+    balance: val('[data-in=firstLien]'),
+    program: val('[data-in=program]'),
+    state: val('[data-in=state]'),
+    value: val('[data-in=propertyValue]'),
+    cash: text('[data-out=cash]'),
+    maxLoan: text('[data-out=maxLoan]'),
+    equity: text('[data-out=equity]'),
+    maxLtv: text('[data-out=maxLtv]'),
+    who: text('.who'),
+  };
+};
+
+test('the content script boots, detects, and computes on the agent screen', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const before = await page.evaluate(readPanel);
+    assert.equal(before.balance, '270900', 'balance auto-filled from the form');
+    assert.equal(before.program, 'VA', 'dropdown shows the normalized program');
+    assert.equal(before.state, 'TN');
+    assert.equal(before.value, '', 'no home value on this screen');
+    assert.equal(before.cash, '—', 'no cash figure until a value is entered');
+    assert.match(before.who, /RANDY D ROLLINS/);
+
+    // The agent types the value.
+    const after = await page.evaluate(() => {
+      const root = document.getElementById('__equity_lens_host__').shadowRoot;
+      const input = root.querySelector('[data-in=propertyValue]');
+      input.value = '400000';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      const text = (sel) => root.querySelector(sel)?.textContent?.trim() ?? null;
+      return {
+        cash: text('[data-out=cash]'),
+        maxLoan: text('[data-out=maxLoan]'),
+        equity: text('[data-out=equity]'),
+        maxLtv: text('[data-out=maxLtv]'),
+        verdict: text('[data-out=verdict]'),
+      };
+    });
+
+    assert.equal(after.maxLtv, '100%', 'VA outside Texas');
+    assert.equal(after.maxLoan, '$391,581');
+    assert.equal(after.equity, '$129,100');
+    assert.equal(after.cash, '$120,681');
+    assert.match(after.verdict, /threshold/i);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the detector does not read the panel back in as page data', { skip }, async () => {
+  // The panel is mounted in an *open* shadow root, which the detector
+  // traverses like any other. It renders a "Home value" label beside a
+  // currency figure, so without an explicit exclusion it harvests its own
+  // output and feeds it back in as though it had come from the page —
+  // conjuring a home value on a screen that has none.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const seen = await page.evaluate(async (origin) => {
+      const { collectCandidates } = await import(`${origin}/extension/src/lib/detect.js`);
+      const candidates = collectCandidates(document);
+      return {
+        total: candidates.length,
+        fromPanel: candidates.filter((c) => c.el?.closest?.('#__equity_lens_host__')).length,
+        labels: candidates.map((c) => c.label),
+      };
+    }, `http://127.0.0.1:${(await setup()).port}`);
+
+    assert.equal(seen.fromPanel, 0, 'no candidate may come from the panel');
+    assert.ok(seen.total > 0, 'the page itself is still being read');
+    // The panel's own field captions must never appear as detected labels.
+    assert.ok(!seen.labels.includes('Home value'));
+    assert.ok(!seen.labels.includes('2nd / HELOC'));
+
+    // And the value box must stay empty rather than filling from the panel.
+    const value = await page.evaluate(() =>
+      document.getElementById('__equity_lens_host__').shadowRoot
+        .querySelector('[data-in=propertyValue]').value);
+    assert.equal(value, '');
+  } finally {
+    await page.close();
+  }
+});
+
+test('clearing a field does not snap back to the page value', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const cleared = await page.evaluate(async () => {
+      const root = document.getElementById('__equity_lens_host__').shadowRoot;
+      const input = root.querySelector('[data-in=firstLien]');
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      // Outlast a poll tick, which is what used to refill it.
+      await new Promise((r) => setTimeout(r, 900));
+      return root.querySelector('[data-in=firstLien]').value;
+    });
+
+    assert.equal(cleared, '', 'a deliberately emptied field must stay empty');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the panel picks up the next call without a reload', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const next = await page.evaluate(async () => {
+      const root = document.getElementById('__equity_lens_host__').shadowRoot;
+
+      // Agent enters a value for the current caller.
+      const valueInput = root.querySelector('[data-in=propertyValue]');
+      valueInput.value = '400000';
+      valueInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // The dialer swaps in the next lead — no events, no attribute changes.
+      window.loadNextRecord({
+        id: '7164999', first: 'MARIA', last: 'CHEN', address: '44 OAK ST',
+        city: 'AUSTIN', state: 'TX', zip: '78701', balance: '318450', loanType: 'CV',
+      });
+
+      await new Promise((r) => setTimeout(r, 1200));
+      const text = (sel) => root.querySelector(sel)?.textContent?.trim() ?? null;
+      return {
+        balance: root.querySelector('[data-in=firstLien]').value,
+        program: root.querySelector('[data-in=program]').value,
+        state: root.querySelector('[data-in=state]').value,
+        value: root.querySelector('[data-in=propertyValue]').value,
+        who: text('.who'),
+      };
+    });
+
+    assert.equal(next.balance, '318450', 'new balance detected');
+    assert.equal(next.program, 'CONV', '"CV" normalized for the dropdown');
+    assert.equal(next.state, 'TX');
+    assert.match(next.who, /MARIA CHEN/);
+    // The critical one: the previous caller's home value must not carry over.
+    assert.equal(next.value, '', 'the previous record\'s value must be cleared');
   } finally {
     await page.close();
   }

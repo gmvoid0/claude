@@ -17,11 +17,12 @@
 
 import { collectCandidates, assignFields, readValue, FIELDS, cleanLabel } from '../lib/detect.js';
 import { computeEquity, solveBalanceFromPayment } from '../lib/equity.js';
-import { mergeRules, normalizeProgram, normalizeState } from '../lib/rules.js';
+import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
 import { extractValuation, valuationSite } from '../lib/valuation.js';
-import { compareAddresses, joinAddress, zillowSearchUrl, redfinSearchUrl } from '../lib/address.js';
+import { zillowSearchUrl, redfinSearchUrl } from '../lib/address.js';
+import { mergeInputs, decideExternalValue, leadAddress } from '../lib/merge.js';
 import {
   isSiteEnabled, setSiteEnabled, getBindings, setBinding, anySiteEnabled,
   getRuleOverrides, getPrefs, getPanelPos, setPanelPos, setPrefs,
@@ -33,6 +34,9 @@ const IS_TOP = window.top === window;
 
 /** Fields the agent can type over. */
 const EDITABLE = ['propertyValue', 'firstLien', 'secondLien', 'program', 'state'];
+
+/** How long a value read from a valuation tab stays usable. */
+const VALUATION_TTL_MS = 30 * 60 * 1000;
 
 const state = {
   enabled: false,
@@ -71,7 +75,13 @@ export async function start() {
   const site = valuationSite(location.hostname);
   if (site) {
     if (state.prefs.readValuationSites !== false && await anySiteEnabled()) {
-      startValuationReporter();
+      const reporter = startValuationReporter();
+      // Honour the setting being switched off without needing a reload.
+      chrome.runtime.onMessage.addListener(async (msg) => {
+        if (msg?.type !== 'EQ_SETTINGS_CHANGED') return;
+        const prefs = await getPrefs();
+        if (prefs.readValuationSites === false) reporter.stop();
+      });
     }
     return;
   }
@@ -161,8 +171,19 @@ async function reloadSettings() {
  */
 function startValuationReporter() {
   let lastSignature = null;
+  let lastRunAt = 0;
+  let stopped = false;
 
   const report = () => {
+    if (stopped) return;
+
+    // Listing sites mutate the DOM continuously. Extraction scans inline
+    // scripts and can fall back to walking the whole document, so it is
+    // throttled rather than run on every mutation burst.
+    const now = Date.now();
+    if (now - lastRunAt < 1000) return;
+    lastRunAt = now;
+
     let found = null;
     try {
       found = extractValuation(document, location);
@@ -179,15 +200,23 @@ function startValuationReporter() {
   };
 
   const debounced = debounce(report, 400);
+  let observer = null;
 
   report();
   try {
-    new MutationObserver(debounced).observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-  } catch { /* interval still covers it */ }
-  setInterval(report, 2000);
+    observer = new MutationObserver(debounced);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  } catch { /* the interval still covers it */ }
+
+  const timer = setInterval(report, 2000);
+
+  return {
+    stop() {
+      stopped = true;
+      observer?.disconnect();
+      clearInterval(timer);
+    },
+  };
 }
 
 function debounce(fn, ms) {
@@ -362,7 +391,6 @@ function scan(force) {
       state.overrides.ltvOverride = '';
       state.overrides.loanLimit = '';
       state.avmTouched = false;
-      state.appliedExternalFor = null;
     }
   }
 
@@ -372,7 +400,9 @@ function scan(force) {
   state.recordLabel = buildRecordLabel(detected);
 
   if (IS_TOP) {
-    recompute();
+    // A record change must overwrite the inputs even where the agent has
+    // focus, so the previous caller's figures cannot linger on screen.
+    recompute({ forceInputs: recordChanged });
     if (recordChanged) maybeFocusValue();
   } else {
     reportFrameFields(detected);
@@ -419,9 +449,14 @@ function harvest() {
   return out;
 }
 
-/** Look for "RECORD ID: 12345" / "UID: V811..." style identifiers. */
+/**
+ * Look for "RECORD ID: 12345" / "UID: V811..." style identifiers.
+ *
+ * textContent rather than innerText: this runs on every poll tick, and
+ * innerText forces a layout pass for a string we only regex over.
+ */
 function findRecordId() {
-  const text = document.body?.innerText?.slice(0, 4000) ?? '';
+  const text = document.body?.textContent?.slice(0, 20000) ?? '';
   const patterns = [
     /\bRECORD\s*ID\s*[:#]?\s*([A-Za-z0-9._-]{3,40})/i,
     /\bLEAD\s*ID\s*[:#]?\s*([A-Za-z0-9._-]{3,40})/i,
@@ -479,7 +514,7 @@ function reportFrameFields(detected) {
  * Compute + render
  * ------------------------------------------------------------------ */
 
-function recompute() {
+function recompute({ forceInputs = false } = {}) {
   if (!IS_TOP || !state.panel) return;
 
   const inputs = effectiveInputs();
@@ -504,6 +539,22 @@ function recompute() {
     financeFee: state.overrides.financeFee !== false,
   }, state.rules);
 
+  // Lead data routinely carries a loan type the matrix has no meaning for —
+  // one of the source screens held an agent ID in that column. Say so rather
+  // than leaving an empty dropdown to be read as "nothing detected".
+  if (inputs.program.value && !inputs.program.normalized) {
+    result.warnings.unshift({
+      level: 'warn',
+      text: `Loan type "${truncate(inputs.program.value, 24)}" was not recognised. Pick the program.`,
+    });
+  }
+  if (inputs.state.value && !inputs.state.normalized) {
+    result.warnings.unshift({
+      level: 'warn',
+      text: `State "${truncate(inputs.state.value, 24)}" was not recognised, so no state cap is applied.`,
+    });
+  }
+
   state.lastResult = result;
   state.lastInputs = inputs;
 
@@ -513,6 +564,7 @@ function recompute() {
     result,
     external,
     recordLabel: state.recordLabel,
+    forceInputs,
     live: state.running,
     picking: state.picking,
     showLookupLinks: state.prefs?.showLookupLinks !== false,
@@ -520,15 +572,6 @@ function recompute() {
   });
 }
 
-/** The lead's address as one line, for matching and for lookup links. */
-function leadAddress(inputs) {
-  return joinAddress({
-    street: inputs.street?.value,
-    city: inputs.city?.value,
-    state: inputs.state?.value,
-    zip: inputs.zip?.value,
-  });
-}
 
 function buildLookupUrls(inputs) {
   const address = leadAddress(inputs);
@@ -541,109 +584,48 @@ function buildLookupUrls(inputs) {
 }
 
 /**
- * Decide what to do with a value read from a Zillow/Redfin tab.
+ * Apply the external-value decision to the merged inputs.
  *
- * It is only filled in automatically when the address is an exact match for
- * the lead on screen. Anything less is shown as a suggestion for the agent to
- * accept, because quietly attaching one property's value to a different
- * borrower is the most damaging mistake this tool could make.
- *
- * Mutates `inputs.propertyValue` when it applies. Returns the state the panel
- * needs to render the suggestion row.
+ * The decision itself lives in lib/merge.js so it can be tested; this only
+ * carries it out and hands the panel what it needs to render the row.
  */
 function applyExternalValue(inputs) {
-  const ext = state.externalValue;
-  if (!ext?.value) return null;
+  const decision = decideExternalValue({
+    inputs,
+    external: state.externalValue,
+    ttlMs: VALUATION_TTL_MS,
+  });
 
-  const address = leadAddress(inputs);
-  const comparison = address
-    ? compareAddresses(address, ext.address)
-    : { confidence: 'none', reason: 'no address on the lead' };
-
-  const alreadySet = inputs.propertyValue.value !== '';
-  const applied =
-    comparison.confidence === 'exact' &&
-    (!alreadySet || state.appliedExternalFor === ext.address);
-
-  if (applied) {
-    state.appliedExternalFor = ext.address;
-    inputs.propertyValue = {
-      value: String(ext.value),
-      num: ext.value,
-      source: 'external',
-      sourceLabel: `${ext.siteLabel} ${ext.valueLabel}`,
-      isAvm: true,
-      implausible: false,
-      normalized: null,
-    };
+  if (decision.status === 'expired') {
+    state.externalValue = null;
+    return null;
   }
+  if (decision.status === 'none') return null;
 
-  return { ...ext, comparison, applied };
+  if (decision.status === 'applied') inputs.propertyValue = decision.value;
+
+  return {
+    ...state.externalValue,
+    comparison: decision.comparison,
+    applied: decision.status === 'applied',
+  };
 }
 
-/**
- * Merge, in priority order: what the agent typed > bound field > auto-detected
- * in this frame > auto-detected in a child frame.
- */
+/** Merge every source into one value per field. */
 function effectiveInputs() {
-  const out = {};
-  const keys = new Set([...Object.keys(FIELDS), ...EDITABLE]);
-
-  for (const key of keys) {
-    const manual = state.manual[key];
-    const local = state.detected[key];
-    const frame = state.frameFields[key];
-
-    let raw;
-    let source = 'none';
-    let sourceLabel = null;
-    let isAvm = false;
-
-    if (manual != null && manual !== '') {
-      raw = manual;
-      source = 'manual';
-    } else if (local?.raw != null && String(local.raw).trim() !== '') {
-      raw = local.raw;
-      source = local.source === 'bound' ? 'bound' : 'auto';
-      sourceLabel = local.label;
-      isAvm = !!local.isAvm;
-    } else if (frame?.raw != null && String(frame.raw).trim() !== '') {
-      raw = frame.raw;
-      source = frame.source === 'bound' ? 'bound' : 'auto';
-      sourceLabel = `${frame.label} (frame)`;
-      isAvm = !!frame.isAvm;
-    } else if (manual === '') {
-      raw = '';
-      source = 'manual';
-    } else {
-      raw = '';
-    }
-
-    const kind = FIELDS[key]?.kind ?? 'text';
-    const num = kind === 'money' ? parseMoney(raw) : null;
-
-    out[key] = {
-      value: raw ?? '',
-      num,
-      source,
-      sourceLabel,
-      isAvm,
-      implausible: isImplausible(key, num),
-      normalized:
-        key === 'program' ? normalizeProgram(raw)
-        : key === 'state' ? normalizeState(raw)
-        : null,
-    };
-  }
-
-  return out;
+  return mergeInputs({
+    manual: state.manual,
+    detected: state.detected,
+    frameFields: state.frameFields,
+    keys: [...new Set([...Object.keys(FIELDS), ...EDITABLE])],
+  });
 }
 
-function isImplausible(key, num) {
-  const range = FIELDS[key]?.range;
-  if (!range || num == null) return false;
-  return num < range[0] || num > range[1];
+function truncate(text, max) {
+  const s = String(text).trim();
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
+
 
 /** "80", "80%", ".8" all mean 80%. Blank means "use the program default". */
 function parseLtv(raw) {

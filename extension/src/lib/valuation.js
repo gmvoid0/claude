@@ -8,11 +8,14 @@
  * against their terms of use and, at any volume, self-defeating: bot
  * protection blocks it within minutes.
  *
- * Site markup changes often, so extraction is layered from most to least
- * structured and degrades rather than breaking:
- *   1. structured JSON embedded in the page
- *   2. JSON-LD
- *   3. the generic label-based detector
+ * Site markup changes often, so extraction is layered and degrades rather
+ * than breaking: structured JSON embedded in the page first, then the
+ * generic label-based detector against what is rendered.
+ *
+ * Both layers only ever accept a figure that is identified as a valuation.
+ * Listing pages carry list prices, sold prices and tax assessments, and any
+ * of those read as a home value would be wrong in a way that looks entirely
+ * plausible.
  */
 
 import { collectCandidates, assignFields } from './detect.js';
@@ -45,7 +48,6 @@ export function extractValuation(doc = document, loc = location) {
 
   const value =
     fromEmbeddedJson(html) ??
-    fromJsonLd(doc) ??
     fromDom(doc);
 
   if (value == null) return null;
@@ -66,18 +68,33 @@ export function extractValuation(doc = document, loc = location) {
   };
 }
 
-/** Concatenated text of inline scripts, where the structured data lives. */
+/**
+ * Concatenated text of inline scripts, where the structured data lives.
+ *
+ * Memoized: this can pull together megabytes of bundle text, and the caller
+ * runs on a timer against a page that mutates constantly. The cache key is
+ * the URL plus the script count, so a client-side navigation to another
+ * property invalidates it while ordinary re-renders do not.
+ */
+let scriptCache = { key: null, text: '' };
+
 function rawScripts(doc) {
   try {
+    const scripts = doc.querySelectorAll('script:not([src])');
+    const key = `${doc.location?.href ?? ''}|${scripts.length}`;
+    if (scriptCache.key === key) return scriptCache.text;
+
     const parts = [];
-    for (const el of doc.querySelectorAll('script:not([src])')) {
+    for (const el of scripts) {
       const text = el.textContent;
       // Only scripts big enough to be a data blob, capped so a huge bundle
       // does not blow up the regex scan.
       if (text && text.length > 200) parts.push(text.slice(0, 400000));
       if (parts.length > 12) break;
     }
-    return parts.join('\n');
+
+    scriptCache = { key, text: parts.join('\n') };
+    return scriptCache.text;
   } catch {
     return '';
   }
@@ -109,27 +126,22 @@ function fromEmbeddedJson(html) {
   return null;
 }
 
-function fromJsonLd(doc) {
-  try {
-    for (const el of doc.querySelectorAll('script[type="application/ld+json"]')) {
-      const data = safeJson(el.textContent);
-      for (const node of flatten(data)) {
-        const offer = node?.offers?.price ?? node?.price;
-        const amount = parseMoney(offer);
-        if (amount != null && amount >= VALUE_RANGE[0] && amount <= VALUE_RANGE[1]) {
-          return { amount, label: 'Listed price', source: 'json-ld' };
-        }
-      }
-    }
-  } catch { /* malformed JSON-LD is common; ignore */ }
-  return null;
-}
-
-/** Last resort: the generic label-driven detector. */
+/**
+ * Last resort: the generic label-driven detector, restricted to candidates
+ * whose label marks them as a valuation.
+ *
+ * The restriction is the important part. A listing page is covered in other
+ * large figures — the list price, the last sold price, a tax assessment — and
+ * any of them read as a home value would be wrong in a way that looks
+ * entirely plausible. A sold price from 2019 quietly driving a 100% LTV
+ * screen is exactly the failure worth engineering against, so a figure is
+ * only accepted here if it is labelled as an estimate.
+ */
 function fromDom(doc) {
   try {
-    const assigned = assignFields(collectCandidates(doc), ['propertyValue']);
-    const entry = assigned.propertyValue;
+    const candidates = collectCandidates(doc).filter((c) => c.isAvm);
+    if (!candidates.length) return null;
+    const entry = assignFields(candidates, ['propertyValue']).propertyValue;
     if (!entry) return null;
     const amount = parseMoney(entry.candidate.raw);
     if (amount == null) return null;
@@ -181,28 +193,7 @@ function looksLikeAddress(text) {
   return /[A-Za-z]{2,}/.test(text);
 }
 
-function safeJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
 
-/** Yield every object in a nested JSON-LD structure. */
-function* flatten(node, depth = 0) {
-  if (!node || depth > 6) return;
-  if (Array.isArray(node)) {
-    for (const item of node) yield* flatten(item, depth + 1);
-    return;
-  }
-  if (typeof node === 'object') {
-    yield node;
-    for (const value of Object.values(node)) {
-      if (value && typeof value === 'object') yield* flatten(value, depth + 1);
-    }
-  }
-}
 
 function unescapeJson(text) {
   return String(text).replace(/\\u0026/g, '&').replace(/\\"/g, '"').replace(/\\\//g, '/');

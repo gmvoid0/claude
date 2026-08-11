@@ -281,7 +281,7 @@ npm run test:dom     # detection against real DOM fixtures in Chromium
 npm run icons        # regenerate the PNGs
 ```
 
-72 tests. The DOM tests run against fixtures reproducing the real screens: a
+95 tests. The DOM tests run against fixtures reproducing the real screens: a
 VICIdial form with deliberately misleading `name` attributes, an
 absolutely-positioned layout with no attributes at all, an AVM card in a
 shadow root, and a Zillow property page carrying a list price, a rent
@@ -290,6 +290,12 @@ estimate and a tax figure as decoys around the Zestimate.
 The address matcher is tested hardest in the direction that matters — that a
 neighbouring house, a same-named street in another state, and an unrelated
 lead all fail to match.
+
+A separate group boots the real content script against the agent-screen
+fixture with a stubbed `chrome.*`, which is the only way to catch faults that
+need detection, merging and rendering to be wrong *together* — a value box
+that keeps the previous caller's figure, or the panel harvesting its own
+output back in as page data.
 
 ```
 extension/
@@ -303,6 +309,7 @@ extension/
       selector.js   stable selectors for click-to-bind
       address.js    address normalization and match confidence
       valuation.js  reading a value off a Zillow / Redfin tab
+      merge.js      resolving each field from competing sources
       settings.js   chrome.storage wrapper
     content/        panel, picker, orchestrator
     background/     frame relay + settings broadcast

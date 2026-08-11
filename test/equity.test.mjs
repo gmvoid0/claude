@@ -248,6 +248,29 @@ test('an AVM with no haircut configured is still called out', () => {
   assert.ok(r.warnings.some((w) => /not an appraisal/i.test(w.text)));
 });
 
+test('break-even is quoted in the same units as the value that was entered', () => {
+  // With a haircut in play the calculation runs on the discounted value, but
+  // the agent is looking at the headline AVM figure. Quoting the break-even
+  // post-haircut would make a dead lead look live.
+  const rules = mergeRules({ avmHaircut: 0.05 });
+  const withAvm = computeEquity(
+    { ...BASE, propertyValue: 500000, firstLien: 400000, valueIsAvm: true },
+    rules,
+  );
+
+  // An AVM at exactly the break-even figure must produce ~zero cash out.
+  const atBreakEven = computeEquity(
+    { ...BASE, propertyValue: withAvm.minValueToBreakEven, firstLien: 400000, valueIsAvm: true },
+    rules,
+  );
+  assert.ok(atBreakEven.estimatedCashToBorrower >= 0);
+  assert.ok(atBreakEven.estimatedCashToBorrower < 1500);
+
+  // And it must sit above the un-haircut break-even, not below it.
+  const noHaircut = computeEquity({ ...BASE, propertyValue: 500000, firstLien: 400000 });
+  assert.ok(withAvm.minValueToBreakEven > noHaircut.minValueToBreakEven);
+});
+
 /* --- balance from payment ----------------------------------------------- */
 
 /** Standard amortising payment, used to check the solver round-trips. */

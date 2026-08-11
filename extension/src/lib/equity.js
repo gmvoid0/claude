@@ -195,10 +195,19 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
   }
 
   // What would the property need to be worth to break even (zero cash out)?
+  //
+  // Reported in the same units as the figure that was entered. When an AVM
+  // haircut is in play the calculation runs on the discounted value, so the
+  // result is grossed back up — otherwise the agent would be comparing a
+  // post-haircut target against the pre-haircut number on their screen and
+  // would read a dead lead as a live one.
   const feeDivisor = financeFee && feeInsideCap ? 1 / (1 + feeRate) : 1;
-  const minValueToBreakEven = maxLtv > 0
-    ? Math.ceil((totalLiens + closingCosts) / (maxLtv * feeDivisor))
+  const breakEvenScreening = maxLtv > 0
+    ? (totalLiens + closingCosts) / (maxLtv * feeDivisor)
     : null;
+  const minValueToBreakEven = breakEvenScreening == null
+    ? null
+    : Math.ceil(haircutApplied ? breakEvenScreening / (1 - haircut) : breakEvenScreening);
 
   // --- Plausibility checks -------------------------------------------------
   if (totalLiens > value) {

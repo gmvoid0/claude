@@ -8,6 +8,7 @@
 
 import { buildSelector } from '../lib/selector.js';
 import { PICKER_CSS } from './styles.js';
+import { PANEL_HOST_ID } from '../lib/constants.js';
 
 let active = null;
 
@@ -44,7 +45,7 @@ export function pickElement({ prompt = 'Click the field to bind — Esc to cance
       const el = document.elementFromPoint(e.clientX, e.clientY);
       if (!el || el === highlight || el === hint) return;
       // Don't let the picker target our own panel.
-      if (el.id === '__equity_lens_host__' || el.closest?.('#__equity_lens_host__')) return;
+      if (el.id === PANEL_HOST_ID || el.closest?.(`#${PANEL_HOST_ID}`)) return;
       current = el;
       const r = el.getBoundingClientRect();
       Object.assign(highlight.style, {

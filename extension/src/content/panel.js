@@ -9,8 +9,7 @@
 
 import { formatMoney, formatPercent } from '../lib/money.js';
 import { PANEL_CSS } from './styles.js';
-
-const HOST_ID = '__equity_lens_host__';
+import { PANEL_HOST_ID as HOST_ID } from '../lib/constants.js';
 
 export class Panel {
   constructor(handlers = {}) {
@@ -224,10 +223,18 @@ export class Panel {
     if (this.els.solveOut) this.els.solveOut.innerHTML = text;
   }
 
-  /** Set an input's value without disturbing the user if they're typing in it. */
-  setInput(el, value) {
+  /**
+   * Set an input's value without disturbing the agent if they're typing in it.
+   *
+   * `force` overrides that guard and is used when the record changes. It has
+   * to: the panel focuses the home value box on every new record, so the
+   * guard would otherwise refuse to clear the one field most dangerous to
+   * leave stale, and the box would keep showing the previous caller's value
+   * while the calculation had already dropped it.
+   */
+  setInput(el, value, force = false) {
     if (!el) return;
-    if (this.root.activeElement === el) return;
+    if (!force && this.root.activeElement === el) return;
     const next = value == null ? '' : String(value);
     if (el.value !== next) el.value = next;
   }
@@ -237,17 +244,25 @@ export class Panel {
   render(state) {
     if (!this.mounted) return;
     const { inputs, overrides, result, recordLabel, live, picking } = state;
+    // Set on the render that follows a record change: the previous caller's
+    // entries must be cleared even out of a focused field.
+    const force = !!state.forceInputs;
     const { els } = this;
 
     els.dot.className = `dot ${live ? 'live' : 'stale'}`;
     els.who.textContent = recordLabel || 'No record detected';
 
     // --- inputs
-    this.setInput(els.value, inputs.propertyValue?.value ?? '');
-    this.setInput(els.first, inputs.firstLien?.value ?? '');
-    this.setInput(els.second, inputs.secondLien?.value ?? '');
-    this.setInput(els.program, inputs.program?.value ?? '');
-    this.setInput(els.state, inputs.state?.value ?? '');
+    this.setInput(els.value, inputs.propertyValue?.value ?? '', force);
+    this.setInput(els.first, inputs.firstLien?.value ?? '', force);
+    this.setInput(els.second, inputs.secondLien?.value ?? '', force);
+    // The dropdown must show the program actually being used, not the raw
+    // page text. Lead data carries "CV", "VA LOAN", and sometimes junk like
+    // an agent ID; assigning that straight to a <select> silently blanks it
+    // while the calculation carries on with the normalized program, which
+    // reads as "the tool doesn't know the loan type" when it does.
+    this.setInput(els.program, inputs.program?.normalized ?? '', force);
+    this.setInput(els.state, inputs.state?.value ?? '', force);
 
     els.value.classList.toggle('empty', !inputs.propertyValue?.value);
     els.first.classList.toggle('warnval', !!inputs.firstLien?.implausible);
@@ -257,9 +272,9 @@ export class Panel {
     setSrc(els.programSrc, inputs.program);
     setSrc(els.stateSrc, inputs.state);
 
-    this.setInput(els.closingCosts, overrides.closingCosts ?? '');
-    this.setInput(els.ltvOverride, overrides.ltvOverride ?? '');
-    this.setInput(els.loanLimit, overrides.loanLimit ?? '');
+    this.setInput(els.closingCosts, overrides.closingCosts ?? '', force);
+    this.setInput(els.ltvOverride, overrides.ltvOverride ?? '', force);
+    this.setInput(els.loanLimit, overrides.loanLimit ?? '', force);
     els.feeExempt.checked = !!overrides.feeExempt;
     els.subsequentUse.checked = !!overrides.subsequentUse;
     els.financeFee.checked = overrides.financeFee !== false;
@@ -413,6 +428,9 @@ export class Panel {
 
     if (!showLookupLinks || !lookupUrls?.address) {
       host.style.display = 'none';
+      // Clear the cache key too, otherwise coming back to the same address
+      // short-circuits below and the links stay hidden for good.
+      delete host.dataset.sig;
       return;
     }
 

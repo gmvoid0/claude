@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { scoreLabel, scoreCandidate, assignFields, cleanLabel }
+import { scoreLabel, scoreCandidate, assignFields, cleanLabel, looksLikeFigure, isAvmLabel }
   from '../extension/src/lib/detect.js';
 
 /**
@@ -144,6 +144,27 @@ test('a populated field outranks an identical empty one', () => {
     { ...c('Mortgage Balance', '270900'), uid: 'full' },
   ]);
   assert.equal(assigned.firstLien.candidate.uid, 'full');
+});
+
+test('a bare run of digits is not read as a currency figure', () => {
+  // Undecorated digits are ambiguous on a listing page, and a five-digit ZIP
+  // sits inside the plausible range for a home value.
+  for (const text of ['98604', '2015', '2243', '3', '12']) {
+    assert.equal(looksLikeFigure(text), false, `${text} should not read as money`);
+  }
+
+  for (const text of ['$661,400', '270,900', '$412k', '$1.2M', '$4,027']) {
+    assert.equal(looksLikeFigure(text), true, `${text} should read as money`);
+  }
+});
+
+test('AVM labels are distinguished from ordinary value labels', () => {
+  for (const label of ['Zestimate', 'Redfin Estimate', 'Estimated Home Value', 'AVM']) {
+    assert.equal(isAvmLabel(label), true, `${label} should be flagged as an AVM`);
+  }
+  for (const label of ['Appraised Value', 'Purchase Price', 'Mortgage Balance']) {
+    assert.equal(isAvmLabel(label), false, `${label} should not be flagged as an AVM`);
+  }
 });
 
 test('cleanLabel strips the punctuation labels carry', () => {

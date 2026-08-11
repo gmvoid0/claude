@@ -14,6 +14,7 @@
  */
 
 import { parseMoney, parsePercent } from './money.js';
+import { PANEL_HOST_ID } from './constants.js';
 
 /* ------------------------------------------------------------------ *
  * Field definitions
@@ -323,11 +324,19 @@ export function assignFields(candidates, fieldKeys = FIELD_KEYS) {
 const INPUT_SELECTOR = 'input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=password]), select, textarea';
 
 /**
- * Text that is a bare figure, e.g. "$661,400" or "270,900" or "1.2M".
- * Requires a currency marker, a grouping separator, or four-plus digits, so
- * stray small numbers on a page ("3 beds") are not treated as figures.
+ * Text that is a bare figure, e.g. "$661,400" or "270,900" or "$1.2M".
+ *
+ * A currency marker or a thousands separator is required. An undecorated run
+ * of digits is deliberately not accepted: on a listing page that pattern also
+ * matches ZIP codes, years built and square footage, and a five-digit ZIP
+ * sits squarely inside the plausible range for a home value.
  */
-const MONEY_TEXT_RE = /^(?:\$\s*)?\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$|^\$\s*\d+(?:\.\d{1,2})?[KkMm]?$|^\d{4,}(?:\.\d{1,2})?$/;
+const MONEY_TEXT_RE = /^(?:\$\s*)?\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$|^\$\s*\d+(?:\.\d{1,2})?[KkMm]?$/;
+
+/** True when a run of text reads as a currency figure on its own. */
+export function looksLikeFigure(text) {
+  return MONEY_TEXT_RE.test(String(text ?? '').trim());
+}
 
 /** Labels that mean the figure is an automated estimate, not an appraisal. */
 const AVM_LABEL_RE = /\b(zestimate|redfin\s*estimate|avm|rvm|automated\s*valuation|estimated\s*(home\s*)?value|home\s*value\s*estimate|estimate)\b/i;
@@ -345,14 +354,20 @@ export function isAvmLabel(label) {
  * built alongside, for instance — are frequently mounted in an open shadow
  * root, which a plain querySelectorAll on the document will not see.
  * Closed shadow roots remain unreachable by design.
+ *
+ * Our own panel is excluded explicitly. It is mounted in an open shadow root
+ * too, and it displays a "Home value" label beside a currency figure — so
+ * without this the detector harvests the panel's own output and feeds it back
+ * in as though it had been read off the page.
  */
-function collectRoots(root, limit = 60) {
+function collectRoots(root, limit = 40) {
   const roots = [root];
   const queue = [root];
 
   while (queue.length && roots.length < limit) {
     const current = queue.shift();
     for (const el of safeQueryAll(current, '*')) {
+      if (el.id === PANEL_HOST_ID) continue;
       const shadow = el.shadowRoot;
       if (shadow && !roots.includes(shadow)) {
         roots.push(shadow);
@@ -376,14 +391,25 @@ export function collectCandidates(root = document) {
 
   // Text holders are pooled across every root so a label in the light DOM can
   // still be matched to a field inside a shadow root, and vice versa —
-  // getBoundingClientRect is in viewport coordinates either way.
-  const textHolders = roots.flatMap((r) => collectTextHolders(r));
+  // getBoundingClientRect is in viewport coordinates either way. The budget
+  // is shared, so a page with many shadow roots costs the same as one with
+  // none.
+  const textHolders = [];
+  let budget = 4000;
+  for (const r of roots) {
+    if (budget <= 0) break;
+    const found = collectTextHolders(r, budget);
+    textHolders.push(...found);
+    budget -= found.length;
+  }
+
   const labelHolders = textHolders.filter((h) => !MONEY_TEXT_RE.test(h.text));
 
   // --- form controls
   for (const r of roots) {
     for (const el of safeQueryAll(r, INPUT_SELECTOR)) {
       if (!isVisible(el)) continue;
+      if (el.closest?.(`#${PANEL_HOST_ID}`)) continue;
       const { label, labelSource } = findLabel(el, labelHolders);
       if (!label) continue;
       candidates.push({
@@ -397,6 +423,8 @@ export function collectCandidates(root = document) {
       });
     }
   }
+
+  let moneyCandidates = 0;
 
   for (const holder of textHolders) {
     // --- "Estimated value: $412,000" in a single text node
@@ -417,6 +445,10 @@ export function collectCandidates(root = document) {
     // --- a bare figure whose label sits above or beside it.
     //     This is the shape AVM cards use: "Zestimate®" then "$661,400".
     if (!MONEY_TEXT_RE.test(holder.text)) continue;
+    // Each of these costs a scan over every label, so cap how many are
+    // considered; a page with 40 figures on it is a listing index, not a
+    // property record.
+    if (++moneyCandidates > 40) break;
     const label = nearestTextByPosition(holder.el, labelHolders);
     if (!label) continue;
     candidates.push({
@@ -534,9 +566,20 @@ function precedingText(el) {
 
 /**
  * Elements whose own text is short enough to be a label, with their rects.
+ *
+ * This is the hot path — it runs on every poll tick — so it avoids
+ * getComputedStyle entirely and settles for the cheaper "does it have client
+ * rects" test. The difference is that `visibility: hidden` text is still
+ * collected, which costs a few harmless extra candidates rather than a
+ * style resolution per text node.
+ *
+ * `budget` caps the total across all roots so a heavy page cannot turn each
+ * tick into hundreds of thousands of iterations.
  */
-function collectTextHolders(root) {
+function collectTextHolders(root, budget = 4000) {
   const holders = [];
+  if (budget <= 0) return holders;
+
   const doc = root.ownerDocument ?? root;
   const walker = doc.createTreeWalker
     ? doc.createTreeWalker(root.body ?? root, 4 /* SHOW_TEXT */)
@@ -545,14 +588,22 @@ function collectTextHolders(root) {
 
   let node;
   let guard = 0;
-  while ((node = walker.nextNode()) && guard++ < 6000) {
-    const text = cleanLabel(node.textContent);
+  while ((node = walker.nextNode()) && guard++ < budget * 3 && holders.length < budget) {
+    const raw = node.textContent;
+    // Cheap rejections before any DOM work.
+    if (!raw || raw.length > 120) continue;
+    const text = cleanLabel(raw);
     if (!text || text.length > 60) continue;
+
     const el = node.parentElement;
-    if (!el || !isVisible(el)) continue;
+    if (!el) continue;
     const tag = el.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style' || tag === 'option') continue;
-    holders.push({ el, text, rect: rectOf(el) });
+    if (tag === 'script' || tag === 'style' || tag === 'option' || tag === 'noscript') continue;
+
+    const rect = rectOf(el);
+    if (!rect || (rect.width === 0 && rect.height === 0)) continue;
+
+    holders.push({ el, text, rect });
   }
   return holders;
 }
