@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Equity Lens — Live LTV & Cash-Out Calculator",
+  "version": "0.1.0",
+  "description": "Reads property value and lien balances from the current page and computes LTV, max loan and cash-out for VA / FHA / Conventional, recalculating as the page updates.",
+  "minimum_chrome_version": "114",
+
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Equity Lens",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/boot.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["src/lib/*.js", "src/content/*.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Equity Lens — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+<main>
+  <h1>Equity Lens settings</h1>
+  <p class="lede">
+    Everything is stored locally in this browser. No lead data is saved and
+    nothing is sent anywhere.
+  </p>
+
+  <section>
+    <h2>LTV caps</h2>
+    <p class="help">
+      Defaults are the common agency maximums for a cash-out refinance on an
+      owner-occupied one-unit property. Lender and investor overlays are often
+      tighter — set yours here.
+    </p>
+    <table id="programs">
+      <thead>
+        <tr>
+          <th>Program</th>
+          <th>Max LTV</th>
+          <th>Texas</th>
+          <th>Upfront fee</th>
+          <th>Subsequent use</th>
+          <th>Fee inside cap</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="help">
+      <b>Fee inside cap</b> — on VA the funding fee is financed <i>within</i> the
+      100% ceiling, so the base loan is reduced to make room for it. On FHA the
+      1.75% UFMIP stacks <i>on top of</i> the 80% base loan. Leave these as they
+      are unless your investor treats them differently.
+    </p>
+  </section>
+
+  <section>
+    <h2>Screening</h2>
+    <div class="field">
+      <label for="threshold">Minimum cash-out worth pursuing</label>
+      <input type="text" id="threshold" inputmode="decimal" />
+      <span class="help">Drives the green/red verdict on the panel.</span>
+    </div>
+    <div class="field">
+      <label for="closingCosts">Default closing-cost assumption</label>
+      <input type="text" id="closingCosts" inputmode="decimal" />
+      <span class="help">Subtracted from cash out. Set 0 to ignore costs.</span>
+    </div>
+    <div class="field">
+      <label for="avmHaircut">Automated-valuation haircut</label>
+      <input type="text" id="avmHaircut" inputmode="decimal" placeholder="0%" />
+      <span class="help">
+        Applied only when the value was read from an automated estimate —
+        a Zestimate, a Redfin estimate, any AVM — never to a figure typed in
+        by hand. An AVM is not an appraisal, and at high LTV a few percent of
+        error decides whether a deal exists. Screening a little below the
+        headline number keeps leads from being qualified on a value the
+        appraisal will not support. 5% is a reasonable starting point; 0
+        takes the estimate at face value.
+      </span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Behaviour</h2>
+    <label class="check"><input type="checkbox" id="resetValueOnNewRecord" />
+      Clear the typed home value when the record changes
+      <span class="help">Strongly recommended on a dialer — otherwise the previous caller's value carries into the next call.</span>
+    </label>
+    <label class="check"><input type="checkbox" id="showLookupLinks" />
+      Show value-lookup links built from the scraped address
+    </label>
+    <label class="check"><input type="checkbox" id="financeFee" />
+      Assume the upfront fee is financed
+    </label>
+    <label class="check"><input type="checkbox" id="startCollapsed" />
+      Start the panel collapsed
+    </label>
+    <div class="field">
+      <label for="pollMs">Refresh interval (ms)</label>
+      <input type="text" id="pollMs" inputmode="numeric" />
+      <span class="help">
+        How often the page is re-read. 400ms is responsive without being
+        noticeable. Set 0 to rely on page events only — faster, but misses
+        screens that fill fields programmatically.
+      </span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Enabled sites</h2>
+    <ul id="sites" class="list"><li class="empty">None yet.</li></ul>
+  </section>
+
+  <section>
+    <h2>Bound fields</h2>
+    <p class="help">Fields you pinned by clicking, per page.</p>
+    <ul id="bindings" class="list"><li class="empty">None yet.</li></ul>
+  </section>
+
+  <div class="bar">
+    <button id="save" class="btn">Save</button>
+    <button id="reset" class="btn ghost">Restore defaults</button>
+    <span id="status" class="status"></span>
+  </div>
+
+  <section class="fineprint">
+    <h2>Limitations you should know about</h2>
+    <ul>
+      <li>This models the LTV cap and the financed upfront fee. It does not model DTI, credit, residual income, seasoning, entitlement, occupancy, unit count, county loan limits, or investor overlays.</li>
+      <li>Auto-detection reads labels off the page. If a page changes its layout, detection can break — rebind the field by clicking it.</li>
+      <li>Values read off a screen are only as good as the data in that screen.</li>
+      <li>Output is an estimate for internal screening. It is not a quote, offer, pre-approval, or commitment to lend, and should not be read to a customer as one.</li>
+    </ul>
+  </section>
+</main>
+<script type="module" src="options.js"></script>
+</body>
+</html>

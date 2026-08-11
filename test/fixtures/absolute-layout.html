@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Absolutely-positioned layout fixture</title>
+  <style>
+    body { font: 13px Arial, sans-serif; margin: 0; height: 400px; }
+    #labels div { position: absolute; white-space: nowrap; }
+    #fields input { position: absolute; font: 13px Arial; width: 140px; }
+  </style>
+</head>
+<body>
+<!--
+  The hard case for label detection.
+
+  Every label lives in one container and every field in another, so no label
+  is an ancestor, a sibling, or an adjacent table cell of its field. There are
+  no name, id, title or placeholder attributes either. The only thing relating
+  a label to its field is where the two sit on screen, which is exactly what
+  the geometric fallback in detect.js is for.
+
+  Two arrangements are covered: label to the left of the field, and label
+  stacked directly above it.
+-->
+
+<div id="labels">
+  <div style="left: 20px;  top: 40px;">Mortgage Balance:</div>
+  <div style="left: 20px;  top: 80px;">Mortgage Payment:</div>
+  <div style="left: 20px;  top: 120px;">Loan Type:</div>
+  <div style="left: 20px;  top: 160px;">State:</div>
+  <div style="left: 340px; top: 30px;">Estimated Home Value</div>
+</div>
+
+<div id="fields">
+  <input type="text" style="left: 190px; top: 38px;"  value="270900" />
+  <input type="text" style="left: 190px; top: 78px;"  value="1806.42" />
+  <input type="text" style="left: 190px; top: 118px;" value="FHA" />
+  <input type="text" style="left: 190px; top: 158px;" value="TX" />
+  <input type="text" style="left: 340px; top: 52px;"  value="$415,000" />
+</div>
+
+</body>
+</html>
