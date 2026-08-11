@@ -208,6 +208,76 @@ export const PANEL_CSS = `
   font-weight: 700;
 }
 
+/* ------------------------------------------------------------------ *
+ * Call notes
+ * ------------------------------------------------------------------ */
+
+.listen {
+  border-top: 0.5px solid var(--separator);
+  margin-top: 6px;
+  padding: 10px 12px 0;
+}
+.listen-hd { display: flex; align-items: center; gap: 7px; }
+.listen-title { font-size: 12px; font-weight: 700; }
+.listen-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--label-3); flex: none;
+}
+.listen-dot.on { background: var(--red); box-shadow: 0 0 0 3px rgba(255,59,48,.20); }
+.listen-dot.bad { background: var(--orange); }
+.listen-mode {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--label-3);
+  margin-right: auto;
+}
+.listen-mode.bad { color: var(--orange-deep); }
+
+/* Anything heard is a suggestion, never an entry. */
+.proposals { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.proposals:empty { display: none; }
+.chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 6px 5px 9px;
+  border-radius: var(--r-field);
+  background: rgba(0,122,255,.10);
+  border: 0.5px solid rgba(0,122,255,.28);
+}
+.chip-text {
+  flex: 1; min-width: 0;
+  font-size: 11.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chip-text b { font-weight: 700; }
+.chip-yes, .chip-no {
+  all: unset; cursor: pointer; flex: none;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: 11px; font-weight: 700;
+}
+.chip-yes { background: var(--green); color: #fff; }
+.chip-no { background: var(--fill-strong); color: var(--label-2); }
+.chip-yes:active, .chip-no:active { transform: scale(.9); }
+
+.transcript {
+  margin-top: 9px;
+  max-height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.transcript:empty { display: none; }
+.turn { display: grid; grid-template-columns: 40px 1fr; gap: 8px; padding: 3px 0; }
+.turn-who {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; padding-top: 2px;
+}
+.turn.agent .turn-who { color: var(--blue); }
+.turn.caller .turn-who { color: var(--purple); }
+.turn-text { color: var(--label); }
+.turn.interim .turn-text { color: var(--label-3); font-style: italic; }
+
 .drawer-note {
   padding: 4px 12px 12px;
   font-size: 10px;

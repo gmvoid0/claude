@@ -153,6 +153,61 @@ The one constraint that overrides aesthetics: this sits on top of a working
 dialer screen and gets read between sentences, so it stays dense and
 high-contrast. Polish is not allowed to cost legibility.
 
+## Listening to the call
+
+S.A.M can transcribe the call and turn what it hears into application fields.
+It uses the browser's own speech recognition — free, no account, no key — and
+on Chrome 139 or newer it requests **on-device** recognition, so neither the
+audio nor the transcript leaves the machine. The panel shows which mode is
+active.
+
+Nothing it hears is ever written to the form by itself. Each reading appears
+as a chip with the words it came from, and takes a click to accept.
+Recognition mishears numbers often enough that a silent wrong entry would be
+worse than no listening at all.
+
+It reads spoken figures the way people actually say them:
+
+| Heard | Understood as |
+| --- | --- |
+| "my score's like seven twenty" | FICO 720 |
+| "I owe about two hundred thousand" | Balance $200,000 |
+| "it's worth four fifty" | Value $450,000 |
+| "six and a half" | Rate 6.5% |
+| "I make ninety six thousand a year" | Income $96,000 |
+| "thirty percent service connected" | Disability 30% — which also waives the VA funding fee |
+
+A figure is only proposed if it is plausible for its field, so a rate of 6.5
+never becomes a $6,500 balance and a "score" of 12 is discarded rather than
+offered.
+
+### What it hears, and the workaround
+
+This is the honest limit of the free route. Browser speech recognition reads
+the **default input device** — the agent's microphone. The customer's voice
+arrives through the softphone and out of the speakers, so it is not in that
+stream. Every turn is therefore attributed to the agent, which is exact
+rather than guessed.
+
+Three things make that far less limiting than it sounds:
+
+1. **Agents restate figures anyway.** "So your balance is about two hundred
+   thousand, and your score's around 720?" is ordinary confirmation
+   technique, and a restated figure is a confirmed one — arguably better
+   evidence than the customer's first mumbled version.
+2. **A loopback input device captures both sides.** If the machine's default
+   recording device is set to one that mixes system audio with the
+   microphone — Stereo Mix on Windows, or a free virtual audio cable — the
+   recogniser hears the customer too. Nothing in S.A.M needs changing; it
+   reads whatever the default device carries. The trade is that both voices
+   arrive on one stream, so turns are no longer separable by source.
+3. **Everything is a proposal.** Accuracy matters less when a human confirms
+   each figure with one click.
+
+Capturing the customer's side with proper speaker separation needs the tab's
+audio and a streaming transcription service, which costs money per minute and
+sends customer speech to a third party. That path is deliberately not built.
+
 ## The rules it encodes
 
 Defaults for a **cash-out refinance, owner-occupied, one unit**:
