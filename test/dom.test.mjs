@@ -461,12 +461,12 @@ async function bootPanel(page, fixture) {
     await mod.start();
   }, origin);
 
-  await page.waitForFunction(() => !!document.getElementById('__equity_lens_host__'), null,
+  await page.waitForFunction(() => !!document.getElementById('__sam_panel_host__'), null,
     { timeout: 5000 });
 }
 
 const readPanel = () => {
-  const root = document.getElementById('__equity_lens_host__').shadowRoot;
+  const root = document.getElementById('__sam_panel_host__').shadowRoot;
   const text = (sel) => root.querySelector(sel)?.textContent?.trim() ?? null;
   const val = (sel) => root.querySelector(sel)?.value ?? null;
   return {
@@ -498,7 +498,7 @@ test('the content script boots, detects, and computes on the agent screen', { sk
 
     // The agent types the value.
     const after = await page.evaluate(() => {
-      const root = document.getElementById('__equity_lens_host__').shadowRoot;
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
       const input = root.querySelector('[data-in=propertyValue]');
       input.value = '400000';
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -538,7 +538,7 @@ test('the detector does not read the panel back in as page data', { skip }, asyn
       const candidates = collectCandidates(document);
       return {
         total: candidates.length,
-        fromPanel: candidates.filter((c) => c.el?.closest?.('#__equity_lens_host__')).length,
+        fromPanel: candidates.filter((c) => c.el?.closest?.('#__sam_panel_host__')).length,
         labels: candidates.map((c) => c.label),
       };
     }, `http://127.0.0.1:${(await setup()).port}`);
@@ -551,7 +551,7 @@ test('the detector does not read the panel back in as page data', { skip }, asyn
 
     // And the value box must stay empty rather than filling from the panel.
     const value = await page.evaluate(() =>
-      document.getElementById('__equity_lens_host__').shadowRoot
+      document.getElementById('__sam_panel_host__').shadowRoot
         .querySelector('[data-in=propertyValue]').value);
     assert.equal(value, '');
   } finally {
@@ -566,7 +566,7 @@ test('clearing a field does not snap back to the page value', { skip }, async ()
     await bootPanel(page, 'agent-screen.html');
 
     const cleared = await page.evaluate(async () => {
-      const root = document.getElementById('__equity_lens_host__').shadowRoot;
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
       const input = root.querySelector('[data-in=firstLien]');
       input.value = '';
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -588,7 +588,7 @@ test('the panel picks up the next call without a reload', { skip }, async () => 
     await bootPanel(page, 'agent-screen.html');
 
     const next = await page.evaluate(async () => {
-      const root = document.getElementById('__equity_lens_host__').shadowRoot;
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
 
       // Agent enters a value for the current caller.
       const valueInput = root.querySelector('[data-in=propertyValue]');

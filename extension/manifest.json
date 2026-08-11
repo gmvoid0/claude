@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Equity Lens — Live LTV & Cash-Out Calculator",
+  "name": "S.A.M — Sales Assistance in Mortgages",
   "version": "0.1.0",
   "description": "Reads property value and lien balances from the current page and computes LTV, max loan and cash-out for VA / FHA / Conventional, recalculating as the page updates.",
   "minimum_chrome_version": "114",
@@ -10,7 +10,7 @@
 
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "Equity Lens",
+    "default_title": "S.A.M",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

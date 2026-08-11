@@ -188,7 +188,7 @@ async function restoreDefaults() {
 }
 
 function notifyContentScripts() {
-  chrome.runtime.sendMessage({ type: 'EQ_BROADCAST_SETTINGS' }).catch(() => {});
+  chrome.runtime.sendMessage({ type: 'SAM_BROADCAST_SETTINGS' }).catch(() => {});
 }
 
 function clampInt(raw, lo, hi, fallback) {

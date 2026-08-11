@@ -78,7 +78,7 @@ export async function start() {
       const reporter = startValuationReporter();
       // Honour the setting being switched off without needing a reload.
       chrome.runtime.onMessage.addListener(async (msg) => {
-        if (msg?.type !== 'EQ_SETTINGS_CHANGED') return;
+        if (msg?.type !== 'SAM_SETTINGS_CHANGED') return;
         const prefs = await getPrefs();
         if (prefs.readValuationSites === false) reporter.stop();
       });
@@ -107,7 +107,7 @@ function handleMessage(msg, _sender, sendResponse) {
   if (!msg || typeof msg !== 'object') return;
 
   switch (msg.type) {
-    case 'EQ_PING':
+    case 'SAM_PING':
       sendResponse({
         ok: true,
         enabled: state.enabled,
@@ -118,19 +118,19 @@ function handleMessage(msg, _sender, sendResponse) {
       });
       return true;
 
-    case 'EQ_SET_ENABLED':
+    case 'SAM_SET_ENABLED':
       state.enabled = !!msg.enabled;
       if (state.enabled) activate();
       else deactivate();
       sendResponse({ ok: true, enabled: state.enabled });
       return true;
 
-    case 'EQ_FOCUS_VALUE':
+    case 'SAM_FOCUS_VALUE':
       state.panel?.focusValue();
       sendResponse({ ok: true });
       return true;
 
-    case 'EQ_FRAME_FIELDS':
+    case 'SAM_FRAME_FIELDS':
       // Relayed up from a child frame by the service worker.
       if (IS_TOP && msg.fields) {
         state.frameFields = msg.fields;
@@ -138,14 +138,14 @@ function handleMessage(msg, _sender, sendResponse) {
       }
       return;
 
-    case 'EQ_EXTERNAL_VALUE':
+    case 'SAM_EXTERNAL_VALUE':
       if (IS_TOP && msg.valuation) {
         state.externalValue = msg.valuation;
         recompute();
       }
       return;
 
-    case 'EQ_SETTINGS_CHANGED':
+    case 'SAM_SETTINGS_CHANGED':
       reloadSettings();
       return;
   }
@@ -195,7 +195,7 @@ function startValuationReporter() {
     lastSignature = signature;
 
     try {
-      chrome.runtime.sendMessage({ type: 'EQ_VALUATION_REPORT', valuation: found });
+      chrome.runtime.sendMessage({ type: 'SAM_VALUATION_REPORT', valuation: found });
     } catch { /* worker asleep or context torn down */ }
   };
 
@@ -294,7 +294,7 @@ async function activate() {
 
     // A valuation tab may have been read before this panel existed.
     try {
-      const res = await chrome.runtime.sendMessage({ type: 'EQ_REQUEST_VALUATION' });
+      const res = await chrome.runtime.sendMessage({ type: 'SAM_REQUEST_VALUATION' });
       if (res?.valuation) state.externalValue = res.valuation;
     } catch { /* worker asleep; the next report will push it */ }
   }
@@ -355,7 +355,7 @@ function installWatchers() {
 }
 
 function onPageInput(e) {
-  if (e.target?.closest?.('#__equity_lens_host__')) return;
+  if (e.target?.closest?.('#__sam_panel_host__')) return;
   scheduleRecompute();
 }
 
@@ -493,7 +493,7 @@ function maybeFocusValue() {
   const active = document.activeElement;
   const busy = active && active !== document.body
     && active.matches?.('input, select, textarea')
-    && !active.closest?.('#__equity_lens_host__');
+    && !active.closest?.('#__sam_panel_host__');
   if (!busy && !state.panel?.collapsed) state.panel?.focusValue();
 }
 
@@ -506,7 +506,7 @@ function reportFrameFields(detected) {
   }
   if (!Object.keys(slim).length) return;
   try {
-    chrome.runtime.sendMessage({ type: 'EQ_FRAME_REPORT', fields: slim });
+    chrome.runtime.sendMessage({ type: 'SAM_FRAME_REPORT', fields: slim });
   } catch { /* worker asleep or context torn down */ }
 }
 
@@ -720,7 +720,7 @@ function summarize(r) {
 }
 
 function summaryText(r, inputs, recordLabel) {
-  if (!r) return 'Equity Lens — nothing calculated yet.';
+  if (!r) return 'S.A.M — nothing calculated yet.';
   const lines = [];
   if (recordLabel) lines.push(recordLabel);
   lines.push(

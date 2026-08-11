@@ -477,62 +477,64 @@ function clamp(n, lo, hi) {
 const TEMPLATE = `
 <div class="hd">
   <span class="dot"></span>
-  <span class="title">EQUITY</span>
+  <span class="title">S.A.M</span>
   <span class="who"></span>
-  <button data-act="collapse" title="Collapse (Alt+E)">—</button>
-  <button data-act="close" title="Turn off for this site">×</button>
+  <button data-act="collapse" title="Collapse (Alt+E)">–</button>
+  <button data-act="close" title="Turn off for this site">✕</button>
 </div>
 
 <div class="body">
-  <div class="row">
-    <label>Home value <span class="src" data-src="propertyValue"></span></label>
-    <input type="text" class="hero" data-in="propertyValue" placeholder="$0" inputmode="decimal" />
-    <div class="hint" data-hint="propertyValue"></div>
 
-    <div class="ext" data-ext="row" style="display:none">
-      <div class="ext-top">
-        <span class="ext-badge" data-ext="badge"></span>
-        <b data-ext="value"></b>
-        <button class="btn tiny" data-act="use-ext">Use</button>
+  <div class="group">
+    <div class="row">
+      <label>Home value <span class="src" data-src="propertyValue"></span></label>
+      <input type="text" class="hero" data-in="propertyValue" placeholder="$0" inputmode="decimal" />
+      <div class="hint" data-hint="propertyValue"></div>
+      <div class="ext" data-ext="row" style="display:none">
+        <div class="ext-top">
+          <span class="ext-badge" data-ext="badge"></span>
+          <b data-ext="value"></b>
+          <button class="btn tiny" data-act="use-ext">Use</button>
+        </div>
+        <div class="ext-addr" data-ext="addr"></div>
       </div>
-      <div class="ext-addr" data-ext="addr"></div>
-    </div>
-
-    <div class="lookup"></div>
-  </div>
-
-  <div class="two">
-    <div class="row">
-      <label>Mortgage balance <span class="src" data-src="firstLien"></span></label>
-      <input type="text" data-in="firstLien" placeholder="$0" inputmode="decimal" />
-    </div>
-    <div class="row">
-      <label>2nd / HELOC</label>
-      <input type="text" data-in="secondLien" placeholder="$0" inputmode="decimal" />
+      <div class="lookup"></div>
     </div>
   </div>
 
-  <div class="two">
-    <div class="row">
-      <label>Loan type <span class="src" data-src="program"></span></label>
-      <select data-in="program">
-        <option value="">—</option>
-        <option value="VA">VA</option>
-        <option value="FHA">FHA</option>
-        <option value="CONV">Conventional</option>
-        <option value="USDA">USDA</option>
-      </select>
+  <div class="group">
+    <div class="two">
+      <div class="row">
+        <label>Balance <span class="src" data-src="firstLien"></span></label>
+        <input type="text" data-in="firstLien" placeholder="$0" inputmode="decimal" />
+      </div>
+      <div class="row">
+        <label>2nd / HELOC</label>
+        <input type="text" data-in="secondLien" placeholder="$0" inputmode="decimal" />
+      </div>
     </div>
-    <div class="row">
-      <label>State <span class="src" data-src="state"></span></label>
-      <input type="text" data-in="state" placeholder="TN" maxlength="20" />
+    <div class="two">
+      <div class="row">
+        <label>Loan type <span class="src" data-src="program"></span></label>
+        <select data-in="program">
+          <option value="">—</option>
+          <option value="VA">VA</option>
+          <option value="FHA">FHA</option>
+          <option value="CONV">Conventional</option>
+          <option value="USDA">USDA</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>State <span class="src" data-src="state"></span></label>
+        <input type="text" data-in="state" placeholder="TN" maxlength="20" />
+      </div>
     </div>
   </div>
 
   <div class="result">
     <div class="headline">
+      <span class="cap">Cash out</span>
       <span class="num none" data-out="cash">—</span>
-      <span class="cap">cash out</span>
     </div>
     <span class="pill idle" data-out="verdict">—</span>
 
@@ -573,10 +575,10 @@ const TEMPLATE = `
         <input type="text" data-ov="loanLimit" placeholder="none" inputmode="decimal" />
       </div>
     </div>
-    <label class="check"><input type="checkbox" data-ov="financeFee" /> Finance the upfront fee</label>
-    <label class="check"><input type="checkbox" data-ov="feeExempt" /> VA funding fee exempt (disability)</label>
-    <label class="check"><input type="checkbox" data-ov="subsequentUse" /> VA subsequent use</label>
-    <label class="check"><input type="checkbox" data-ov="valueIsAvm" /> Value is an automated estimate</label>
+    <label class="check">Finance the upfront fee<input type="checkbox" data-ov="financeFee" /></label>
+    <label class="check">VA funding fee exempt (disability)<input type="checkbox" data-ov="feeExempt" /></label>
+    <label class="check">VA subsequent use<input type="checkbox" data-ov="subsequentUse" /></label>
+    <label class="check">Value is an automated estimate<input type="checkbox" data-ov="valueIsAvm" /></label>
   </details>
 
   <details class="adv">
@@ -596,28 +598,24 @@ const TEMPLATE = `
       </div>
     </div>
     <div class="hint" data-solve="out">Enter all three to estimate the remaining balance.</div>
-    <div class="foot">
-      <button class="btn" data-act="use-solved">Use as balance</button>
-    </div>
+    <div class="foot"><button class="btn wide" data-act="use-solved">Use as balance</button></div>
     <div class="hint">
       Rough estimate from principal &amp; interest only. A payment that includes
-      taxes and insurance will overstate the balance. Always confirm the real
-      payoff.
+      taxes and insurance will overstate the balance. Always confirm the real payoff.
     </div>
   </details>
 
   <div class="foot">
-    <button class="btn primary" data-act="copy">Copy</button>
+    <button class="btn primary" data-act="copy">Copy summary</button>
     <button class="btn" data-act="pick-propertyValue">Bind value</button>
     <button class="btn" data-act="pick-firstLien">Bind balance</button>
-    <button class="btn" data-act="reset">Reset</button>
+    <button class="btn wide" data-act="reset">Reset</button>
   </div>
 
   <div class="disclaimer">
-    Estimate only. Models the LTV cap and financed upfront fee — not DTI, credit,
-    residual income, seasoning, entitlement, occupancy, unit count, county loan
-    limits or investor overlays. Not a quote, offer, or commitment to lend.
-    Verify every figure before relying on it.
+    Estimate only — LTV cap and financed upfront fee. Does not model DTI, credit,
+    residual income, seasoning, entitlement, occupancy, county loan limits or
+    investor overlays. Not a quote, offer, or commitment to lend.
   </div>
 </div>
 `;

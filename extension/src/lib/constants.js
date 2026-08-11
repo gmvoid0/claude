@@ -9,7 +9,7 @@
  */
 
 /** id of the light-DOM element hosting the panel's shadow root. */
-export const PANEL_HOST_ID = '__equity_lens_host__';
+export const PANEL_HOST_ID = '__sam_panel_host__';
 
 /** Class on the picker's hover highlight, injected into the host page. */
-export const PICKER_HIGHLIGHT_CLASS = '__eqlens_pick_hl';
+export const PICKER_HIGHLIGHT_CLASS = '__sam_pick_hl';

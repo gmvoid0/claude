@@ -1,21 +1,36 @@
-# Equity Lens
+# S.A.M
 
-A Chrome/Edge extension that reads a property value and lien balances off
-whatever page you're on and continuously recomputes LTV, maximum loan amount
-and available cash-out for VA, FHA and Conventional.
+**Sales Assistance in Mortgages** — a Chrome/Edge extension that reads a
+property value and lien balances off whatever page you're on and continuously
+recomputes LTV, maximum loan amount and available cash-out for VA, FHA and
+Conventional.
 
 Built against a VICIdial agent screen with a separate AVM lookup panel, but
 the detection is label-driven rather than site-specific, so it also works on
 CRMs, LOS screens and listing pages.
 
 ```
-Home value      $661,400   ← read from the AVM panel, or typed
-Mortgage bal.   $412,500   ← read from the dialer form
-Loan type       VA         ← read from the dialer form
-State           WA         ← read from the dialer form
-─────────────────────────
-CASH OUT        $234,436   recalculated on every page change
+╭──────────────────────────────────────────╮
+│ ● S.A.M         RANDY D ROLLINS — TN     │
+├──────────────────────────────────────────┤
+│  Home value                       typed  │
+│  ┌────────────────────────────────────┐  │
+│  │ 400,000                            │  │
+│  └────────────────────────────────────┘  │
+│  Balance  270,900     Loan type  VA      │
+├──────────────────────────────────────────┤
+│                CASH OUT                  │
+│               $120,681                   │
+│         ABOVE $10,000 THRESHOLD          │
+│  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░│                  │
+│  Max loan                     $391,581   │
+│  Gross equity                 $129,100   │
+│  Current LTV                     67.7%   │
+╰──────────────────────────────────────────╯
 ```
+
+Everything above the Cash Out line is read off the page and recalculated on
+every change; only the home value normally needs a human.
 
 ---
 
@@ -125,6 +140,18 @@ same number.
 
 Redfin works the same way. Turn the whole behaviour off in settings if you
 don't want it.
+
+## Interface
+
+The panel is styled in an iOS idiom — translucent materials over a backdrop
+blur, hairline separators, grouped inset lists, and a single accent colour,
+with the classic Apple gloss used only on the title bar and the primary
+action so it reads as depth rather than decoration. Light and dark are both
+supported and follow the system setting.
+
+The one constraint that overrides aesthetics: this sits on top of a working
+dialer screen and gets read between sentences, so it stays dense and
+high-contrast. Polish is not allowed to cost legibility.
 
 ## The rules it encodes
 
@@ -310,8 +337,9 @@ extension/
       address.js    address normalization and match confidence
       valuation.js  reading a value off a Zillow / Redfin tab
       merge.js      resolving each field from competing sources
+      constants.js  ids shared between the panel and the detector
       settings.js   chrome.storage wrapper
-    content/        panel, picker, orchestrator
+    content/        panel, picker, orchestrator, styles
     background/     frame relay + settings broadcast
     popup/ options/
 test/

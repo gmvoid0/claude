@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-Generate the extension's PNG icons.
+Generate S.A.M's PNG icons.
 
-Pure stdlib (zlib + struct) so it runs anywhere without Pillow. Draws at 4x
-and downsamples for antialiasing.
+Pure stdlib (zlib + struct) so it runs anywhere without Pillow. Rendered at 4x
+and downsampled for antialiasing.
+
+The shape is a superellipse rather than a rounded rectangle — that is what
+gives Apple's icons their continuous, non-pinched corners. Over it: a vertical
+blue gradient, three ascending bars, and the classic gloss, which is a
+white overlay bounded by a downward-bulging arc and fading as it descends.
 
 Usage: python3 tools/make-icons.py
 """
@@ -16,15 +21,19 @@ OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "extension", "icons")
 SIZES = (16, 48, 128)
 SS = 4  # supersample factor
 
-NAVY = (15, 23, 42, 255)
-BARS = [
-    (0.27, 0.58, (56, 189, 248, 255)),   # x-center, top (0=top), colour
-    (0.50, 0.44, (45, 212, 191, 255)),
-    (0.73, 0.26, (74, 222, 128, 255)),
-]
-BAR_W = 0.16
-BAR_BOTTOM = 0.78
-CORNER_R = 0.20
+# Squircle exponent. 2 is an ellipse, infinity is a square; Apple sits ~4-5.
+SQUIRCLE_N = 4.6
+
+# Vertical gradient, top to bottom.
+GRAD_TOP = (0x5A, 0xA9, 0xFF)
+GRAD_BOTTOM = (0x0A, 0x64, 0xD8)
+
+# Ascending bars: (x-center, top edge, bottom edge) in unit coordinates.
+BAR_W = 0.155
+BAR_BOTTOM = 0.775
+BARS = [(0.275, 0.575), (0.50, 0.435), (0.725, 0.255)]
+
+GLOSS_STRENGTH = 0.30
 
 
 def write_png(path, width, height, rows):
@@ -53,54 +62,97 @@ def write_png(path, width, height, rows):
         fh.write(blob)
 
 
-def inside_rounded_rect(u, v, r):
-    """u, v in 0..1. True when the point is inside a rounded unit square."""
-    if r <= 0:
-        return True
-    cx = min(max(u, r), 1 - r)
-    cy = min(max(v, r), 1 - r)
-    dx, dy = u - cx, v - cy
-    return dx * dx + dy * dy <= r * r + 1e-9
+def inside_squircle(u, v):
+    """u, v in 0..1. |x|^n + |y|^n <= 1 about the centre."""
+    x = abs(2.0 * u - 1.0)
+    y = abs(2.0 * v - 1.0)
+    return (x ** SQUIRCLE_N + y ** SQUIRCLE_N) <= 1.0
+
+
+def inside_rounded_bar(u, v, cx, top):
+    """A bar with fully rounded ends, as a stadium shape."""
+    half = BAR_W / 2.0
+    if not (cx - half <= u <= cx + half):
+        return False
+    if not (top <= v <= BAR_BOTTOM):
+        return False
+    # Round the two ends by testing against a circle of radius `half`.
+    if v < top + half:
+        dy = (top + half) - v
+        return (u - cx) ** 2 + dy ** 2 <= half ** 2
+    if v > BAR_BOTTOM - half:
+        dy = v - (BAR_BOTTOM - half)
+        return (u - cx) ** 2 + dy ** 2 <= half ** 2
+    return True
+
+
+def gloss_alpha(u, v):
+    """
+    White overlay above a downward-bulging arc, fading as it descends.
+    Zero below the arc, strongest at the very top.
+    """
+    arc = 0.54 - 0.15 * (2.0 * u - 1.0) ** 2
+    if v >= arc:
+        return 0.0
+    return GLOSS_STRENGTH * (1.0 - v / arc)
 
 
 def sample(u, v):
-    """Colour at unit coordinates, or None for transparent."""
-    if not inside_rounded_rect(u, v, CORNER_R):
+    """Colour at unit coordinates as (r, g, b, a)."""
+    if not inside_squircle(u, v):
         return (0, 0, 0, 0)
 
-    for cx, top, colour in BARS:
-        half = BAR_W / 2
-        if cx - half <= u <= cx + half and top <= v <= BAR_BOTTOM:
-            return colour
+    # Base vertical gradient.
+    r = GRAD_TOP[0] + (GRAD_BOTTOM[0] - GRAD_TOP[0]) * v
+    g = GRAD_TOP[1] + (GRAD_BOTTOM[1] - GRAD_TOP[1]) * v
+    b = GRAD_TOP[2] + (GRAD_BOTTOM[2] - GRAD_TOP[2]) * v
 
-    return NAVY
+    # Bars.
+    for cx, top in BARS:
+        if inside_rounded_bar(u, v, cx, top):
+            r, g, b = 255.0, 255.0, 255.0
+            break
+
+    # Gloss over everything, the way Apple's icons layer it.
+    a = gloss_alpha(u, v)
+    if a > 0:
+        r = r + (255.0 - r) * a
+        g = g + (255.0 - g) * a
+        b = b + (255.0 - b) * a
+
+    return (int(round(r)), int(round(g)), int(round(b)), 255)
 
 
 def render(size):
     big = size * SS
-    acc = [[(0, 0, 0, 0)] * size for _ in range(size)]
+    rows = []
 
     for y in range(size):
         row = []
         for x in range(size):
-            r = g = b = a = 0
+            r = g = b = a = 0.0
             for sy in range(SS):
                 for sx in range(SS):
                     u = (x * SS + sx + 0.5) / big
                     v = (y * SS + sy + 0.5) / big
                     pr, pg, pb, pa = sample(u, v)
-                    # Premultiply so edges blend against transparency correctly.
+                    # Premultiply so edges blend correctly against transparency.
                     r += pr * pa
                     g += pg * pa
                     b += pb * pa
                     a += pa
-            n = SS * SS
             if a == 0:
                 row.append((0, 0, 0, 0))
             else:
-                row.append((round(r / a), round(g / a), round(b / a), round(a / n)))
-        acc[y] = row
-    return acc
+                n = SS * SS
+                row.append((
+                    int(round(r / a)),
+                    int(round(g / a)),
+                    int(round(b / a)),
+                    int(round(a / n)),
+                ))
+        rows.append(row)
+    return rows
 
 
 def main():

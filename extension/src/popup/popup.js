@@ -48,7 +48,7 @@ async function onToggle() {
   // Broadcast to every frame, not just the top one: an AVM panel or form
   // rendered in an iframe has its own copy of the content script that also
   // needs to start, otherwise it stays dark until the tab is reloaded.
-  const delivered = await send({ type: 'EQ_SET_ENABLED', enabled }, { allFrames: true });
+  const delivered = await send({ type: 'SAM_SET_ENABLED', enabled }, { allFrames: true });
 
   if (!delivered) {
     // The content script only loads on page load; a freshly-permitted tab
@@ -63,12 +63,12 @@ async function onToggle() {
 }
 
 async function onFocus() {
-  await send({ type: 'EQ_FOCUS_VALUE' });
+  await send({ type: 'SAM_FOCUS_VALUE' });
   window.close();
 }
 
 async function refreshSummary() {
-  const res = await send({ type: 'EQ_PING' });
+  const res = await send({ type: 'SAM_PING' });
   const s = res?.summary;
   if (!s) {
     els.summary.hidden = true;

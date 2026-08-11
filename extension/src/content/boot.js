@@ -12,7 +12,7 @@
   } catch (err) {
     // A failure here must never break the host page.
     if (!/Extension context invalidated/i.test(String(err?.message))) {
-      console.debug('[Equity Lens] failed to start:', err);
+      console.debug('[S.A.M] failed to start:', err);
     }
   }
 })();

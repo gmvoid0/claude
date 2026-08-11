@@ -1,5 +1,5 @@
 {
-  "name": "equity-lens",
+  "name": "sam-mortgage",
   "version": "0.1.0",
   "private": true,
   "description": "Browser extension that reads property value and lien balances off the page and computes LTV, max loan and cash-out for VA / FHA / Conventional in real time.",

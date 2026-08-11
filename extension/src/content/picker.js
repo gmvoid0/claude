@@ -25,7 +25,7 @@ export function pickElement({ prompt = 'Click the field to bind — Esc to cance
     document.documentElement.appendChild(style);
 
     const highlight = document.createElement('div');
-    highlight.className = '__eqlens_pick_hl';
+    highlight.className = '__sam_pick_hl';
     document.body.appendChild(highlight);
 
     const hint = document.createElement('div');

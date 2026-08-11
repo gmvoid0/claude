@@ -35,13 +35,13 @@ async function broadcastValuation() {
       tab.id == null
         ? null
         : chrome.tabs
-            .sendMessage(tab.id, { type: 'EQ_EXTERNAL_VALUE', valuation }, { frameId: 0 })
+            .sendMessage(tab.id, { type: 'SAM_EXTERNAL_VALUE', valuation }, { frameId: 0 })
             .catch(() => { /* no panel on this tab */ })));
   } catch { /* tabs unavailable */ }
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg?.type === 'EQ_VALUATION_REPORT') {
+  if (msg?.type === 'SAM_VALUATION_REPORT') {
     if (msg.valuation?.value) {
       latestValuation = { ...msg.valuation, at: Date.now(), tabId: sender?.tab?.id ?? null };
       broadcastValuation();
@@ -50,22 +50,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (msg?.type === 'EQ_REQUEST_VALUATION') {
+  if (msg?.type === 'SAM_REQUEST_VALUATION') {
     // A panel that started after the valuation tab was read asks for it.
     sendResponse?.({ valuation: freshValuation() });
     return true;
   }
 
-  if (msg?.type === 'EQ_FRAME_REPORT') {
+  if (msg?.type === 'SAM_FRAME_REPORT') {
     const tabId = sender?.tab?.id;
     if (tabId == null || sender.frameId === 0) return;
     chrome.tabs
-      .sendMessage(tabId, { type: 'EQ_FRAME_FIELDS', fields: msg.fields }, { frameId: 0 })
+      .sendMessage(tabId, { type: 'SAM_FRAME_FIELDS', fields: msg.fields }, { frameId: 0 })
       .catch(() => { /* top frame has no listener (disabled site) */ });
     return;
   }
 
-  if (msg?.type === 'EQ_BROADCAST_SETTINGS') {
+  if (msg?.type === 'SAM_BROADCAST_SETTINGS') {
     broadcastSettings();
     sendResponse?.({ ok: true });
     return true;
@@ -80,7 +80,7 @@ async function broadcastSettings() {
         tab.id == null
           ? null
           : chrome.tabs
-              .sendMessage(tab.id, { type: 'EQ_SETTINGS_CHANGED' })
+              .sendMessage(tab.id, { type: 'SAM_SETTINGS_CHANGED' })
               .catch(() => { /* no content script on this tab */ }),
       ),
     );
