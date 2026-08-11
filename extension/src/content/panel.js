@@ -8,6 +8,7 @@
  */
 
 import { formatMoney, formatPercent } from '../lib/money.js';
+import { APPLICATION_FIELDS } from '../lib/application.js';
 import { PANEL_CSS } from './styles.js';
 import { PANEL_HOST_ID as HOST_ID } from '../lib/constants.js';
 
@@ -104,6 +105,16 @@ export class Panel {
       barRight: q('[data-bar=right]'),
 
       msgs: q('.msgs'),
+      drawer: q('[data-app=drawer]'),
+      appFields: q('[data-app=fields]'),
+      appCount: q('[data-app=count]'),
+      btnApp: q('[data-act=app]'),
+      btnAppSave: q('[data-act=app-save]'),
+      btnAppCopy: q('[data-act=app-copy]'),
+      draft: q('[data-app=draft]'),
+      draftText: q('[data-app=draft-text]'),
+      btnDraftSave: q('[data-act=draft-save]'),
+      btnDraftDiscard: q('[data-act=draft-discard]'),
       programRow: q('[data-field=program]'),
       resultBox: q('.result'),
       btnCopy: q('[data-act=copy]'),
@@ -131,6 +142,11 @@ export class Panel {
     }
     els.btnUseSolved.addEventListener('click', () => this.h.onUseSolved?.(this.readSolver()));
 
+    els.btnApp.addEventListener('click', () => this.toggleDrawer());
+    els.btnAppSave.addEventListener('click', () => this.h.onSaveApplication?.());
+    els.btnAppCopy.addEventListener('click', () => this.h.onCopyApplication?.());
+    els.btnDraftSave.addEventListener('click', () => this.h.onSaveDraft?.());
+    els.btnDraftDiscard.addEventListener('click', () => this.h.onDiscardDraft?.());
     els.btnUseExt.addEventListener('click', () => this.h.onUseExternal?.());
     els.btnCopy.addEventListener('click', () => this.h.onCopy?.());
     els.btnReset.addEventListener('click', () => this.h.onReset?.());
@@ -188,6 +204,84 @@ export class Panel {
     this.wrap.classList.toggle('collapsed', this.collapsed);
     this.els.btnCollapse.textContent = this.collapsed ? '▣' : '—';
     this.h.onCollapse?.(this.collapsed);
+  }
+
+  /** Show or hide the application drawer. */
+  toggleDrawer(force) {
+    this.drawerOpen = force ?? !this.drawerOpen;
+    this.els.drawer.hidden = !this.drawerOpen;
+    this.wrap.classList.toggle('with-drawer', this.drawerOpen);
+    this.els.btnApp.classList.toggle('on', this.drawerOpen);
+    if (this.drawerOpen && this.collapsed) this.toggleCollapse(false);
+    this.h.onDrawerToggle?.(this.drawerOpen);
+  }
+
+  /**
+   * Build the form once, then update values in place. Same reason as the main
+   * panel: a full rebuild while an agent is typing would take the field out
+   * from under them on the next scan.
+   */
+  buildApplicationFields() {
+    if (this.appEls) return;
+    this.appEls = {};
+    const host = this.els.appFields;
+    host.textContent = '';
+
+    for (const field of APPLICATION_FIELDS) {
+      const row = document.createElement('label');
+      row.className = 'app-row';
+
+      const label = document.createElement('span');
+      label.className = 'app-label';
+      label.textContent = field.label;
+
+      let input;
+      if (field.kind === 'choice') {
+        input = document.createElement('select');
+        for (const value of ['', ...field.options]) {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.textContent = value || '—';
+          input.appendChild(opt);
+        }
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = '—';
+        if (field.kind !== 'text') input.inputMode = 'decimal';
+      }
+      input.className = 'app-input';
+      input.dataset.appField = field.key;
+
+      const evt = field.kind === 'choice' ? 'change' : 'input';
+      input.addEventListener(evt, () => this.h.onApplicationChange?.(field.key, input.value));
+
+      row.append(label, input);
+      host.appendChild(row);
+      this.appEls[field.key] = { row, input };
+    }
+  }
+
+  renderApplication({ application, filled, canSave, draft, force }) {
+    this.buildApplicationFields();
+
+    for (const field of APPLICATION_FIELDS) {
+      const cell = this.appEls[field.key];
+      const entry = application?.[field.key];
+      this.setInput(cell.input, entry?.value ?? '', force);
+      cell.row.classList.toggle('auto', entry?.source === 'auto');
+      cell.row.classList.toggle('filled', !!String(entry?.value ?? '').trim());
+      cell.row.classList.toggle('suspect', !!entry?.suspect);
+    }
+
+    this.els.appCount.textContent = `${filled} of ${APPLICATION_FIELDS.length}`;
+    this.els.btnAppSave.hidden = !canSave;
+
+    this.els.draft.hidden = !draft;
+    if (draft) {
+      this.els.draftText.textContent =
+        `Unsaved application for ${draft.label || 'the previous record'} — ${draft.filled} fields.`;
+    }
   }
 
   focusValue() {
@@ -337,6 +431,14 @@ export class Panel {
       : result.meetsThreshold ? 'good'
       : (result.estimatedCashToBorrower > 0 ? 'thin' : 'bad');
 
+    this.renderApplication({
+      application: state.application,
+      filled: state.applicationFilled ?? 0,
+      canSave: !!state.canSaveApplication,
+      draft: state.draft,
+      force,
+    });
+
     this.renderBar(result);
     this.renderMessages(result);
   }
@@ -471,8 +573,33 @@ const TEMPLATE = `
   <span class="dot"></span>
   <span class="title">S.A.M</span>
   <span class="who"></span>
+  <button data-act="app" title="Application (Alt+A)">▤</button>
   <button data-act="collapse" title="Collapse (Alt+E)">–</button>
   <button data-act="close" title="Turn off for this site">✕</button>
+</div>
+
+<div class="drawer" data-app="drawer" hidden>
+  <div class="drawer-hd">
+    <span class="drawer-title">Application</span>
+    <span class="drawer-count" data-app="count"></span>
+    <button class="btn tiny" data-act="app-copy">Copy</button>
+    <button class="btn tiny" data-act="app-save" hidden>Save</button>
+  </div>
+
+  <div class="draft" data-app="draft" hidden>
+    <div class="draft-text" data-app="draft-text"></div>
+    <div class="draft-acts">
+      <button class="btn tiny" data-act="draft-save">Save it</button>
+      <button class="btn" data-act="draft-discard">Discard</button>
+    </div>
+  </div>
+
+  <div class="drawer-body" data-app="fields"></div>
+
+  <div class="drawer-note">
+    Clears with the record when the next call lands. Fill three or more and a
+    Save option appears.
+  </div>
 </div>
 
 <div class="body">

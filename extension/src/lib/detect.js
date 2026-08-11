@@ -179,6 +179,17 @@ export const FIELDS = {
     ],
   },
 
+  phone: {
+    label: 'Phone',
+    kind: 'text',
+    exclude: [/\balt\b/i, /\bdial\s*code\b/i, /\bfax\b/i],
+    patterns: [
+      { re: /^\s*(phone|phone\s*number)\s*:?\s*$/i, score: 100 },
+      { re: /^\s*(cell|mobile|home)\s*(phone)?\s*:?\s*$/i, score: 95 },
+      { re: /\bphone\s*number\b/i, score: 80 },
+    ],
+  },
+
   lastName: {
     label: 'Last name',
     kind: 'text',
@@ -462,6 +473,38 @@ export function collectCandidates(root = document) {
         labelSource,
         raw: readValue(el),
         editable: true,
+        isAvm: isAvmLabel(label),
+      });
+    }
+  }
+
+  // --- read-only table rows: "Phone: 3024239504" as a label cell beside a
+  //     value cell. Plenty of lead data is displayed rather than editable,
+  //     and without this those fields are invisible to detection.
+  let cellPairs = 0;
+  for (const r of roots) {
+    for (const cell of safeQueryAll(r, 'td, th')) {
+      if (cellPairs > 300) break;
+      if (cell.closest?.(`#${PANEL_HOST_ID}`)) continue;
+      // Cells containing a control are already covered by the pass above.
+      if (safeQuery(cell, INPUT_SELECTOR)) continue;
+
+      const value = cleanLabel(cell.textContent);
+      if (!value || value.length > 60) continue;
+
+      const prev = cell.previousElementSibling;
+      if (!prev || safeQuery(prev, INPUT_SELECTOR)) continue;
+      const label = cleanLabel(prev.textContent);
+      if (!label || label.length > 60) continue;
+
+      cellPairs++;
+      candidates.push({
+        uid: ++uid,
+        el: cell,
+        label,
+        labelSource: 'cell',
+        raw: value,
+        editable: false,
         isAvm: isAvmLabel(label),
       });
     }

@@ -28,6 +28,10 @@ import {
   isSiteEnabled, setSiteEnabled, getBindings, setBinding, anySiteEnabled,
   getRuleOverrides, getPrefs, getPanelPos, setPanelPos, setPrefs,
 } from '../lib/settings.js';
+import {
+  buildApplication, filledCount, isWorthSaving, impliesFeeExemption, toText, toPlain,
+} from '../lib/application.js';
+import { saveApplication } from '../lib/settings.js';
 import { Panel } from './panel.js';
 import { pickElement } from './picker.js';
 
@@ -56,6 +60,8 @@ const state = {
     valueIsAvm: false,
   },
   avmTouched: false,     // true once the agent sets the AVM flag by hand
+  app: {},               // application fields the agent typed
+  appDraft: null,        // unsaved application carried over from the last record
   frameFields: {},       // fields harvested from child frames
   externalValue: null,   // latest value seen on a Zillow/Redfin tab
   recordKey: null,
@@ -268,6 +274,21 @@ async function activate() {
         recompute();
       },
       onPick: (field) => beginPick(field),
+      onApplicationChange: (field, value) => {
+        state.app[field] = value;
+        recompute();
+      },
+      onSaveApplication: () => persistApplication(state.lastApplication, state.recordLabel),
+      onCopyApplication: () => copyApplication(),
+      onSaveDraft: () => {
+        if (state.appDraft) persistApplication(state.appDraft.application, state.appDraft.label);
+        state.appDraft = null;
+        recompute();
+      },
+      onDiscardDraft: () => {
+        state.appDraft = null;
+        recompute();
+      },
       onUseExternal: () => {
         const ext = state.externalValue;
         if (!ext?.value) return;
@@ -290,6 +311,7 @@ async function activate() {
       onCopy: () => copySummary(),
       onReset: () => {
         state.manual = {};
+        state.app = {};
         state.overrides = overridesFromPrefs(state.prefs);
         state.avmTouched = false;
         scan(true);
@@ -343,6 +365,9 @@ function onHotkey(e) {
   } else if (key === 'v') {
     e.preventDefault();
     state.panel?.focusValue();
+  } else if (key === 'a') {
+    e.preventDefault();
+    state.panel?.toggleDrawer();
   }
 }
 
@@ -410,6 +435,18 @@ function scan(force) {
       // A new caller is on the line — carrying the last lead's home value
       // forward would silently produce a wrong number, so drop everything
       // the agent typed.
+      // The application clears with the record, exactly like the estimator.
+      // Anything the agent had actually entered is held as a draft rather
+      // than discarded silently — losing a part-filled application because
+      // the next call landed would be indefensible.
+      if (isWorthSaving(state.lastApplication)) {
+        state.appDraft = {
+          application: state.lastApplication,
+          label: state.recordLabel,
+          filled: filledCount(state.lastApplication),
+        };
+      }
+      state.app = {};
       state.manual = {};
       state.overrides = overridesFromPrefs(state.prefs);
       state.avmTouched = false;
@@ -550,6 +587,13 @@ function recompute({ forceInputs = false } = {}) {
     state.overrides.valueIsAvm = !!state.prefs?.valueIsAvm || !!inputs.propertyValue.isAvm;
   }
 
+  // Built before the calculation so a disability rating entered on the form
+  // can waive the VA funding fee, which is what it does in reality.
+  const preliminary = buildApplication({
+    inputs, result: state.lastResult, manual: state.app, address: leadAddress(inputs),
+  });
+  const feeExempt = !!state.overrides.feeExempt || impliesFeeExemption(preliminary);
+
   const result = computeEquity({
     propertyValue: inputs.propertyValue.num,
     valueIsAvm: !!state.overrides.valueIsAvm,
@@ -560,7 +604,7 @@ function recompute({ forceInputs = false } = {}) {
     closingCosts: parseMoney(state.overrides.closingCosts) ?? 0,
     ltvOverride: parseLtv(state.overrides.ltvOverride),
     loanLimit: parseMoney(state.overrides.loanLimit),
-    feeExempt: !!state.overrides.feeExempt,
+    feeExempt,
     subsequentUse: !!state.overrides.subsequentUse,
     financeFee: state.overrides.financeFee !== false,
   }, state.rules);
@@ -581,8 +625,14 @@ function recompute({ forceInputs = false } = {}) {
     });
   }
 
+  // Rebuilt against the final figures so Cash-out reflects this calculation.
+  const application = buildApplication({
+    inputs, result, manual: state.app, address: leadAddress(inputs),
+  });
+
   state.lastResult = result;
   state.lastInputs = inputs;
+  state.lastApplication = application;
 
   state.panel.render({
     inputs,
@@ -590,6 +640,10 @@ function recompute({ forceInputs = false } = {}) {
     result,
     external,
     recordLabel: state.recordLabel,
+    application,
+    applicationFilled: filledCount(application),
+    canSaveApplication: isWorthSaving(application),
+    draft: state.appDraft,
     forceInputs,
     live: state.running,
     picking: state.picking,
@@ -707,26 +761,47 @@ function showSolvedBalance(fields) {
   );
 }
 
-async function copySummary() {
-  const text = summaryText(state.lastResult, state.lastInputs, state.recordLabel);
+/** Store a completed application locally. */
+async function persistApplication(application, label) {
+  if (!application) return;
   try {
-    await navigator.clipboard.writeText(text);
-    flash('Copied');
+    await saveApplication({ label: label || 'Unnamed', fields: toPlain(application) });
+    flash('Saved', state.panel?.els?.btnAppSave);
   } catch {
-    // Clipboard API needs a secure context and permission; fall back.
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0;';
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); flash('Copied'); }
-    catch { flash('Copy failed'); }
-    ta.remove();
+    flash('Save failed', state.panel?.els?.btnAppSave);
   }
+  recompute();
 }
 
-function flash(msg) {
-  const btn = state.panel?.els?.btnCopy;
+async function copyApplication() {
+  const text = toText(state.lastApplication, { heading: state.recordLabel });
+  await writeClipboard(text, state.panel?.els?.btnAppCopy);
+}
+
+async function copySummary() {
+  const text = summaryText(state.lastResult, state.lastInputs, state.recordLabel);
+  await writeClipboard(text, state.panel?.els?.btnCopy);
+}
+
+async function writeClipboard(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+    flash('Copied', button);
+    return;
+  } catch { /* clipboard API needs a secure context; fall through */ }
+
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); flash('Copied', button); }
+  catch { flash('Copy failed', button); }
+  ta.remove();
+}
+
+function flash(msg, button) {
+  const btn = button ?? state.panel?.els?.btnCopy;
   if (!btn) return;
   const original = btn.textContent;
   btn.textContent = msg;

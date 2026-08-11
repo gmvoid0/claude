@@ -1,0 +1,165 @@
+/**
+ * The application form.
+ *
+ * A fixed set of fields, each pre-filled from whatever S.A.M already knows
+ * about the record, and each editable. Pure and DOM-free so the fill rules
+ * and the save threshold can be tested directly.
+ *
+ * The field list is deliberately closed. An application an agent completes
+ * mid-call is only useful if it is short enough to finish while talking, so
+ * this captures the figures that decide whether a file is worth opening and
+ * nothing else.
+ */
+
+import { parseMoney, parsePercent, formatMoney, formatPercent } from './money.js';
+
+/**
+ * `from` names where the value comes from automatically:
+ *   an input key      — a field S.A.M detected or the agent typed
+ *   'result.<name>'   — a figure the calculator produced
+ *   'address'         — the assembled one-line address
+ * A field with no `from` is only ever filled by hand.
+ */
+export const APPLICATION_FIELDS = [
+  { key: 'rate',       label: 'Rate',            kind: 'percent', from: 'interestRate' },
+  { key: 'balance',    label: 'Mortgage balance', kind: 'money',  from: 'firstLien' },
+  { key: 'fico',       label: 'FICO',            kind: 'number',  from: 'fico' },
+  { key: 'cashOut',    label: 'Cash-out',        kind: 'money',   from: 'result.estimatedCashToBorrower' },
+  { key: 'value',      label: 'Value',           kind: 'money',   from: 'propertyValue' },
+  { key: 'payment',    label: 'Monthly payment', kind: 'money',   from: 'payment' },
+  { key: 'income',     label: 'Income',          kind: 'money' },
+  { key: 'employment', label: 'W2 / 1099',       kind: 'choice',  options: ['W2', '1099', 'Both'] },
+  { key: 'loanType',   label: 'Loan type',       kind: 'choice',  options: ['VA', 'FHA', 'CONV', 'USDA'], from: 'program' },
+  { key: 'disability', label: 'Disability %',    kind: 'percent' },
+  { key: 'address',    label: 'Address',         kind: 'text',    from: 'address' },
+  { key: 'phone',      label: 'Number',          kind: 'text',    from: 'phone' },
+];
+
+export const APPLICATION_KEYS = APPLICATION_FIELDS.map((f) => f.key);
+
+/** Fields that must be filled before an application is worth keeping. */
+export const SAVE_THRESHOLD = 3;
+
+/**
+ * Build the form's current state.
+ *
+ * Anything the agent typed wins; everything else is pulled from the record.
+ * Each field reports where its value came from so the UI can show what was
+ * filled automatically and what a human entered.
+ */
+export function buildApplication({ inputs = {}, result = null, manual = {}, address = '' } = {}) {
+  const out = {};
+
+  for (const field of APPLICATION_FIELDS) {
+    const typed = manual[field.key];
+
+    if (typed != null) {
+      out[field.key] = { value: String(typed), source: 'manual' };
+      continue;
+    }
+
+    const value = autoValue(field, inputs, result, address);
+    out[field.key] = {
+      value,
+      source: value ? 'auto' : 'none',
+      // A figure read off the page that sits outside a sane range for its
+      // field. Shown, because hiding it would hide a data problem, but never
+      // presented as trustworthy.
+      suspect: !!(value && field.from && inputs[field.from]?.implausible),
+    };
+  }
+
+  return out;
+}
+
+function autoValue(field, inputs, result, address) {
+  if (!field.from) return '';
+
+  if (field.from === 'address') return address ?? '';
+
+  if (field.from.startsWith('result.')) {
+    const key = field.from.slice('result.'.length);
+    const raw = result?.[key];
+    if (raw == null || !Number.isFinite(raw)) return '';
+    // A negative cash-out is a real answer but not something to write onto an
+    // application; leave it blank rather than recording a minus figure.
+    if (key === 'estimatedCashToBorrower' && raw <= 0) return '';
+    return formatMoney(raw);
+  }
+
+  const input = inputs[field.from];
+  if (!input) return '';
+
+  // Loan type is stored canonically so it round-trips through the dropdown.
+  if (field.key === 'loanType') return input.normalized ?? '';
+
+  const raw = String(input.value ?? '').trim();
+  if (!raw) return '';
+
+  if (field.kind === 'money') {
+    const n = input.num ?? parseMoney(raw);
+    return n == null ? raw : formatMoney(n);
+  }
+  if (field.kind === 'percent') {
+    const rate = parsePercent(raw);
+    return rate == null ? raw : formatPercent(rate, 3).replace(/\.?0+%$/, '%');
+  }
+  return raw;
+}
+
+/** How many fields carry a value. */
+export function filledCount(application) {
+  return APPLICATION_KEYS.reduce(
+    (n, key) => n + (String(application?.[key]?.value ?? '').trim() ? 1 : 0),
+    0,
+  );
+}
+
+/**
+ * Whether this application is worth offering to save.
+ *
+ * The threshold exists so a record the agent merely looked at does not become
+ * a saved file. Fields that arrive purely from the lead itself are not enough
+ * on their own — otherwise every call would clear the bar without anyone
+ * having done anything — so at least one entry has to be the agent's.
+ */
+export function isWorthSaving(application) {
+  if (!application) return false;
+  if (filledCount(application) < SAVE_THRESHOLD) return false;
+  return APPLICATION_KEYS.some((key) => {
+    const field = application[key];
+    return field?.source === 'manual' && String(field.value ?? '').trim() !== '';
+  });
+}
+
+/**
+ * A VA funding fee is waived for a veteran receiving compensation for a
+ * service-connected disability, so a disability rating entered on the form
+ * feeds straight back into the calculation.
+ */
+export function impliesFeeExemption(application) {
+  const raw = application?.disability?.value;
+  if (raw == null || String(raw).trim() === '') return false;
+  const rate = parsePercent(raw);
+  return rate != null && rate >= 0.10;
+}
+
+/** Flatten to plain values for storage or the clipboard. */
+export function toPlain(application) {
+  const out = {};
+  for (const field of APPLICATION_FIELDS) {
+    out[field.key] = String(application?.[field.key]?.value ?? '').trim();
+  }
+  return out;
+}
+
+/** A readable block for pasting into a CRM or an email. */
+export function toText(application, { heading = '' } = {}) {
+  const width = Math.max(...APPLICATION_FIELDS.map((f) => f.label.length)) + 2;
+  const lines = heading ? [heading, ''] : [];
+  for (const field of APPLICATION_FIELDS) {
+    const value = String(application?.[field.key]?.value ?? '').trim();
+    lines.push(`${(field.label + ':').padEnd(width)}${value || '—'}`);
+  }
+  return lines.join('\n');
+}

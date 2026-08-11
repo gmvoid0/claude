@@ -20,6 +20,10 @@ export const PANEL_CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; }
 
+/* Our own display rules outrank the user-agent [hidden] rule, so state it
+   explicitly — otherwise hiding a styled element silently does nothing. */
+[hidden] { display: none !important; }
+
 .wrap {
   /* --- iOS system palette, light --- */
   --blue: #007AFF;
@@ -107,6 +111,124 @@ export const PANEL_CSS = `
 }
 
 .wrap.collapsed { width: auto; border-radius: var(--r-pill); }
+
+/* ------------------------------------------------------------------ *
+ * Application drawer
+ *
+ * Sits alongside the panel rather than inside it, so the calculator stays
+ * fully visible while the form is being filled. The panel is right-docked,
+ * so the drawer opens to the left of it.
+ * ------------------------------------------------------------------ */
+
+/* Grid rather than flex: the two columns plus a full-width title bar are a
+   fixed arrangement, and flex wrapping put the drawer above the calculator
+   the moment a border pushed the row past its width. */
+.wrap.with-drawer {
+  display: grid;
+  grid-template-columns: 342px 358px;
+  grid-template-areas:
+    "hd     hd"
+    "drawer body";
+  width: 700px;
+}
+.wrap.with-drawer .hd     { grid-area: hd; }
+.wrap.with-drawer .drawer { grid-area: drawer; }
+.wrap.with-drawer .body   { grid-area: body; }
+
+.drawer {
+  width: 342px;
+  border-right: 0.5px solid var(--separator);
+  background: var(--fill);
+  max-height: 78vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.drawer-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 12px;
+  border-bottom: 0.5px solid var(--separator);
+  position: sticky; top: 0;
+  background: var(--surface);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  z-index: 1;
+}
+.drawer-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.drawer-count {
+  font-size: 10px; font-weight: 600;
+  color: var(--label-2);
+  background: var(--fill-strong);
+  padding: 2px 8px; border-radius: var(--r-pill);
+  margin-right: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.drawer-body { padding: 4px 12px 10px; }
+
+.app-row {
+  display: grid;
+  grid-template-columns: 104px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+.app-row:last-child { border-bottom: none; }
+.app-label { font-size: 11.5px; color: var(--label-2); font-weight: 600; }
+
+.app-input {
+  width: 100%;
+  padding: 6px 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--label);
+  background: transparent;
+  border: 0.5px solid transparent;
+  border-radius: var(--r-field);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.app-input:hover { background: var(--fill); }
+.app-input:focus {
+  outline: none;
+  background: var(--card-solid);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(0,122,255,.18);
+}
+/* Green marks what S.A.M filled in; anything typed reads as normal text. */
+.app-row.auto.filled .app-input { color: var(--green-deep); font-weight: 600; }
+/* Read off the page but outside a sane range — shown, but never in the
+   colour that means "this is good". */
+.app-row.suspect .app-input { color: var(--orange-deep); font-weight: 600; }
+.app-row.suspect .app-label::after {
+  content: " ?";
+  color: var(--orange);
+  font-weight: 700;
+}
+
+.drawer-note {
+  padding: 4px 12px 12px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--label-3);
+}
+
+/* Unsaved work from the previous call. */
+.draft {
+  margin: 10px 12px 0;
+  padding: 9px 10px;
+  border-radius: var(--r-field);
+  background: rgba(255,149,0,.13);
+  border: 0.5px solid rgba(255,149,0,.34);
+}
+.draft-text { font-size: 11.5px; color: var(--orange-deep); line-height: 1.35; }
+.draft-acts { display: flex; gap: 6px; margin-top: 8px; }
+.draft-acts .btn { flex: 1; padding: 5px 9px; font-size: 11px; }
+.draft-acts .btn.tiny { margin-left: 0; }
+
+.hd button.on { background: var(--blue); color: #fff; }
 
 /* ------------------------------------------------------------------ *
  * Title bar — frosted, with the Apple gloss

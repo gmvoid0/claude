@@ -677,3 +677,127 @@ test('a Texas record produces the 80% cap end to end', { skip }, async () => {
     await page.close();
   }
 });
+
+test('a read-only labelled cell is detected, so Number fills in', { skip }, async () => {
+  // The phone on the agent screen is displayed text in a table cell, not an
+  // input. Without harvesting labelled cells the application's Number field
+  // stays permanently empty.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const got = await detectOn(page, 'agent-screen.html');
+    assert.equal(got.phone?.raw, '3024239504');
+    assert.equal(got.phone?.labelSource, 'cell');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the application drawer opens beside the calculator, not above it', { skip }, async () => {
+  // Regression: flex wrapping stacked the drawer on top of the panel as soon
+  // as a border pushed the row past its declared width.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const box = await page.evaluate(() => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      root.querySelector('[data-act=app]').click();
+      const drawer = root.querySelector('[data-app=drawer]').getBoundingClientRect();
+      const body = root.querySelector('.body').getBoundingClientRect();
+      return { drawer: drawer.toJSON(), body: body.toJSON() };
+    });
+
+    assert.ok(box.drawer.width > 100, 'drawer is visible');
+    assert.ok(box.drawer.right <= box.body.left + 2,
+      `drawer must sit left of the calculator (drawer right ${box.drawer.right}, body left ${box.body.left})`);
+    assert.ok(Math.abs(box.drawer.top - box.body.top) < 4,
+      'drawer and calculator must share a top edge, not stack');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the application fills from the record and offers to save once worked on', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const state = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      root.querySelector('[data-act=app]').click();
+
+      const v = root.querySelector('[data-in=propertyValue]');
+      v.value = '400000';
+      v.dispatchEvent(new Event('input', { bubbles: true }));
+
+      const saveBtn = root.querySelector('[data-act=app-save]');
+      const read = () => ({
+        balance: root.querySelector('[data-app-field=balance]').value,
+        value: root.querySelector('[data-app-field=value]').value,
+        cashOut: root.querySelector('[data-app-field=cashOut]').value,
+        phone: root.querySelector('[data-app-field=phone]').value,
+        // Measured, not asserted from the property: a `hidden` element that
+        // CSS still lays out is visible to the agent regardless.
+        saveHidden: saveBtn.getBoundingClientRect().width === 0,
+      });
+
+      const before = read();
+
+      const income = root.querySelector('[data-app-field=income]');
+      income.value = '96000';
+      income.dispatchEvent(new Event('input', { bubbles: true }));
+
+      return { before, after: read() };
+    });
+
+    assert.equal(state.before.balance, '$270,900');
+    assert.equal(state.before.value, '$400,000');
+    assert.equal(state.before.cashOut, '$120,681');
+    assert.equal(state.before.phone, '3024239504');
+
+    assert.equal(state.before.saveHidden, true, 'auto-fill alone must not offer a save');
+    assert.equal(state.after.saveHidden, false, 'the agent\'s own entry does');
+  } finally {
+    await page.close();
+  }
+});
+
+test('a new call clears the application but keeps unsaved work as a draft', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      root.querySelector('[data-act=app]').click();
+
+      const income = root.querySelector('[data-app-field=income]');
+      income.value = '96000';
+      income.dispatchEvent(new Event('input', { bubbles: true }));
+
+      window.loadNextRecord({
+        id: '7164999', first: 'MARIA', last: 'CHEN', address: '44 OAK ST',
+        city: 'AUSTIN', state: 'TX', zip: '78701', balance: '318450', loanType: 'CV',
+      });
+      await new Promise((r) => setTimeout(r, 1200));
+
+      return {
+        income: root.querySelector('[data-app-field=income]').value,
+        balance: root.querySelector('[data-app-field=balance]').value,
+        draftShown: !root.querySelector('[data-app=draft]').hidden,
+        draftText: root.querySelector('[data-app=draft-text]').textContent,
+      };
+    });
+
+    assert.equal(out.income, '', 'the form clears with the record');
+    assert.equal(out.balance, '$318,450', 'and refills from the new one');
+    assert.equal(out.draftShown, true, 'unsaved work is not silently discarded');
+    assert.match(out.draftText, /RANDY D ROLLINS/);
+  } finally {
+    await page.close();
+  }
+});

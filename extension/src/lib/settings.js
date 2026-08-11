@@ -12,6 +12,7 @@ const KEYS = {
   rules: 'ruleOverrides',
   prefs: 'prefs',
   panelPos: 'panelPos',
+  applications: 'applications',
 };
 
 export const DEFAULT_PREFS = {
@@ -147,6 +148,29 @@ export async function getPanelPos() {
 
 export async function setPanelPos(pos) {
   await set(KEYS.panelPos, pos);
+}
+
+/* --- saved applications ------------------------------------------------- */
+
+/** Newest first. Capped so storage cannot grow without bound. */
+export async function getApplications() {
+  return get(KEYS.applications, []);
+}
+
+export async function saveApplication(record) {
+  const all = await getApplications();
+  all.unshift({ ...record, savedAt: Date.now() });
+  await set(KEYS.applications, all.slice(0, 200));
+  return all.length;
+}
+
+export async function deleteApplication(savedAt) {
+  const all = await getApplications();
+  await set(KEYS.applications, all.filter((a) => a.savedAt !== savedAt));
+}
+
+export async function clearApplications() {
+  await set(KEYS.applications, []);
 }
 
 export { KEYS };
