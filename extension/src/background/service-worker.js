@@ -40,11 +40,59 @@ async function broadcastValuation() {
   } catch { /* tabs unavailable */ }
 }
 
+/**
+ * A lookup opened on the agent's behalf.
+ *
+ * The wait is the problem this solves: an agent should not be clicking a link
+ * and watching a page load while a customer is on the phone. The lookup is
+ * started the moment an address is known, in a background tab that never
+ * takes focus, and closed as soon as a value has been read from it.
+ *
+ * This is an ordinary navigation in the agent's own session — the same one
+ * they perform by hand today, just earlier. Nothing is fetched behind the
+ * site's back and no security control is bypassed.
+ */
+let pendingLookup = null;
+const LOOKUP_TIMEOUT_MS = 30000;
+
+async function openLookup({ url, address }) {
+  if (!url) return;
+  // One at a time, and never twice for the same property.
+  if (pendingLookup && Date.now() - pendingLookup.startedAt < LOOKUP_TIMEOUT_MS) return;
+  if (pendingLookup?.address === address) return;
+
+  try {
+    const tab = await chrome.tabs.create({ url, active: false });
+    pendingLookup = { tabId: tab.id, address, startedAt: Date.now() };
+
+    setTimeout(() => {
+      if (pendingLookup?.tabId === tab.id) closeLookup(tab.id);
+    }, LOOKUP_TIMEOUT_MS);
+  } catch {
+    pendingLookup = null;
+  }
+}
+
+function closeLookup(tabId) {
+  pendingLookup = null;
+  chrome.tabs.remove(tabId).catch(() => { /* already gone */ });
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === 'SAM_OPEN_LOOKUP') {
+    openLookup(msg);
+    sendResponse?.({ ok: true });
+    return true;
+  }
+
   if (msg?.type === 'SAM_VALUATION_REPORT') {
     if (msg.valuation?.value) {
       latestValuation = { ...msg.valuation, at: Date.now(), tabId: sender?.tab?.id ?? null };
       broadcastValuation();
+
+      // The tab existed only to produce this figure.
+      const tabId = sender?.tab?.id;
+      if (tabId != null && pendingLookup?.tabId === tabId) closeLookup(tabId);
     }
     sendResponse?.({ ok: true });
     return true;

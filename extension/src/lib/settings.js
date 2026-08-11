@@ -18,6 +18,8 @@ const KEYS = {
 export const DEFAULT_PREFS = {
   /** Panel starts collapsed to a chip rather than fully open. */
   startCollapsed: false,
+  /** The application drawer is open when the panel loads. */
+  startWithApplication: true,
   /** Poll interval for input values, ms. Set 0 to rely on events only. */
   pollMs: 400,
   /** Clear the manually typed home value when the record changes. */
@@ -32,6 +34,12 @@ export const DEFAULT_PREFS = {
    * on property pages, and only once you have enabled at least one site.
    */
   readValuationSites: true,
+  /**
+   * Open the value lookup automatically in a background tab as soon as the
+   * address is known. Off by default: it opens a tab on the agent's behalf,
+   * which should be a deliberate choice rather than a surprise.
+   */
+  autoLookup: false,
   /**
    * Standing assumptions. These live here rather than on the panel because
    * they are shop policy, not per-call decisions — they should apply to every

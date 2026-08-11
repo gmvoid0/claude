@@ -24,7 +24,7 @@ export const APPLICATION_FIELDS = [
   { key: 'rate',       label: 'Rate',            kind: 'percent', from: 'interestRate' },
   { key: 'balance',    label: 'Mortgage balance', kind: 'money',  from: 'firstLien' },
   { key: 'fico',       label: 'FICO',            kind: 'number',  from: 'fico' },
-  { key: 'cashOut',    label: 'Cash-out',        kind: 'money',   from: 'result.estimatedCashToBorrower' },
+  { key: 'cashOut',    label: 'Cash-out',        kind: 'money',   hintFrom: 'result.estimatedCashToBorrower' },
   { key: 'value',      label: 'Value',           kind: 'money',   from: 'propertyValue' },
   { key: 'payment',    label: 'Monthly payment', kind: 'money',   from: 'payment' },
   { key: 'income',     label: 'Income',          kind: 'money' },
@@ -62,6 +62,7 @@ export function buildApplication({ inputs = {}, result = null, manual = {}, addr
     out[field.key] = {
       value,
       source: value ? 'auto' : 'none',
+      placeholder: hintFor(field, result),
       // A figure read off the page that sits outside a sane range for its
       // field. Shown, because hiding it would hide a data problem, but never
       // presented as trustworthy.
@@ -72,20 +73,27 @@ export function buildApplication({ inputs = {}, result = null, manual = {}, addr
   return out;
 }
 
+/**
+ * Guidance shown in an empty field without filling it.
+ *
+ * Cash-out is the case that matters. The calculator's headline is the
+ * *maximum* the equity supports, and pre-filling the application with it
+ * would record a request nobody made — most borrowers take a fraction of
+ * what is available. The ceiling is worth showing, so it is offered as a
+ * prompt the agent can ignore rather than a value they must correct.
+ */
+function hintFor(field, result) {
+  if (!field.hintFrom) return '';
+  if (!field.hintFrom.startsWith('result.')) return '';
+  const raw = result?.[field.hintFrom.slice('result.'.length)];
+  if (raw == null || !Number.isFinite(raw) || raw <= 0) return '';
+  return `up to ${formatMoney(raw)}`;
+}
+
 function autoValue(field, inputs, result, address) {
   if (!field.from) return '';
 
   if (field.from === 'address') return address ?? '';
-
-  if (field.from.startsWith('result.')) {
-    const key = field.from.slice('result.'.length);
-    const raw = result?.[key];
-    if (raw == null || !Number.isFinite(raw)) return '';
-    // A negative cash-out is a real answer but not something to write onto an
-    // application; leave it blank rather than recording a minus figure.
-    if (key === 'estimatedCashToBorrower' && raw <= 0) return '';
-    return formatMoney(raw);
-  }
 
   const input = inputs[field.from];
   if (!input) return '';

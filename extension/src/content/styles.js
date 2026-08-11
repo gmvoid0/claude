@@ -264,20 +264,39 @@ export const PANEL_CSS = `
 .hd .dot.live  { background: var(--green); box-shadow: 0 0 0 3px rgba(52,199,89,.20); }
 .hd .dot.stale { background: var(--orange); box-shadow: 0 0 0 3px rgba(255,149,0,.18); }
 
+.hd .brand { display: flex; flex-direction: column; gap: 1px; flex: none; min-width: 0; }
 .hd .title {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: .04em;
-  flex: none;
+  line-height: 1.1;
+}
+.hd .subtitle {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  color: var(--label-3);
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
+/* The record gets its own row. Competing with the brand for one line meant
+   the name — the thing telling the agent who is on the phone — was the part
+   that got truncated. */
+.hd { flex-wrap: wrap; }
+.hd .brand { margin-right: auto; }
 .hd .who {
-  flex: 1; min-width: 0;
+  order: 9;
+  flex: 0 0 100%;
+  min-width: 0;
   font-size: 11px;
+  font-weight: 600;
   color: var(--label-2);
-  text-align: right;
+  padding-top: 1px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.hd .who:empty { display: none; }
 
 .hd button {
   all: unset;
@@ -376,6 +395,17 @@ select {
   background-repeat: no-repeat;
 }
 select:focus { background-color: var(--card-solid); }
+
+/* The native dropdown list inherits colour from the select, so a red-tinted
+   or dark-mode select produced unreadable options against the popup's own
+   background. State both explicitly on the options themselves. */
+select option {
+  background-color: var(--card-solid);
+  color: var(--label);
+  font-weight: 500;
+}
+.row.flagged select { color: var(--label); }
+.row.flagged select option { background-color: var(--card-solid); }
 
 input.hero {
   font-size: 26px;

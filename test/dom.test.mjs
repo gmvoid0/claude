@@ -703,7 +703,10 @@ test('the application drawer opens beside the calculator, not above it', { skip 
 
     const box = await page.evaluate(() => {
       const root = document.getElementById('__sam_panel_host__').shadowRoot;
-      root.querySelector('[data-act=app]').click();
+      const openDrawer = () => {
+        if (root.querySelector('[data-app=drawer]').hidden) root.querySelector('[data-act=app]').click();
+      };
+      openDrawer();
       const drawer = root.querySelector('[data-app=drawer]').getBoundingClientRect();
       const body = root.querySelector('.body').getBoundingClientRect();
       return { drawer: drawer.toJSON(), body: body.toJSON() };
@@ -727,7 +730,9 @@ test('the application fills from the record and offers to save once worked on', 
 
     const state = await page.evaluate(async () => {
       const root = document.getElementById('__sam_panel_host__').shadowRoot;
-      root.querySelector('[data-act=app]').click();
+      if (root.querySelector('[data-app=drawer]').hidden) {
+        root.querySelector('[data-act=app]').click();
+      }
 
       const v = root.querySelector('[data-in=propertyValue]');
       v.value = '400000';
@@ -738,6 +743,7 @@ test('the application fills from the record and offers to save once worked on', 
         balance: root.querySelector('[data-app-field=balance]').value,
         value: root.querySelector('[data-app-field=value]').value,
         cashOut: root.querySelector('[data-app-field=cashOut]').value,
+        cashOutHint: root.querySelector('[data-app-field=cashOut]').placeholder,
         phone: root.querySelector('[data-app-field=phone]').value,
         // Measured, not asserted from the property: a `hidden` element that
         // CSS still lays out is visible to the agent regardless.
@@ -755,7 +761,10 @@ test('the application fills from the record and offers to save once worked on', 
 
     assert.equal(state.before.balance, '$270,900');
     assert.equal(state.before.value, '$400,000');
-    assert.equal(state.before.cashOut, '$120,681');
+    // The ceiling is offered as guidance; the borrower's actual request is
+    // the agent's to enter.
+    assert.equal(state.before.cashOut, '');
+    assert.equal(state.before.cashOutHint, 'up to $120,681');
     assert.equal(state.before.phone, '3024239504');
 
     assert.equal(state.before.saveHidden, true, 'auto-fill alone must not offer a save');
@@ -773,7 +782,9 @@ test('a new call clears the application but keeps unsaved work as a draft', { sk
 
     const out = await page.evaluate(async () => {
       const root = document.getElementById('__sam_panel_host__').shadowRoot;
-      root.querySelector('[data-act=app]').click();
+      if (root.querySelector('[data-app=drawer]').hidden) {
+        root.querySelector('[data-act=app]').click();
+      }
 
       const income = root.querySelector('[data-app-field=income]');
       income.value = '96000';
@@ -797,6 +808,42 @@ test('a new call clears the application but keeps unsaved work as a draft', { sk
     assert.equal(out.balance, '$318,450', 'and refills from the new one');
     assert.equal(out.draftShown, true, 'unsaved work is not silently discarded');
     assert.match(out.draftText, /RANDY D ROLLINS/);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the application drawer is open when the panel loads', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+    const visible = await page.evaluate(() => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      return root.querySelector('[data-app=drawer]').getBoundingClientRect().width > 100;
+    });
+    assert.equal(visible, true, 'the application is the point of the tool, not an extra');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the loan type dropdown options are readable against their popup', { skip }, async () => {
+  // Native option lists inherit colour from the select, so a dark-mode or
+  // red-tinted select rendered near-invisible text on a light popup.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+    const styles = await page.evaluate(() => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const option = root.querySelector('[data-in=program] option[value=VA]');
+      const s = getComputedStyle(option);
+      return { color: s.color, background: s.backgroundColor };
+    });
+    assert.ok(styles.color, 'options declare their own colour');
+    assert.notEqual(styles.background, 'rgba(0, 0, 0, 0)',
+      'options declare their own background rather than inheriting the field tint');
   } finally {
     await page.close();
   }

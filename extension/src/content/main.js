@@ -322,6 +322,7 @@ async function activate() {
         deactivate();
       },
       onCollapse: (collapsed) => setPrefs({ startCollapsed: collapsed }),
+      onDrawerToggle: (open) => setPrefs({ startWithApplication: open }),
       onMove: (pos) => setPanelPos(pos),
     });
 
@@ -329,6 +330,10 @@ async function activate() {
       collapsed: !!state.prefs.startCollapsed,
       pos: await getPanelPos(),
     });
+
+    // The application is the point of the tool, not an extra, so it is open
+    // unless the agent has closed it.
+    if (state.prefs.startWithApplication !== false) state.panel.toggleDrawer(true);
 
     window.addEventListener('keydown', onHotkey, true);
 
@@ -450,6 +455,7 @@ function scan(force) {
       state.manual = {};
       state.overrides = overridesFromPrefs(state.prefs);
       state.avmTouched = false;
+      state.lookupRequestedFor = null;
     }
     // Never let one caller's detected fields survive into the next call.
     state.detected = {};
@@ -580,6 +586,7 @@ function recompute({ forceInputs = false } = {}) {
 
   const inputs = effectiveInputs();
   const external = applyExternalValue(inputs);
+  maybeStartLookup(inputs);
 
   // The AVM flag follows detection until the agent overrides it by hand;
   // the override then sticks until the next record.
@@ -661,6 +668,34 @@ function buildLookupUrls(inputs) {
     zillow: zillowSearchUrl(address),
     redfin: redfinSearchUrl(address),
   };
+}
+
+/**
+ * Start the value lookup as soon as the address is known.
+ *
+ * Off unless switched on, because it opens a tab and that is a visible thing
+ * to do on someone's behalf. When it is on, the point is timing: the lookup
+ * begins when the record lands rather than when the agent gets round to
+ * clicking, so the figure is usually waiting by the time it is wanted.
+ */
+function maybeStartLookup(inputs) {
+  if (state.prefs?.autoLookup !== true) return;
+
+  const address = leadAddress(inputs);
+  if (!address) return;
+  if (address === state.lookupRequestedFor) return;
+
+  // Nothing to look up if a value is already in hand.
+  if (inputs.propertyValue?.value) return;
+
+  state.lookupRequestedFor = address;
+  try {
+    chrome.runtime.sendMessage({
+      type: 'SAM_OPEN_LOOKUP',
+      url: zillowSearchUrl(address),
+      address,
+    });
+  } catch { /* worker asleep; the manual link still works */ }
 }
 
 /**

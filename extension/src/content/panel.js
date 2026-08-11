@@ -269,6 +269,9 @@ export class Panel {
       const cell = this.appEls[field.key];
       const entry = application?.[field.key];
       this.setInput(cell.input, entry?.value ?? '', force);
+      if (cell.input.tagName === 'INPUT') {
+        cell.input.placeholder = entry?.placeholder || '—';
+      }
       cell.row.classList.toggle('auto', entry?.source === 'auto');
       cell.row.classList.toggle('filled', !!String(entry?.value ?? '').trim());
       cell.row.classList.toggle('suspect', !!entry?.suspect);
@@ -571,7 +574,10 @@ function clamp(n, lo, hi) {
 const TEMPLATE = `
 <div class="hd">
   <span class="dot"></span>
-  <span class="title">S.A.M</span>
+  <span class="brand">
+    <span class="title">S.A.M</span>
+    <span class="subtitle">Sales Assistance in Mortgages</span>
+  </span>
   <span class="who"></span>
   <button data-act="app" title="Application (Alt+A)">▤</button>
   <button data-act="collapse" title="Collapse (Alt+E)">–</button>
@@ -607,7 +613,7 @@ const TEMPLATE = `
   <!-- The answer, first and largest. Everything below it is supporting work. -->
   <div class="result" data-tone="idle">
     <div class="headline">
-      <span class="cap">Cash out</span>
+      <span class="cap">Max cash out</span>
       <span class="num none" data-out="cash">—</span>
     </div>
     <span class="pill idle" data-out="verdict">—</span>

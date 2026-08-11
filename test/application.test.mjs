@@ -59,14 +59,37 @@ test('everything S.A.M already knows is filled in automatically', () => {
   assert.equal(application.phone.value, '3024239504');
   assert.equal(application.address.value, '189 LEDGERWOOD LN, ROCKWOOD, TN 37854');
 
-  // Cash-out comes from the calculation, not from the page.
-  assert.equal(application.cashOut.value, '$120,681');
-  assert.equal(application.cashOut.source, 'auto');
+  // Cash-out is deliberately NOT filled — see the dedicated test below.
+  assert.equal(application.cashOut.value, '');
+});
+
+test('cash-out is never pre-filled with the maximum', () => {
+  // The headline figure is the ceiling the equity supports. Most borrowers
+  // take a fraction of it, so writing it onto the application would record a
+  // request nobody made.
+  const { result, application } = scenario();
+
+  assert.ok(result.estimatedCashToBorrower > 0, 'there is a ceiling to show');
+  assert.equal(application.cashOut.value, '', 'but the field stays empty');
+  assert.equal(application.cashOut.source, 'none');
+  assert.equal(application.cashOut.placeholder, 'up to $120,681',
+    'the ceiling is offered as guidance, not as an answer');
+});
+
+test('an entered cash-out is kept exactly as typed', () => {
+  const { application } = scenario({ app: { cashOut: '25000' } });
+  assert.equal(application.cashOut.value, '25000');
+  assert.equal(application.cashOut.source, 'manual');
+});
+
+test('no ceiling hint when there is no cash available', () => {
+  const { application } = scenario({ manual: { propertyValue: '200000' } });
+  assert.equal(application.cashOut.placeholder, '');
 });
 
 test('fields with no source stay empty and are marked as such', () => {
   const { application } = scenario();
-  for (const key of ['income', 'employment', 'disability']) {
+  for (const key of ['income', 'employment', 'disability', 'cashOut']) {
     assert.equal(application[key].value, '');
     assert.equal(application[key].source, 'none');
   }

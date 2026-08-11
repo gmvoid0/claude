@@ -70,6 +70,7 @@ function renderPrefs() {
   $('resetValueOnNewRecord').checked = prefs.resetValueOnNewRecord !== false;
   $('showLookupLinks').checked = prefs.showLookupLinks !== false;
   $('readValuationSites').checked = prefs.readValuationSites !== false;
+  $('autoLookup').checked = !!prefs.autoLookup;
   $('financeFee').checked = prefs.financeFee !== false;
   $('feeExempt').checked = !!prefs.feeExempt;
   $('subsequentUse').checked = !!prefs.subsequentUse;
@@ -170,6 +171,7 @@ async function save() {
     resetValueOnNewRecord: $('resetValueOnNewRecord').checked,
     showLookupLinks: $('showLookupLinks').checked,
     readValuationSites: $('readValuationSites').checked,
+    autoLookup: $('autoLookup').checked,
     financeFee: $('financeFee').checked,
     feeExempt: $('feeExempt').checked,
     subsequentUse: $('subsequentUse').checked,
