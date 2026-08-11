@@ -90,10 +90,7 @@ export async function start() {
   state.rules = mergeRules(await getRuleOverrides());
   state.enabled = await isSiteEnabled(state.origin);
 
-  state.overrides.financeFee = state.prefs.financeFee !== false;
-  state.overrides.closingCosts = state.prefs.defaultClosingCosts
-    ? String(state.prefs.defaultClosingCosts)
-    : '';
+  state.overrides = overridesFromPrefs(state.prefs);
 
   chrome.runtime.onMessage.addListener(handleMessage);
 
@@ -156,7 +153,28 @@ async function reloadSettings() {
   state.prefs = await getPrefs();
   state.rules = mergeRules(await getRuleOverrides());
   state.bindings = await getBindings(state.page);
+  // Standing assumptions changed in settings must take effect immediately,
+  // on this record, without a reload.
+  state.overrides = overridesFromPrefs(state.prefs);
+  state.avmTouched = false;
   scheduleRecompute();
+}
+
+/**
+ * The standing assumptions, as configured. Rebuilt from preferences whenever
+ * settings change and on every new record, so a shop's policy is applied to
+ * every call rather than depending on an agent setting it by hand.
+ */
+function overridesFromPrefs(prefs = {}) {
+  return {
+    closingCosts: prefs.defaultClosingCosts ? String(prefs.defaultClosingCosts) : '',
+    ltvOverride: prefs.ltvOverride ?? '',
+    loanLimit: prefs.loanLimit ?? '',
+    financeFee: prefs.financeFee !== false,
+    feeExempt: !!prefs.feeExempt,
+    subsequentUse: !!prefs.subsequentUse,
+    valueIsAvm: !!prefs.valueIsAvm,
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -272,8 +290,7 @@ async function activate() {
       onCopy: () => copySummary(),
       onReset: () => {
         state.manual = {};
-        state.overrides.ltvOverride = '';
-        state.overrides.loanLimit = '';
+        state.overrides = overridesFromPrefs(state.prefs);
         state.avmTouched = false;
         scan(true);
       },
@@ -394,8 +411,7 @@ function scan(force) {
       // forward would silently produce a wrong number, so drop everything
       // the agent typed.
       state.manual = {};
-      state.overrides.ltvOverride = '';
-      state.overrides.loanLimit = '';
+      state.overrides = overridesFromPrefs(state.prefs);
       state.avmTouched = false;
     }
     // Never let one caller's detected fields survive into the next call.
@@ -530,7 +546,9 @@ function recompute({ forceInputs = false } = {}) {
 
   // The AVM flag follows detection until the agent overrides it by hand;
   // the override then sticks until the next record.
-  if (!state.avmTouched) state.overrides.valueIsAvm = !!inputs.propertyValue.isAvm;
+  if (!state.avmTouched) {
+    state.overrides.valueIsAvm = !!state.prefs?.valueIsAvm || !!inputs.propertyValue.isAvm;
+  }
 
   const result = computeEquity({
     propertyValue: inputs.propertyValue.num,

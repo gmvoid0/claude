@@ -80,13 +80,6 @@ export class Panel {
       state: q('[data-in=state]'),
       stateSrc: q('[data-src=state]'),
 
-      closingCosts: q('[data-ov=closingCosts]'),
-      ltvOverride: q('[data-ov=ltvOverride]'),
-      loanLimit: q('[data-ov=loanLimit]'),
-      feeExempt: q('[data-ov=feeExempt]'),
-      subsequentUse: q('[data-ov=subsequentUse]'),
-      financeFee: q('[data-ov=financeFee]'),
-      valueIsAvm: q('[data-ov=valueIsAvm]'),
 
       solvePayment: q('[data-solve=payment]'),
       solveRate: q('[data-solve=rate]'),
@@ -131,15 +124,6 @@ export class Panel {
       if (!el) continue;
       const evt = el.tagName === 'SELECT' ? 'change' : 'input';
       el.addEventListener(evt, () => this.h.onManualChange?.(key, el.value));
-    }
-
-    for (const key of ['closingCosts', 'ltvOverride', 'loanLimit']) {
-      const el = this.root.querySelector(`[data-ov=${key}]`);
-      el?.addEventListener('input', () => this.h.onOverrideChange?.(key, el.value));
-    }
-    for (const key of ['feeExempt', 'subsequentUse', 'financeFee', 'valueIsAvm']) {
-      const el = this.root.querySelector(`[data-ov=${key}]`);
-      el?.addEventListener('change', () => this.h.onOverrideChange?.(key, el.checked));
     }
 
     for (const el of [els.solvePayment, els.solveRate, els.solveYears]) {
@@ -274,13 +258,6 @@ export class Panel {
     setSrc(els.programSrc, inputs.program);
     setSrc(els.stateSrc, inputs.state);
 
-    this.setInput(els.closingCosts, overrides.closingCosts ?? '', force);
-    this.setInput(els.ltvOverride, overrides.ltvOverride ?? '', force);
-    this.setInput(els.loanLimit, overrides.loanLimit ?? '', force);
-    els.feeExempt.checked = !!overrides.feeExempt;
-    els.subsequentUse.checked = !!overrides.subsequentUse;
-    els.financeFee.checked = overrides.financeFee !== false;
-    els.valueIsAvm.checked = !!overrides.valueIsAvm;
 
     els.btnPickValue.classList.toggle('picking', picking === 'propertyValue');
     els.btnPickFirst.classList.toggle('picking', picking === 'firstLien');
@@ -319,6 +296,11 @@ export class Panel {
       }
 
       const bits = [];
+      // Show what the shorthand became, so an expansion is never a surprise.
+      const typed = inputs.propertyValue?.value ?? '';
+      if (typed && String(result.propertyValueEntered) !== typed.replace(/[$,\s]/g, '')) {
+        bits.push(`= <b>${formatMoney(result.propertyValueEntered)}</b>`);
+      }
       if (result.valueIsAvm) {
         bits.push(result.avmHaircut
           ? `Estimate — screening at <b>${formatMoney(result.propertyValue)}</b> (−${formatPercent(result.avmHaircut, 0)})`
@@ -583,28 +565,6 @@ const TEMPLATE = `
       <div class="cell"><div class="k">Total loan</div><div class="v sub" data-out="total">—</div></div>
       <div class="cell"><div class="k">Program</div><div class="v sub" data-out="breakeven">—</div></div>
     </div>
-  </details>
-
-  <details class="adv">
-    <summary>Assumptions &amp; overrides</summary>
-    <div class="three">
-      <div class="row">
-        <label>Closing costs</label>
-        <input type="text" data-ov="closingCosts" placeholder="$0" inputmode="decimal" />
-      </div>
-      <div class="row">
-        <label>LTV override</label>
-        <input type="text" data-ov="ltvOverride" placeholder="auto" inputmode="decimal" />
-      </div>
-      <div class="row">
-        <label>Loan limit</label>
-        <input type="text" data-ov="loanLimit" placeholder="none" inputmode="decimal" />
-      </div>
-    </div>
-    <label class="check">Finance the upfront fee<input type="checkbox" data-ov="financeFee" /></label>
-    <label class="check">VA funding fee exempt (disability)<input type="checkbox" data-ov="feeExempt" /></label>
-    <label class="check">VA subsequent use<input type="checkbox" data-ov="subsequentUse" /></label>
-    <label class="check">Value is an automated estimate<input type="checkbox" data-ov="valueIsAvm" /></label>
   </details>
 
   <details class="adv">

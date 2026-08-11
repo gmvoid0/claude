@@ -111,6 +111,36 @@ function stripGroupSeparators(s) {
 }
 
 /**
+ * Parse a home value, expanding the shorthand an agent actually types.
+ *
+ * On a live call the value box gets one number typed into it per call, so the
+ * keystrokes matter. "661" means $661,000 — no house is worth $661, so the
+ * expansion is unambiguous. "1.2" means $1.2M for the same reason.
+ *
+ * Expansion is deliberately limited to those two unambiguous cases. Anything
+ * from 1000 up is taken literally, because "4000" could plausibly be meant as
+ * either $4,000 or $400,000 and guessing between them is exactly the kind of
+ * silent wrongness this tool must not produce. An explicit k/m suffix always
+ * wins over any inference.
+ */
+export function parseHomeValue(raw) {
+  if (raw == null) return null;
+  const text = String(raw).trim();
+  if (!text) return null;
+
+  const n = parseMoney(text);
+  if (n == null) return null;
+
+  // An explicit magnitude suffix was given; take it at face value.
+  if (/[kmb]\s*$/i.test(text)) return n;
+
+  if (n <= 0) return n;
+  if (n < 10 && !Number.isInteger(n)) return n * 1_000_000;   // 1.2  -> 1,200,000
+  if (n < 1000 && Number.isInteger(n)) return n * 1000;       // 661  -> 661,000
+  return n;
+}
+
+/**
  * Parse a percentage into a decimal rate.
  *   "80%"   -> 0.8
  *   "80"    -> 0.8   (values > 1 are read as percents)

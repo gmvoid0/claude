@@ -322,3 +322,12 @@ table input[type=checkbox]:checked::after {
 }
 .fineprint li { margin-bottom: 8px; }
 .fineprint li:last-child { margin-bottom: 0; }
+
+/* Side-by-side numeric settings. */
+.two-up {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 6px;
+}
+.two-up .field { margin-bottom: 12px; }

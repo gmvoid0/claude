@@ -71,6 +71,11 @@ function renderPrefs() {
   $('showLookupLinks').checked = prefs.showLookupLinks !== false;
   $('readValuationSites').checked = prefs.readValuationSites !== false;
   $('financeFee').checked = prefs.financeFee !== false;
+  $('feeExempt').checked = !!prefs.feeExempt;
+  $('subsequentUse').checked = !!prefs.subsequentUse;
+  $('valueIsAvm').checked = !!prefs.valueIsAvm;
+  $('ltvOverride').value = prefs.ltvOverride ?? '';
+  $('loanLimit').value = prefs.loanLimit ?? '';
   $('startCollapsed').checked = !!prefs.startCollapsed;
 }
 
@@ -166,6 +171,11 @@ async function save() {
     showLookupLinks: $('showLookupLinks').checked,
     readValuationSites: $('readValuationSites').checked,
     financeFee: $('financeFee').checked,
+    feeExempt: $('feeExempt').checked,
+    subsequentUse: $('subsequentUse').checked,
+    valueIsAvm: $('valueIsAvm').checked,
+    ltvOverride: $('ltvOverride').value.trim(),
+    loanLimit: $('loanLimit').value.trim(),
     startCollapsed: $('startCollapsed').checked,
   });
 

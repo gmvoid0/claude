@@ -12,7 +12,7 @@
  */
 
 import { FIELDS } from './detect.js';
-import { parseMoney } from './money.js';
+import { parseMoney, parseHomeValue } from './money.js';
 import { normalizeProgram, normalizeState } from './rules.js';
 import { compareAddresses, joinAddress } from './address.js';
 
@@ -67,7 +67,11 @@ export function mergeInputs({ manual = {}, detected = {}, frameFields = {}, keys
     }
 
     const kind = FIELDS[key]?.kind ?? 'text';
-    const num = kind === 'money' ? parseMoney(raw) : null;
+    // The home value is the one field typed on every call, so it accepts the
+    // shorthand an agent actually reaches for: "661" for $661,000.
+    const num = key === 'propertyValue' ? parseHomeValue(raw)
+      : kind === 'money' ? parseMoney(raw)
+      : null;
 
     out[key] = {
       value: raw ?? '',

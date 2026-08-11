@@ -69,6 +69,47 @@
   </section>
 
   <section>
+    <h2>Standing assumptions</h2>
+    <p class="help">
+      Applied automatically to every call, so nobody has to remember to set
+      them. Change one and it takes effect on the record already on screen.
+    </p>
+    <div class="two-up">
+      <div class="field">
+        <label for="ltvOverride">LTV override</label>
+        <input type="text" id="ltvOverride" inputmode="decimal" placeholder="auto" />
+        <span class="help">Blank uses each program's maximum. Set it to cap every program at one number.</span>
+      </div>
+      <div class="field">
+        <label for="loanLimit">Loan limit</label>
+        <input type="text" id="loanLimit" inputmode="decimal" placeholder="none" />
+        <span class="help">A county or investor ceiling on the base loan. Blank means none.</span>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="financeFee" />
+      Finance the upfront fee into the loan
+      <span class="help">VA funding fee or FHA UFMIP added to the loan rather than paid at closing.</span>
+    </label>
+    <label class="check"><input type="checkbox" id="feeExempt" />
+      Assume the VA funding fee is waived
+      <span class="help">
+        Only turn this on if your book is predominantly service-connected
+        disabled veterans. It removes the funding fee entirely, which raises
+        the cash-out figure — wrong in the optimistic direction, so leave it
+        off and confirm per borrower if you are unsure.
+      </span>
+    </label>
+    <label class="check"><input type="checkbox" id="subsequentUse" />
+      Assume VA subsequent use
+      <span class="help">Charges the higher 3.3% funding fee tier rather than 2.15% first use.</span>
+    </label>
+    <label class="check"><input type="checkbox" id="valueIsAvm" />
+      Treat every home value as an automated estimate
+      <span class="help">Applies the haircut above to values typed in by hand as well as ones read off a page.</span>
+    </label>
+  </section>
+
+  <section>
     <h2>Behaviour</h2>
     <label class="check"><input type="checkbox" id="resetValueOnNewRecord" />
       Clear the typed home value when the record changes
@@ -88,9 +129,6 @@
         with the address, for you to accept. Stays off entirely until you have
         enabled at least one site.
       </span>
-    </label>
-    <label class="check"><input type="checkbox" id="financeFee" />
-      Assume the upfront fee is financed
     </label>
     <label class="check"><input type="checkbox" id="startCollapsed" />
       Start the panel collapsed

@@ -31,8 +31,17 @@ export const DEFAULT_PREFS = {
    * on property pages, and only once you have enabled at least one site.
    */
   readValuationSites: true,
-  /** Treat the VA funding fee as financed. */
-  financeFee: true,
+  /**
+   * Standing assumptions. These live here rather than on the panel because
+   * they are shop policy, not per-call decisions — they should apply to every
+   * record automatically without an agent remembering to set them.
+   */
+  financeFee: true,          // finance the upfront fee into the loan
+  feeExempt: false,          // VA funding fee exemption (service-connected disability)
+  subsequentUse: false,      // VA subsequent-use funding fee tier
+  valueIsAvm: false,         // treat every value as an automated estimate
+  ltvOverride: '',           // blank = use the program maximum
+  loanLimit: '',             // blank = no county / investor ceiling
 };
 
 async function get(key, fallback) {
