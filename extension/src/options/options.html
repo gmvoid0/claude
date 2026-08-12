@@ -69,6 +69,34 @@
   </section>
 
   <section>
+    <h2>Salesforce</h2>
+    <p class="help">
+      Names to search for in the application's lookup fields. Type them exactly
+      as Salesforce shows them — S.A.M searches, and selects only when exactly
+      one record matches. If several people share a name it leaves the field
+      for you rather than guessing.
+    </p>
+    <div class="two-up">
+      <div class="field">
+        <label for="loanOfficer">Loan Officer</label>
+        <input type="text" id="loanOfficer" placeholder="Jane Smith" />
+      </div>
+      <div class="field">
+        <label for="transferAgent">Transfer Agent</label>
+        <input type="text" id="transferAgent" placeholder="Your name" />
+      </div>
+      <div class="field">
+        <label for="loanOfficerAssistant">Loan Officer Assistant</label>
+        <input type="text" id="loanOfficerAssistant" placeholder="Optional" />
+      </div>
+    </div>
+    <p class="help">
+      The Lead lookup is searched using the borrower's name from S.A.M, so it
+      needs no setting here.
+    </p>
+  </section>
+
+  <section>
     <h2>Standing assumptions</h2>
     <p class="help">
       Applied automatically to every call, so nobody has to remember to set

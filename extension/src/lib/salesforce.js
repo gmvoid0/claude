@@ -1,29 +1,32 @@
 /**
  * Handing an application to Salesforce.
  *
- * The target is the LO Mortgage Application form — an Experience Cloud page
+ * The target is the LO Mortgage Application form — the Experience Cloud page
  * and the App Sheet tab on a Lead both render the same component. There is no
- * API involved here: the form is filled the way a person would fill it, by
- * finding each field by its visible label and typing into it.
+ * API involved: the form is filled the way a person fills it, by finding each
+ * field by its visible label and typing into it.
  *
  * Why that route rather than the REST API. The API is the better integration
  * and needs a Connected App, OAuth, and the org's custom field API names —
  * all of which need a Salesforce administrator. Filling the rendered form
- * needs none of that and works today. It is also honest about its limits:
- * anything that is not a plain input is left alone.
+ * needs none of that and works today.
  *
- * Three kinds of field are deliberately never touched:
+ * Two kinds of field are handled quite differently:
  *
- *   - Lookups (Lead, Loan Officer, Transfer Agent). Typing into one does not
- *     select a record; it has to be picked from a dropdown, and a lookup that
- *     looks filled but holds no record is worse than an empty one.
- *   - Picklists (Marital Status). Same reasoning.
- *   - Anything S.A.M never captured: SSN, DOB, employer, email. A blank is
- *     honest; a guess is not.
+ *   - Plain inputs are typed into.
+ *   - Lookups (Lead, Loan Officer, Transfer Agent) store a record id, not
+ *     text. Typing a name into one and walking away leaves a field that looks
+ *     complete and holds nothing, so each has to be searched and then picked.
+ *     See content/lookup.js for how, and how strictly.
  *
- * Pure and DOM-free — the mapping is data, so it can be checked without an
- * org in front of it.
+ * Anything S.A.M never captured — SSN, DOB, employer, email — stays blank. A
+ * blank is honest; a guess is not.
+ *
+ * Pure and DOM-free, so the mapping can be checked without an org in front
+ * of it.
  */
+
+import { splitName } from './names.js';
 
 /** Hosts where the application form lives. */
 export const SALESFORCE_HOSTS = [
@@ -41,8 +44,8 @@ export function isSalesforceHost(hostname) {
 /**
  * Application key -> the labels Salesforce renders for it.
  *
- * Matched against the field's visible label, most specific first, so
- * "Borrower Income" wins over a bare "Income" and "Loan FICO" over "FICO".
+ * Matched against the visible label, most specific first, so "Borrower
+ * Income" wins over a bare "Income" and "Loan FICO" over "FICO".
  */
 export const FIELD_MAP = [
   { key: 'firstName', labels: [/^\s*\*?\s*first name\s*$/i] },
@@ -68,9 +71,27 @@ export const CO_FIELD_MAP = [
 ];
 
 /**
+ * Lookup fields, and where their search term comes from.
+ *
+ *   'borrowerName'  — the borrower on screen, for the Lead
+ *   'setting:<key>' — a standing default from Settings, for the people who
+ *                     are the same on every application an agent sends
+ */
+export const LOOKUP_MAP = [
+  { key: 'lead', label: 'Lead', labels: [/^\s*lead\s*$/i], source: 'borrowerName' },
+  { key: 'loanOfficer', label: 'Loan Officer', labels: [/^\s*\*?\s*loan officer\s*$/i], source: 'setting:loanOfficer' },
+  { key: 'transferAgent', label: 'Transfer Agent', labels: [/^\s*transfer agent\s*$/i], source: 'setting:transferAgent' },
+  { key: 'loanOfficerAssistant', label: 'Loan Officer Assistant', labels: [/^\s*loan officer assistant\s*$/i], source: 'setting:loanOfficerAssistant' },
+];
+
+/** Settings keys that hold a standing lookup default. */
+export const LOOKUP_SETTINGS = LOOKUP_MAP
+  .filter((l) => l.source.startsWith('setting:'))
+  .map((l) => ({ key: l.source.slice('setting:'.length), label: l.label }));
+
+/**
  * Fields the form asks for that S.A.M has no honest source for. Reported so
- * the agent is told what is still theirs to complete rather than discovering
- * it at submit.
+ * the agent is told what is still theirs rather than discovering it at submit.
  */
 export const UNSUPPLIED = [
   'Email', 'Middle Name', 'Suffix', 'Employer', 'Length of Employment',
@@ -78,8 +99,23 @@ export const UNSUPPLIED = [
   'Other Income', 'SSI',
 ];
 
-/** Fields that need a record picked, not text typed. */
-export const MANUAL_ONLY = ['Lead', 'Transfer Agent', 'Loan Officer', 'Loan Officer Assistant'];
+/** Build the search term for each lookup from the record and the settings. */
+export function planLookups(application, defaults = {}) {
+  const borrowerName = String(application?.fullName?.value ?? '').trim();
+
+  const entries = [];
+  for (const lookup of LOOKUP_MAP) {
+    let term = '';
+    if (lookup.source === 'borrowerName') {
+      term = borrowerName;
+    } else if (lookup.source.startsWith('setting:')) {
+      term = String(defaults[lookup.source.slice('setting:'.length)] ?? '').trim();
+    }
+    if (!term) continue;
+    entries.push({ key: lookup.key, label: lookup.label, labels: lookup.labels, term });
+  }
+  return entries;
+}
 
 /**
  * Strip presentation so a figure lands in Salesforce as a number.
@@ -98,17 +134,29 @@ export function plainValue(key, value) {
 /**
  * Work out what to type where.
  *
- * Returns { entries, skipped, missing } — entries to fill, fields left to the
- * agent because they need a record picked, and fields the form wants that
- * S.A.M never captured.
+ * Returns { entries, lookups, missing } — plain fields to fill, lookups to
+ * search and select, and fields the form wants that S.A.M never captured.
  */
-export function planFill(application, { includeCoBorrower = false } = {}) {
+export function planFill(application, { includeCoBorrower = false, lookupDefaults = {} } = {}) {
   const entries = [];
+
+  // S.A.M holds one name; the form wants two. Split here rather than making
+  // an agent type the same name twice.
+  const named = { ...application };
+  for (const [whole, first, last] of [
+    ['fullName', 'firstName', 'lastName'],
+    ['coFullName', 'coFirstName', 'coLastName'],
+  ]) {
+    const value = application?.[whole]?.value;
+    if (!value) continue;
+    const parts = splitName(value);
+    named[first] = { value: parts.first };
+    named[last] = { value: [parts.last, parts.suffix].filter(Boolean).join(' ') };
+  }
 
   const collect = (map, section) => {
     for (const field of map) {
-      const raw = application?.[field.key]?.value;
-      const value = plainValue(field.key, raw);
+      const value = plainValue(field.key, named?.[field.key]?.value);
       if (!value) continue;
       entries.push({ key: field.key, section, labels: field.labels, value });
     }
@@ -119,7 +167,7 @@ export function planFill(application, { includeCoBorrower = false } = {}) {
 
   return {
     entries,
-    skipped: [...MANUAL_ONLY],
+    lookups: planLookups(application, lookupDefaults),
     missing: [...UNSUPPLIED],
   };
 }

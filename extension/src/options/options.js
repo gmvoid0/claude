@@ -70,6 +70,9 @@ function renderPrefs() {
   $('resetValueOnNewRecord').checked = prefs.resetValueOnNewRecord !== false;
   $('showLookupLinks').checked = prefs.showLookupLinks !== false;
   $('readValuationSites').checked = prefs.readValuationSites !== false;
+  $('loanOfficer').value = prefs.loanOfficer ?? '';
+  $('transferAgent').value = prefs.transferAgent ?? '';
+  $('loanOfficerAssistant').value = prefs.loanOfficerAssistant ?? '';
   $('autoLookup').checked = !!prefs.autoLookup;
   $('financeFee').checked = prefs.financeFee !== false;
   $('feeExempt').checked = !!prefs.feeExempt;
@@ -171,6 +174,9 @@ async function save() {
     resetValueOnNewRecord: $('resetValueOnNewRecord').checked,
     showLookupLinks: $('showLookupLinks').checked,
     readValuationSites: $('readValuationSites').checked,
+    loanOfficer: $('loanOfficer').value.trim(),
+    transferAgent: $('transferAgent').value.trim(),
+    loanOfficerAssistant: $('loanOfficerAssistant').value.trim(),
     autoLookup: $('autoLookup').checked,
     financeFee: $('financeFee').checked,
     feeExempt: $('feeExempt').checked,

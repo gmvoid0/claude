@@ -208,6 +208,80 @@ Capturing the customer's side with proper speaker separation needs the tab's
 audio and a streaming transcription service, which costs money per minute and
 sends customer speech to a third party. That path is deliberately not built.
 
+## Linking to Salesforce
+
+There are two ways to get an application from S.A.M into Salesforce. The
+second is the better integration; the first is the one that works without
+asking anybody's permission.
+
+### What is built: filling the rendered form
+
+S.A.M finds each field on the LO Mortgage Application by its **visible
+label** and types into it, exactly as a person would. Open the application in
+another tab, press **To Salesforce** in the drawer, and it fills what it can.
+
+Setting `.value` on a Salesforce field is not enough, and this is the part
+that catches most attempts. Lightning components keep their own copy of the
+field state, so a value assigned directly leaves the component unaware — the
+box looks filled and submits empty. Values therefore go in through the native
+property setter with the `input` and `change` events the framework listens
+for, `composed` so they cross the shadow boundary.
+
+**Fills automatically:** First Name, Last Name, Loan FICO, Phone, Street,
+City, State/Province, Zip, Borrower Income, Disability % — and the same again
+for the co-borrower.
+
+**Never touched:** Email, Middle Name, Suffix, Employer, Length of
+Employment, Title, Borrower DOB, SSN, Marital Status, Disability Income,
+Other Income, SSI. S.A.M never captured them, and a blank is honest where a
+guess is not.
+
+### The lookups, which are the hard part
+
+Lead, Loan Officer, Transfer Agent and Loan Officer Assistant are not text
+boxes. They store a **record id**, and the text shown is only a label for
+whatever was picked. Typing a name into one and walking away leaves a field
+that looks complete and holds nothing — worse than leaving it empty, because
+nobody re-checks a filled-looking field.
+
+So S.A.M does what a person does: types the name, waits for the result list,
+and clicks the matching row.
+
+It is strict about "matching" on purpose. Searching *Richard* on a real org
+returns Richard Howell, Richard Sasko, Richard Warren, Richard Brownell and
+Richard Mendoza. Taking the first is not matching, it is guessing, and a
+guess here attaches an application to somebody else's file. The rule is:
+
+> **Exactly one** result must match the whole search term. Zero matches, or
+> more than one, and the field is left for you with the reason shown.
+
+Where each search term comes from:
+
+| Lookup | Search term | Set where |
+| --- | --- | --- |
+| **Lead** | the borrower's name on the panel | nothing to configure |
+| **Loan Officer** | a standing default | Settings → Salesforce |
+| **Transfer Agent** | a standing default | Settings → Salesforce |
+| **Loan Officer Assistant** | a standing default | Settings → Salesforce |
+
+Set the three in **Settings → Salesforce**, typed exactly as Salesforce shows
+them. Use full names — a first name alone is precisely the case that comes
+back ambiguous and gets skipped. A lookup with no default configured is not
+attempted at all.
+
+After a send, the drawer reports what was linked, what was not, and why:
+*"no record matched that name"*, *"several records matched — pick one
+yourself"*, and so on. Nothing is claimed that did not happen.
+
+### The other route: the REST API
+
+Cleaner, and out of reach without help. It needs a Connected App in your
+Salesforce org, an OAuth flow, and the API names of the custom fields behind
+that form — all of which need a Salesforce administrator. If you can get one,
+that version writes records directly and never depends on a form's markup. Say
+the word and it is a contained piece of work; the field mapping already exists
+in `lib/salesforce.js`.
+
 ## The rules it encodes
 
 Defaults for a **cash-out refinance, owner-occupied, one unit**:

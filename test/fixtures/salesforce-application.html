@@ -83,7 +83,55 @@
 
 <button id="add-co" onclick="document.getElementById('coborrower').hidden = false">Add Co-Borrower</button>
 
+<div id="listbox" role="listbox" style="display:none; position:absolute; background:#fff; border:1px solid #dddbda; z-index:10;"></div>
+
 <script>
+  /*
+   * The lookups behave like the real ones: typing searches, results appear as
+   * role="option" rows, and only clicking a row selects a record. The record
+   * set is deliberately full of people who share a first name — searching
+   * "Richard" on a real org returns five, and picking the first would attach
+   * the application to the wrong file.
+   */
+  const RECORDS = [
+    'RICHARD HOWELL', 'RICHARD SASKO', 'RICHARD WARREN',
+    'RICHARD BROWNELL', 'RICHARD MENDOZA',
+    'RANDY D ROLLINS', 'JANE SMITH', 'DALE CARTER',
+  ];
+  window.__selected = {};
+
+  const listbox = document.getElementById('listbox');
+  for (const name of ['l-01', 'l-02', 'l-03', 'l-04']) {
+    const input = document.querySelector(`[name="${name}"]`);
+    input.addEventListener('input', () => {
+      const term = input.value.trim().toUpperCase();
+      listbox.innerHTML = '';
+      if (!term) { listbox.style.display = 'none'; return; }
+
+      const hits = RECORDS.filter((r) => r.includes(term.split(' ')[0]));
+      if (!hits.length) { listbox.style.display = 'none'; return; }
+
+      const rect = input.getBoundingClientRect();
+      listbox.style.display = 'block';
+      listbox.style.left = `${rect.left + window.scrollX}px`;
+      listbox.style.top = `${rect.bottom + window.scrollY}px`;
+      listbox.style.width = `${rect.width}px`;
+
+      for (const hit of hits) {
+        const row = document.createElement('div');
+        row.setAttribute('role', 'option');
+        row.textContent = hit;
+        row.style.padding = '6px 10px';
+        row.addEventListener('click', () => {
+          input.value = hit;
+          window.__selected[name] = hit;   // the record id, in effect
+          listbox.style.display = 'none';
+        });
+        listbox.appendChild(row);
+      }
+    });
+  }
+
   // Salesforce components hold their own copy of field state and only notice a
   // change that arrives through the native setter with the events that follow
   // it. This records what the framework would actually have seen.

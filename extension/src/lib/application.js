@@ -12,6 +12,7 @@
  */
 
 import { parseMoney, parsePercent, formatMoney, formatPercent } from './money.js';
+import { joinName } from './names.js';
 
 /**
  * `from` names where the value comes from automatically:
@@ -21,8 +22,7 @@ import { parseMoney, parsePercent, formatMoney, formatPercent } from './money.js
  * A field with no `from` is only ever filled by hand.
  */
 export const APPLICATION_FIELDS = [
-  { key: 'firstName',  label: 'First name',      kind: 'text',    from: 'firstName' },
-  { key: 'lastName',   label: 'Last name',       kind: 'text',    from: 'lastName' },
+  { key: 'fullName',   label: 'Full name',       kind: 'text',    from: 'name' },
   { key: 'rate',       label: 'Rate',            kind: 'percent', from: 'interestRate' },
   { key: 'balance',    label: 'Mortgage balance', kind: 'money',  from: 'firstLien' },
   { key: 'fico',       label: 'FICO',            kind: 'number',  from: 'fico' },
@@ -51,8 +51,7 @@ export const APPLICATION_KEYS = APPLICATION_FIELDS.map((f) => f.key);
  * be worse than an empty field.
  */
 export const CO_BORROWER_FIELDS = [
-  { key: 'coFirstName',  label: 'First name',   kind: 'text' },
-  { key: 'coLastName',   label: 'Last name',    kind: 'text' },
+  { key: 'coFullName',   label: 'Full name',    kind: 'text' },
   { key: 'coFico',       label: 'FICO',         kind: 'number' },
   { key: 'coIncome',     label: 'Income',       kind: 'money' },
   { key: 'coEmployment', label: 'W2 / 1099',    kind: 'choice', options: ['W2', '1099', 'Both'] },
@@ -125,6 +124,15 @@ function autoValue(field, inputs, result, address) {
   if (!field.from) return '';
 
   if (field.from === 'address') return address ?? '';
+
+  // One box for the name, assembled from the parts the lead screen holds
+  // separately. Salesforce splits it apart again on the way out.
+  if (field.from === 'name') {
+    return joinName({
+      first: inputs.firstName?.value ?? '',
+      last: inputs.lastName?.value ?? '',
+    });
+  }
 
   const input = inputs[field.from];
   if (!input) return '';

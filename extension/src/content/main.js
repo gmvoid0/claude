@@ -34,8 +34,8 @@ import {
 import { saveApplication } from '../lib/settings.js';
 import { Panel } from './panel.js';
 import { pickElement } from './picker.js';
-import { fillForm } from './fill.js';
-import { isSalesforceHost, planFill } from '../lib/salesforce.js';
+import { fillForm, fillLookups } from './fill.js';
+import { isSalesforceHost, planFill, LOOKUP_MAP } from '../lib/salesforce.js';
 
 const IS_TOP = window.top === window;
 
@@ -101,8 +101,8 @@ export async function start() {
   if (isSalesforceHost(location.hostname)) {
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg?.type !== 'SAM_FILL_FORM') return;
-      sendResponse(applyHandoff(msg.plan));
-      return true;
+      applyHandoff(msg.plan).then(sendResponse);
+      return true;   // the lookups are asynchronous
     });
     // A form opened after the send still collects what is waiting.
     claimPendingHandoff();
@@ -774,9 +774,16 @@ function effectiveInputs() {
 
 /** Type the current application into an open Salesforce form. */
 async function sendToSalesforce() {
-  const plan = planFill(state.lastApplication, { includeCoBorrower: state.coBorrower });
+  const plan = planFill(state.lastApplication, {
+    includeCoBorrower: state.coBorrower,
+    lookupDefaults: {
+      loanOfficer: state.prefs?.loanOfficer ?? '',
+      transferAgent: state.prefs?.transferAgent ?? '',
+      loanOfficerAssistant: state.prefs?.loanOfficerAssistant ?? '',
+    },
+  });
 
-  if (!plan.entries.length) {
+  if (!plan.entries.length && !plan.lookups.length) {
     state.panel?.setHandoffResult({
       tone: 'warn',
       text: 'Nothing to send yet.',
@@ -794,20 +801,37 @@ async function sendToSalesforce() {
     report = { ok: false, reason: 'no-worker' };
   }
 
-  state.panel?.setHandoffResult(describeHandoff(report, plan));
+  state.panel?.setHandoffResult(describeHandoff(report));
 }
 
-function describeHandoff(report, plan) {
+const LOOKUP_REASONS = {
+  'no-results': 'no results came back',
+  'no-match': 'no record matched that name',
+  ambiguous: 'several records matched — pick one yourself',
+  'no-field': 'the field was not on the form',
+  'not-selectable': 'the result could not be clicked',
+};
+
+function describeHandoff(report) {
   if (report?.ok) {
     const filled = report.filled?.length ?? 0;
     const missed = report.notFound?.length ?? 0;
+
+    const label = (key) => LOOKUP_MAP.find((l) => l.key === key)?.label ?? key;
+    const linked = (report.lookups ?? []).filter((l) => l.ok);
+    const unlinked = (report.lookups ?? []).filter((l) => !l.ok);
+
+    const detail = [];
+    if (linked.length) detail.push(`Linked ${linked.map((l) => label(l.key)).join(', ')}.`);
+    for (const item of unlinked) {
+      detail.push(`${label(item.key)}: ${LOOKUP_REASONS[item.reason] ?? 'not linked'}.`);
+    }
+    if (missed) detail.push(`${missed} field${missed === 1 ? '' : 's'} could not be matched.`);
+
     return {
-      tone: missed ? 'warn' : 'ok',
+      tone: missed || unlinked.length ? 'warn' : 'ok',
       text: `Filled ${filled} field${filled === 1 ? '' : 's'} in Salesforce.`,
-      detail: [
-        missed ? `${missed} could not be matched on that form.` : '',
-        `Still yours: ${plan.skipped.join(', ')} — those need a record picked, not text.`,
-      ].filter(Boolean).join(' '),
+      detail: detail.join(' '),
     };
   }
 
@@ -825,12 +849,21 @@ function describeHandoff(report, plan) {
   };
 }
 
-/** Salesforce side: type a handed-over application into the form. */
-function applyHandoff(plan) {
-  if (!plan?.entries?.length) return { ok: false, reason: 'nothing-to-send' };
+/**
+ * Salesforce side: type a handed-over application into the form.
+ *
+ * Plain fields first, then the lookups, which are slow because each waits on
+ * a search coming back from the server.
+ */
+async function applyHandoff(plan) {
+  if (!plan?.entries?.length && !plan?.lookups?.length) {
+    return { ok: false, reason: 'nothing-to-send' };
+  }
   try {
-    const { filled, notFound } = fillForm(plan.entries);
-    return { ok: filled.length > 0, filled, notFound, reason: filled.length ? null : 'no-form' };
+    const { filled, notFound } = fillForm(plan.entries ?? []);
+    const lookups = await fillLookups(plan.lookups ?? []);
+    const ok = filled.length > 0 || lookups.some((l) => l.ok);
+    return { ok, filled, notFound, lookups, reason: ok ? null : 'no-form' };
   } catch {
     return { ok: false, reason: 'no-form' };
   }
@@ -840,7 +873,7 @@ function applyHandoff(plan) {
 async function claimPendingHandoff() {
   try {
     const held = await chrome.runtime.sendMessage({ type: 'SAM_HANDOFF_CLAIM' });
-    if (held?.plan) applyHandoff(held.plan);
+    if (held?.plan) await applyHandoff(held.plan);
   } catch { /* nothing waiting */ }
 }
 

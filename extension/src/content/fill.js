@@ -1,7 +1,7 @@
 /**
  * Typing into someone else's form.
  *
- * The same label-matching that reads a dialer screen runs in reverse here:
+ * The same label matching that reads a dialer screen runs in reverse here:
  * find the control whose visible label matches, then put a value in it.
  *
  * Setting `.value` is not enough. Salesforce's components hold their own copy
@@ -9,11 +9,12 @@
  * unaware — the box looks filled and submits empty. So the value goes in
  * through the native property setter, which the framework's own listener sees,
  * followed by the input and change events it expects. `composed: true` matters
- * because these fields live inside shadow roots and an event that does not
+ * because these fields live inside shadow roots, and an event that does not
  * cross the boundary never reaches the component.
  */
 
 import { collectCandidates } from '../lib/detect.js';
+import { fillLookup } from './lookup.js';
 
 /**
  * Assign a value the way a keystroke would.
@@ -22,7 +23,7 @@ import { collectCandidates } from '../lib/detect.js';
  * element instance to track changes, and assigning through that patch is what
  * makes the change register.
  */
-function setNativeValue(el, value) {
+export function setNativeValue(el, value) {
   const proto = el instanceof HTMLTextAreaElement
     ? HTMLTextAreaElement.prototype
     : HTMLInputElement.prototype;
@@ -47,6 +48,25 @@ function setSelectValue(el, value) {
   return true;
 }
 
+/** Locate a control by its label, most specific pattern first. */
+function findByLabel(candidates, used, patterns) {
+  for (const pattern of patterns) {
+    const hit = candidates.find(
+      (c) => !used.has(c.el) && pattern.test(String(c.label ?? '').trim()),
+    );
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function editableCandidates(root) {
+  try {
+    return collectCandidates(root).filter((c) => c.editable && c.el);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fill a planned set of entries into the page.
  *
@@ -57,33 +77,19 @@ export function fillForm(entries, { root = document } = {}) {
   const filled = [];
   const notFound = [];
 
-  let candidates = [];
-  try {
-    candidates = collectCandidates(root).filter((c) => c.editable && c.el);
-  } catch {
-    return { filled, notFound: entries.map((e) => e.key) };
-  }
+  const candidates = editableCandidates(root);
+  if (!candidates) return { filled, notFound: entries.map((e) => e.key) };
 
   const used = new Set();
 
   for (const entry of entries) {
-    let target = null;
-
-    // Most specific label pattern first, and never reuse a control — two
-    // fields sharing a label ("First Name" on borrower and co-borrower) must
-    // land in different boxes.
-    for (const pattern of entry.labels) {
-      target = candidates.find(
-        (c) => !used.has(c.el) && pattern.test(String(c.label ?? '').trim()),
-      );
-      if (target) break;
-    }
-
+    // Never reuse a control — two fields sharing a label ("First Name" on
+    // borrower and co-borrower) must land in different boxes.
+    const target = findByLabel(candidates, used, entry.labels);
     if (!target) {
       notFound.push(entry.key);
       continue;
     }
-
     used.add(target.el);
 
     try {
@@ -105,4 +111,43 @@ export function fillForm(entries, { root = document } = {}) {
   }
 
   return { filled, notFound };
+}
+
+/**
+ * Search and select each lookup in turn.
+ *
+ * Sequential rather than parallel: they share one results list, so firing
+ * several searches at once would have them reading each other's rows.
+ * Candidates are re-collected per lookup because selecting a record
+ * re-renders the form around it.
+ */
+export async function fillLookups(lookups, { root = document } = {}) {
+  const results = [];
+  if (!lookups?.length) return results;
+
+  const usedLabels = new Set();
+
+  for (const lookup of lookups) {
+    const candidates = editableCandidates(root);
+    if (!candidates) {
+      results.push({ key: lookup.key, ok: false, reason: 'no-field' });
+      continue;
+    }
+
+    // Track by label rather than element, since the elements are replaced.
+    const used = new Set(
+      candidates.filter((c) => usedLabels.has(String(c.label ?? '').trim())).map((c) => c.el),
+    );
+
+    const target = findByLabel(candidates, used, lookup.labels);
+    if (!target) {
+      results.push({ key: lookup.key, ok: false, reason: 'no-field' });
+      continue;
+    }
+    usedLabels.add(String(target.label ?? '').trim());
+
+    results.push(await fillLookup(target.el, lookup, { setValue: setNativeValue }));
+  }
+
+  return results;
 }

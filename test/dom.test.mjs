@@ -863,12 +863,12 @@ async function fillSalesforce(page, { coBorrower = false } = {}) {
 
     const v = (value) => ({ value });
     const application = {
-      firstName: v('RANDY D'), lastName: v('ROLLINS'),
+      fullName: v('RANDY D ROLLINS'),
       fico: v('712'), phone: v('3024239504'),
       income: v('$96,000'), disability: v('30%'),
       street: v('189 LEDGERWOOD LN'), city: v('ROCKWOOD'),
       state: v('TN'), zip: v('37854'),
-      coFirstName: v('JANE'), coLastName: v('ROLLINS'),
+      coFullName: v('JANE ROLLINS'),
       coFico: v('698'), coIncome: v('$54,000'),
     };
 
@@ -878,7 +878,7 @@ async function fillSalesforce(page, { coBorrower = false } = {}) {
     const byName = (n) => document.querySelector(`[name="${n}"]`)?.value ?? null;
     return {
       result,
-      plan: { skipped: plan.skipped, missing: plan.missing },
+      plan: { missing: plan.missing, lookups: plan.lookups.map((l) => l.key) },
       // What the framework's own listeners saw, not just what the DOM holds.
       observed: window.__observed,
       values: {
@@ -957,7 +957,6 @@ test('lookups, picklists and unknown fields are left alone', { skip }, async () 
     assert.equal(values.email, '');
     assert.equal(values.ssn, '');
 
-    assert.ok(plan.skipped.includes('Loan Officer'));
     assert.ok(plan.missing.includes('SSN'));
   } finally {
     await page.close();
@@ -990,6 +989,136 @@ test('no co-borrower section means no co-borrower values anywhere', { skip }, as
     const { values } = await fillSalesforce(page, { coBorrower: false });
     assert.equal(values.coFirst, '', 'the hidden section must be left untouched');
     assert.equal(values.first, 'RANDY D');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the full name is split into the two fields Salesforce wants', { skip }, async () => {
+  // S.A.M shows one name box; the form has First and Last. Splitting happens
+  // on the way out so nobody types the same name twice.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { values } = await fillSalesforce(page, { coBorrower: true });
+    assert.equal(values.first, 'RANDY D');
+    assert.equal(values.last, 'ROLLINS');
+    assert.equal(values.coFirst, 'JANE');
+    assert.equal(values.coLast, 'ROLLINS');
+  } finally {
+    await page.close();
+  }
+});
+
+/* --- lookups ------------------------------------------------------------ */
+
+async function runLookups(page, { defaults, borrower = 'RANDY D ROLLINS' } = {}) {
+  const { port } = await setup();
+  const origin = `http://127.0.0.1:${port}`;
+  await page.goto(`${origin}/test/fixtures/salesforce-application.html`);
+
+  return page.evaluate(async ({ base, lookupDefaults, name }) => {
+    const { planFill } = await import(`${base}/extension/src/lib/salesforce.js`);
+    const { fillLookups } = await import(`${base}/extension/src/content/fill.js`);
+
+    const application = { fullName: { value: name } };
+    const plan = planFill(application, { lookupDefaults });
+    const results = await fillLookups(plan.lookups);
+
+    return {
+      results,
+      selected: window.__selected,
+      values: {
+        lead: document.querySelector('[name="l-01"]').value,
+        transferAgent: document.querySelector('[name="l-02"]').value,
+        loanOfficer: document.querySelector('[name="l-03"]').value,
+      },
+    };
+  }, { base: origin, lookupDefaults: defaults, name: borrower });
+}
+
+test('a lookup is searched and the matching record actually selected', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { results, selected } = await runLookups(page, {
+      defaults: { loanOfficer: 'JANE SMITH', transferAgent: 'DALE CARTER' },
+    });
+
+    const byKey = Object.fromEntries(results.map((r) => [r.key, r]));
+    assert.equal(byKey.lead.ok, true, 'the Lead is linked from the borrower name');
+    assert.equal(byKey.loanOfficer.ok, true);
+    assert.equal(byKey.transferAgent.ok, true);
+
+    // A record was picked, not merely typed — this is the distinction that
+    // separates a real link from a box that looks filled.
+    assert.equal(selected['l-01'], 'RANDY D ROLLINS');
+    assert.equal(selected['l-03'], 'JANE SMITH');
+    assert.equal(selected['l-02'], 'DALE CARTER');
+  } finally {
+    await page.close();
+  }
+});
+
+test('an ambiguous search is never resolved by guessing', { skip }, async () => {
+  // Five Richards. Taking the first would attach the application to somebody
+  // else's file.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { results, selected } = await runLookups(page, {
+      defaults: { loanOfficer: 'RICHARD' },
+      borrower: 'RICHARD',
+    });
+
+    const byKey = Object.fromEntries(results.map((r) => [r.key, r]));
+    assert.equal(byKey.loanOfficer.ok, false);
+    assert.equal(byKey.loanOfficer.reason, 'ambiguous');
+    assert.ok(byKey.loanOfficer.matched > 1, 'the count is reported so the agent knows why');
+    assert.equal(selected['l-03'], undefined, 'nothing was selected');
+  } finally {
+    await page.close();
+  }
+});
+
+test('a full name resolves where the first name alone would not', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { results, selected } = await runLookups(page, {
+      defaults: { loanOfficer: 'RICHARD SASKO' },
+    });
+    const byKey = Object.fromEntries(results.map((r) => [r.key, r]));
+    assert.equal(byKey.loanOfficer.ok, true);
+    assert.equal(selected['l-03'], 'RICHARD SASKO');
+  } finally {
+    await page.close();
+  }
+});
+
+test('a name with no matching record is left alone', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { results, selected } = await runLookups(page, {
+      defaults: { loanOfficer: 'NOBODY ATALL' },
+    });
+    const byKey = Object.fromEntries(results.map((r) => [r.key, r]));
+    assert.equal(byKey.loanOfficer.ok, false);
+    assert.ok(['no-results', 'no-match'].includes(byKey.loanOfficer.reason));
+    assert.equal(selected['l-03'], undefined);
+  } finally {
+    await page.close();
+  }
+});
+
+test('an unconfigured lookup is not attempted at all', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const { results } = await runLookups(page, { defaults: {} });
+    const keys = results.map((r) => r.key);
+    assert.deepEqual(keys, ['lead'], 'only the Lead, which comes from the borrower');
   } finally {
     await page.close();
   }

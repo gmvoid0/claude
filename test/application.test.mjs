@@ -43,18 +43,18 @@ function scenario({ manual = {}, app = {} } = {}) {
 
 test('the field list is exactly what was specified', () => {
   assert.deepEqual(APPLICATION_KEYS, [
-    'firstName', 'lastName',
+    'fullName',
     'rate', 'balance', 'fico', 'cashOut', 'value', 'payment',
     'income', 'employment', 'loanType', 'disability', 'address', 'phone',
   ]);
-  assert.equal(APPLICATION_FIELDS.length, 14);
+  assert.equal(APPLICATION_FIELDS.length, 13);
 });
 
 test('everything S.A.M already knows is filled in automatically', () => {
   const { application } = scenario();
 
-  assert.equal(application.firstName.value, 'RANDY D');
-  assert.equal(application.lastName.value, 'ROLLINS');
+  // One box, assembled from the two the lead screen holds separately.
+  assert.equal(application.fullName.value, 'RANDY D ROLLINS');
   assert.equal(application.balance.value, '$270,900');
   assert.equal(application.value.value, '$400,000');
   assert.equal(application.fico.value, '712');
@@ -194,7 +194,7 @@ test('only the fields that differ per person appear on the co-borrower', () => {
   // Rate, balance, value, payment and loan type belong to the property and
   // the loan. Repeating them would invite two answers to one question.
   assert.deepEqual(CO_BORROWER_KEYS,
-    ['coFirstName', 'coLastName', 'coFico', 'coIncome', 'coEmployment', 'coDisability', 'coPhone']);
+    ['coFullName', 'coFico', 'coIncome', 'coEmployment', 'coDisability', 'coPhone']);
 
   for (const key of ['rate', 'balance', 'value', 'payment', 'loanType', 'cashOut', 'address']) {
     assert.ok(!CO_BORROWER_KEYS.includes(`co${key[0].toUpperCase()}${key.slice(1)}`),
@@ -231,10 +231,10 @@ test('co-borrower entries count toward saving', () => {
   const { inputs, result } = scenario();
   const application = buildApplication({
     inputs, result, coBorrower: true,
-    manual: { coFirstName: 'JANE', coLastName: 'ROLLINS', coFico: '698', coIncome: '54000' },
+    manual: { coFullName: 'JANE ROLLINS', coFico: '698', coIncome: '54000' },
   });
 
-  assert.equal(application.coFirstName.source, 'manual');
+  assert.equal(application.coFullName.source, 'manual');
   assert.equal(isWorthSaving(application), true);
 });
 
@@ -249,22 +249,44 @@ test('the co-borrower is written out under its own heading', () => {
   const { inputs, result } = scenario();
   const application = buildApplication({
     inputs, result, coBorrower: true,
-    manual: { coFirstName: 'JANE', coLastName: 'ROLLINS', coFico: '698' },
+    manual: { coFullName: 'JANE ROLLINS', coFico: '698' },
   });
 
   const text = toText(application, { heading: 'RANDY D ROLLINS' });
   assert.match(text, /CO-BORROWER/);
-  assert.match(text, /JANE/);
+  assert.match(text, /JANE ROLLINS/);
   assert.ok(text.indexOf('CO-BORROWER') > text.indexOf('Mortgage balance'),
     'the primary borrower comes first');
 
   const plain = toPlain(application);
-  assert.equal(plain.coFirstName, 'JANE');
+  assert.equal(plain.coFullName, 'JANE ROLLINS');
   assert.equal(plain.coFico, '698');
 });
 
 test('no co-borrower heading when there is no co-borrower', () => {
   const { application } = scenario();
   assert.ok(!toText(application).includes('CO-BORROWER'));
-  assert.equal('coFirstName' in toPlain(application), false);
+  assert.equal('coFullName' in toPlain(application), false);
+});
+
+test('the name is one box, not two', () => {
+  // An agent thinks and says a whole name; splitting it on screen would make
+  // them type the same thing twice. Salesforce gets the parts on the way out.
+  assert.ok(APPLICATION_KEYS.includes('fullName'));
+  assert.ok(!APPLICATION_KEYS.includes('firstName'));
+  assert.ok(!APPLICATION_KEYS.includes('lastName'));
+  assert.ok(CO_BORROWER_KEYS.includes('coFullName'));
+  assert.ok(!CO_BORROWER_KEYS.includes('coFirstName'));
+});
+
+test('the borrower name fills itself from the lead screen', () => {
+  const { application } = scenario();
+  assert.equal(application.fullName.value, 'RANDY D ROLLINS');
+  assert.equal(application.fullName.source, 'auto');
+});
+
+test('an edited name replaces the assembled one', () => {
+  const { application } = scenario({ app: { fullName: 'RANDALL ROLLINS' } });
+  assert.equal(application.fullName.value, 'RANDALL ROLLINS');
+  assert.equal(application.fullName.source, 'manual');
 });

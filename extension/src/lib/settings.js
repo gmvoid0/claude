@@ -49,6 +49,15 @@ export const DEFAULT_PREFS = {
   feeExempt: false,          // VA funding fee exemption (service-connected disability)
   subsequentUse: false,      // VA subsequent-use funding fee tier
   valueIsAvm: false,         // treat every value as an automated estimate
+  /**
+   * Standing Salesforce lookups. These are the same person on every
+   * application an agent sends, so they are configured once rather than
+   * searched for on each handoff. Stored as the full name to search by.
+   */
+  loanOfficer: '',
+  transferAgent: '',
+  loanOfficerAssistant: '',
+
   ltvOverride: '',           // blank = use the program maximum
   loanLimit: '',             // blank = no county / investor ceiling
 };
