@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>S.A.M — Salesforce Handoff</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9.6pt; line-height: 1.5; color: #16181d; margin: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1 { font-size: 23pt; letter-spacing: -0.02em; margin: 0 0 4px; }
+  h2 {
+    font-size: 13pt; letter-spacing: -0.01em; margin: 26px 0 8px;
+    padding-bottom: 5px; border-bottom: 1.5px solid #0A64D8; color: #0A64D8;
+    break-after: avoid;
+  }
+  h3 { font-size: 10.5pt; margin: 16px 0 5px; break-after: avoid; }
+  p { margin: 0 0 8px; }
+  ul, ol { margin: 0 0 8px; padding-left: 18px; }
+  li { margin-bottom: 3px; }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.4pt;
+    background: #f1f3f6; padding: 1px 4px; border-radius: 3px;
+  }
+  pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8pt;
+    background: #f1f3f6; border-left: 3px solid #c6ccd6; padding: 8px 10px;
+    border-radius: 3px; white-space: pre-wrap; margin: 0 0 10px; line-height: 1.45;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 0 0 12px; font-size: 8.6pt; }
+  th {
+    text-align: left; background: #eef2f8; padding: 5px 7px;
+    border-bottom: 1.5px solid #c6ccd6; font-size: 8pt;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  td { padding: 5px 7px; border-bottom: 0.5px solid #dfe3ea; vertical-align: top; }
+  tr { break-inside: avoid; }
+  .lede { font-size: 10.5pt; color: #4a4f5a; margin-bottom: 2px; }
+  .meta { font-size: 8pt; color: #7a8090; margin-bottom: 20px; }
+  .note, .warn, .ok {
+    padding: 9px 11px; border-radius: 4px; margin: 0 0 12px; break-inside: avoid;
+  }
+  .note { background: #eef4fd; border-left: 3px solid #0A64D8; }
+  .warn { background: #fdf3e6; border-left: 3px solid #B25E00; }
+  .ok   { background: #eef8f0; border-left: 3px solid #248A3D; }
+  .note > b:first-child, .warn > b:first-child, .ok > b:first-child {
+    display: block; margin-bottom: 2px;
+  }
+  .page-break { break-before: page; }
+  .small { font-size: 8.2pt; color: #5a606c; }
+  .kbd {
+    display: inline-block; border: 1px solid #c6ccd6; border-bottom-width: 2px;
+    border-radius: 3px; padding: 0 5px; font-size: 8.2pt; background: #fafbfc;
+  }
+  .steps { counter-reset: step; padding-left: 0; list-style: none; }
+  .steps > li {
+    counter-increment: step; position: relative; padding-left: 26px; margin-bottom: 9px;
+  }
+  .steps > li::before {
+    content: counter(step); position: absolute; left: 0; top: 1px;
+    width: 18px; height: 18px; border-radius: 50%; background: #0A64D8; color: #fff;
+    font-size: 8pt; font-weight: 700; display: flex; align-items: center;
+    justify-content: center;
+  }
+  .tag {
+    display: inline-block; font-size: 7.4pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; padding: 1px 6px; border-radius: 8px; vertical-align: 1px;
+  }
+  .tag.auto { background: #e3edfb; color: #0A64D8; }
+  .tag.manual { background: #fdf0e3; color: #B25E00; }
+  .tag.never { background: #f1f3f6; color: #6a707c; }
+  .toc { columns: 2; column-gap: 24px; font-size: 9pt; }
+  .toc div { break-inside: avoid; margin-bottom: 3px; }
+  .toc span { color: #7a8090; display: inline-block; width: 16px; }
+</style>
+</head>
+<body>
+
+<h1>Linking S.A.M to Salesforce</h1>
+<p class="lede">How the handoff works, exactly what it fills, what it will never fill, and every way it can fail.</p>
+<p class="meta">S.A.M — Sales Assistance in Mortgages · Reference for the LO Mortgage Application handoff</p>
+
+<div class="toc">
+  <div><span>1</span> What this is, and what it is not</div>
+  <div><span>2</span> Before you start</div>
+  <div><span>3</span> One-time setup</div>
+  <div><span>4</span> Using it on a call</div>
+  <div><span>5</span> Exactly what gets filled</div>
+  <div><span>6</span> The four lookups</div>
+  <div><span>7</span> What it will never fill</div>
+  <div><span>8</span> Reading the result</div>
+  <div><span>9</span> Every failure, and the fix</div>
+  <div><span>10</span> How it works underneath</div>
+  <div><span>11</span> Changing the mapping</div>
+  <div><span>12</span> The REST API alternative</div>
+  <div><span>13</span> Security and privacy</div>
+</div>
+
+<h2>1. What this is, and what it is not</h2>
+
+<p>S.A.M fills your <b>LO Mortgage Application</b> form the way a person fills it: it finds each field by the label you can see on screen and types into it. There is no API, no integration user, and nothing is sent to any server.</p>
+
+<p>Concretely, when you press <b>To Salesforce</b> on the panel:</p>
+<ol>
+  <li>The panel builds a plan — which values go in which fields.</li>
+  <li>The extension's background worker finds your open Salesforce tab.</li>
+  <li>The copy of S.A.M running <i>in that tab</i> types the values in.</li>
+  <li>It reports back what actually landed, field by field.</li>
+</ol>
+
+<div class="note">
+  <b>Why not the REST API</b>
+  The API is the better integration and it is not available to you today. It needs a Connected App, an OAuth flow, and your org's custom field API names — all three require a Salesforce administrator. Filling the rendered form needs none of that and works this afternoon. Section 12 covers what changes if you ever get admin support.
+</div>
+
+<div class="warn">
+  <b>This does not submit anything</b>
+  S.A.M fills the form. You review it and you press Submit. Nothing is created, saved or sent in Salesforce without you doing it.
+</div>
+
+<h2>2. Before you start</h2>
+
+<ul>
+  <li>Chrome or Edge, with S.A.M loaded unpacked (see the README).</li>
+  <li>You are logged into Salesforce in the same browser profile.</li>
+  <li>Your org is on one of these hosts — this covers every standard Salesforce deployment:
+    <br><code>*.my.site.com</code> · <code>*.lightning.force.com</code> · <code>*.force.com</code> · <code>*.salesforce.com</code></li>
+  <li>The LO Mortgage Application is open in a tab. The Experience Cloud page and the App Sheet tab on a Lead render the same component, so either works.</li>
+</ul>
+
+<p class="small">S.A.M does not need to be "enabled" on the Salesforce site the way it does on your dialer. On a Salesforce host it runs automatically as a receiver: it draws no panel and does nothing at all until a handoff arrives.</p>
+
+<h2>3. One-time setup</h2>
+
+<p>Three names, entered once. These are the people who are the same on every application you send, so S.A.M should not be asking you for them on every call.</p>
+
+<ol class="steps">
+  <li>Right-click the S.A.M toolbar icon → <b>Options</b>. (Or <code>chrome://extensions</code> → S.A.M → <b>Extension options</b>.)</li>
+  <li>Find the <b>Salesforce</b> section.</li>
+  <li>Fill in <b>Loan Officer</b>, <b>Transfer Agent</b> and <b>Loan Officer Assistant</b>.</li>
+  <li>Press <b>Save</b>.</li>
+</ol>
+
+<div class="warn">
+  <b>Type these names exactly as Salesforce shows them</b>
+  S.A.M searches the lookup with the text you type here and will only select a record when <b>exactly one</b> result matches every word of it. "Jane Smith" is right. "Jane" will match several people and be refused. "J. Smith" will match nobody. Copy the name straight out of the Salesforce record if you are not sure.
+</div>
+
+<p>Leave a box blank and that lookup is not attempted at all — no search, no error, nothing typed. That is the correct setting if your shop does not use, say, a Loan Officer Assistant.</p>
+
+<p>The <b>Lead</b> lookup needs no setting. It is searched using the borrower's name from the panel.</p>
+
+<h2>4. Using it on a call</h2>
+
+<ol class="steps">
+  <li>Take the call. S.A.M reads the dialer screen and fills the application panel.</li>
+  <li>Fill in anything it could not know — income, employment, the cash-out the borrower actually wants.</li>
+  <li>Open the LO Mortgage Application in another tab, on the Lead you are working.</li>
+  <li>Press <b>To Salesforce</b> at the top of the application drawer.</li>
+  <li>Read the report that appears under the form. Switch to the Salesforce tab, check it, submit.</li>
+</ol>
+
+<div class="ok">
+  <b>The form does not have to be open first</b>
+  If you press <b>To Salesforce</b> before opening the form, the plan is held for <b>ten minutes</b>. Open the application within that window and it fills itself the moment the page loads. After ten minutes the plan is dropped and you press the button again.
+</div>
+
+<h2 class="page-break">5. Exactly what gets filled</h2>
+
+<p>Every field below is matched on the <b>visible label</b> in Salesforce, most specific pattern first — so "Borrower Income" is preferred over a bare "Income", and "Loan FICO" over "FICO". A control is never used twice, which is what keeps the borrower's First Name out of the co-borrower's box.</p>
+
+<h3>Borrower</h3>
+<table>
+  <thead><tr><th style="width:26%">On the S.A.M panel</th><th style="width:34%">Salesforce label it looks for</th><th>What is sent</th></tr></thead>
+  <tbody>
+    <tr><td>Full name</td><td>First Name</td><td>Everything before the last word</td></tr>
+    <tr><td>Full name</td><td>Last Name</td><td>The last word, plus any suffix</td></tr>
+    <tr><td>FICO</td><td>Loan FICO → FICO → anything containing "FICO"</td><td>Digits only</td></tr>
+    <tr><td>Number</td><td>Phone → Mobile</td><td>As shown</td></tr>
+    <tr><td>Income</td><td>Borrower Income → Income</td><td><code>$96,000</code> → <code>96000</code></td></tr>
+    <tr><td>Disability %</td><td>Disability %</td><td><code>30%</code> → <code>30</code></td></tr>
+    <tr><td>Address</td><td>Street</td><td>Street line only</td></tr>
+    <tr><td>Address</td><td>City</td><td>City only</td></tr>
+    <tr><td>Address</td><td>State / State/Province</td><td>Two-letter code</td></tr>
+    <tr><td>Address</td><td>Zip / Zip/Postal Code</td><td>Postcode only</td></tr>
+  </tbody>
+</table>
+
+<h3>Co-borrower <span class="tag manual">only when the toggle is on</span></h3>
+<table>
+  <thead><tr><th style="width:26%">On the S.A.M panel</th><th style="width:34%">Salesforce label it looks for</th><th>What is sent</th></tr></thead>
+  <tbody>
+    <tr><td>Co-borrower full name</td><td>First Name <span class="small">(second one on the form)</span></td><td>Everything before the last word</td></tr>
+    <tr><td>Co-borrower full name</td><td>Last Name <span class="small">(second one)</span></td><td>The last word, plus any suffix</td></tr>
+    <tr><td>Co-borrower FICO</td><td>Co-Borrower FICO → Loan FICO → FICO</td><td>Digits only</td></tr>
+    <tr><td>Co-borrower Number</td><td>Phone → Mobile</td><td>As shown</td></tr>
+    <tr><td>Co-borrower Income</td><td>Co-Borrower Income → Income</td><td>Digits only</td></tr>
+    <tr><td>Co-borrower Disability %</td><td>Disability %</td><td>Digits only</td></tr>
+  </tbody>
+</table>
+
+<h3>How the name is split</h3>
+<p>You type one name. Salesforce wants two. The split happens on the way out:</p>
+<pre>RANDY D ROLLINS      → First "RANDY D"      Last "ROLLINS"
+DOROTHY VANCE-HOLLIS → First "DOROTHY"      Last "VANCE-HOLLIS"
+JAMES O'BRIEN JR     → First "JAMES"        Last "O'BRIEN JR"
+RANDY VAN DYKE       → First "RANDY"        Last "VAN DYKE"
+ROLLINS, RANDY D     → First "RANDY D"      Last "ROLLINS"</pre>
+<p class="small">The rule is that the last word is the surname. Suffixes (JR, SR, II, III, IV, MD, PHD, ESQ) stay with the surname; particles (VAN, VON, DE, LA, MC, ST and the like) are pulled into it; and "Last, First" is recognised rather than reversed. This round-trips your dialer's own First "RANDY D" / Last "ROLLINS" unchanged.</p>
+
+<h3>Figures are sent as numbers</h3>
+<p>Salesforce currency and number fields reject formatted text. Anything that is a figure is stripped of <code>$</code>, <code>,</code>, <code>%</code> and spaces before being typed. Names, addresses, phone numbers and states pass through exactly as shown.</p>
+
+<h2>6. The four lookups</h2>
+
+<p>A lookup is not a text box. It stores a <b>record id</b>; the text you see is only a label for whatever was picked. Typing a name into one and walking away leaves a field that <i>looks</i> complete and holds nothing — which is worse than leaving it blank, because nobody goes back to check a filled-looking field.</p>
+
+<p>So S.A.M does what you do: types the name, waits for the result list, and clicks the matching row.</p>
+
+<table>
+  <thead><tr><th style="width:26%">Lookup</th><th style="width:34%">Searched with</th><th>Set where</th></tr></thead>
+  <tbody>
+    <tr><td>Lead</td><td>The borrower's full name from the panel</td><td>Nothing to set</td></tr>
+    <tr><td>Loan Officer</td><td>Your standing default</td><td>Settings → Salesforce</td></tr>
+    <tr><td>Transfer Agent</td><td>Your standing default</td><td>Settings → Salesforce</td></tr>
+    <tr><td>Loan Officer Assistant</td><td>Your standing default</td><td>Settings → Salesforce</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <b>The exactly-one rule</b>
+  Searching "Richard" on a real org returns Richard Howell, Richard Sasko, Richard Warren, Richard Brownell and Richard Mendoza. Taking the first is not matching — it is guessing, and a guess here attaches your application to somebody else's file.
+  <br><br>
+  S.A.M requires that <b>exactly one</b> result contains <b>every word</b> of the search term. Zero matches or more than one, and the field is left untouched with the reason reported. It will never pick for you.
+</div>
+
+<p>Lookups are filled one at a time, after the plain fields, and each takes up to four seconds to search. Four lookups can take fifteen seconds in total — that is Salesforce's search speed, not the extension waiting around. Selecting a record re-renders the form, so S.A.M re-reads the page between each one.</p>
+
+<h2>7. What it will never fill</h2>
+
+<p>These fields exist on the form and S.A.M has no honest source for any of them. They are left blank and listed back to you in the report, so you find out before you submit rather than after:</p>
+
+<p><span class="tag never">left blank</span> Email · Middle Name · Suffix · Employer · Length of Employment · Title · Borrower DOB · SSN · Marital Status · Disability Income · Other Income · SSI</p>
+
+<p>Picklists and dropdowns on the form are also left alone unless a value matches an existing option exactly.</p>
+
+<div class="note">
+  <b>A blank is honest; a guess is not</b>
+  Every one of these is a field where a plausible-looking wrong answer would survive review and land in a file. That is the failure this tool is built to avoid, so it declines rather than infers.
+</div>
+
+<h2 class="page-break">8. Reading the result</h2>
+
+<p>After a send, a coloured strip appears under the application form:</p>
+
+<table>
+  <thead><tr><th style="width:16%">Colour</th><th style="width:38%">What it says</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td>Green</td><td>Filled 9 fields in Salesforce. Linked Lead, Loan Officer.</td><td>Everything planned went in and every configured lookup resolved.</td></tr>
+    <tr><td>Amber</td><td>Filled 9 fields… <i>plus a reason per lookup, plus a count of fields that could not be matched</i></td><td>Something went in, something did not. Read the detail and finish it by hand.</td></tr>
+    <tr><td>Red</td><td>Not sent.</td><td>Nothing reached Salesforce. See the next section.</td></tr>
+  </tbody>
+</table>
+
+<p>"Could not be matched" means S.A.M looked for a label and your form does not render one that matches. That is a mapping question, not a failure of the send — see section 11.</p>
+
+<h2>9. Every failure, and the fix</h2>
+
+<h3>The send itself</h3>
+<table>
+  <thead><tr><th style="width:34%">Message</th><th>What happened, and what to do</th></tr></thead>
+  <tbody>
+    <tr><td>Open the LO Application in another tab, then send again.</td><td>No Salesforce tab is open in this browser window's profile. Open the form and press the button again — or press it first and open the form within ten minutes.</td></tr>
+    <tr><td>That Salesforce tab does not look like the application form.</td><td>A Salesforce tab is open but no field matched. Usually the wrong page — a list view, a report, the record home rather than the App Sheet tab. Open the actual application form.</td></tr>
+    <tr><td>S.A.M cannot see your tabs — check the extension permissions.</td><td>The <code>tabs</code> permission was refused or revoked. Reinstall the extension from <code>chrome://extensions</code>.</td></tr>
+    <tr><td>The extension background stopped. Reload the tab and try again.</td><td>Chrome shut the background worker down mid-send. Reload the dialer tab; this is harmless and the retry works.</td></tr>
+    <tr><td>Nothing to send yet.</td><td>The application is empty. Fill in at least a name or a figure.</td></tr>
+  </tbody>
+</table>
+
+<h3>A lookup that did not resolve</h3>
+<table>
+  <thead><tr><th style="width:34%">Reason shown</th><th>What happened, and what to do</th></tr></thead>
+  <tbody>
+    <tr><td>no results came back</td><td>Salesforce returned nothing within four seconds. Either the name does not exist, or the search was slow. Check the spelling in Settings; try again if the org is being slow.</td></tr>
+    <tr><td>no record matched that name</td><td>Results came back, but none contained every word of the search term. Almost always a spelling or format difference — copy the name exactly as Salesforce displays it.</td></tr>
+    <tr><td>several records matched — pick one yourself</td><td>Two or more people matched. S.A.M refuses to choose. Pick the right one by hand, and consider using a fuller name in Settings so it is unique next time.</td></tr>
+    <tr><td>the field was not on the form</td><td>No lookup with that label is rendered on this page. Either the page is not the application form, or your org labels it differently — see section 11.</td></tr>
+    <tr><td>the result could not be clicked</td><td>The row was found but the click did not take, usually because the list re-rendered underneath. Retry; if it repeats, set that one by hand.</td></tr>
+  </tbody>
+</table>
+
+<h3>It filled the wrong box</h3>
+<p>Two fields on your form share a label and S.A.M matched the first one. Fix it by hand, then send a note about which labels collided — the patterns in section 11 can be tightened to distinguish them.</p>
+
+<h3>It looked filled and submitted empty</h3>
+<p>This should not happen and is worth reporting immediately if it does. Salesforce components keep their own copy of the field's value, and S.A.M writes through the native property setter specifically so the component sees the change (section 10). If a field ever submits empty after showing a value, that component is doing something the current approach does not handle.</p>
+
+<h2>10. How it works underneath</h2>
+
+<p>Useful if you are debugging, explaining it to IT, or handing this to another developer.</p>
+
+<h3>The path a value takes</h3>
+<pre>Dialer tab                      Background worker            Salesforce tab
+──────────                      ─────────────────            ──────────────
+You press "To Salesforce"
+  planFill() builds a plan
+  → SAM_HANDOFF ───────────────► held (10 min)
+                                 finds a Salesforce tab
+                                 → SAM_FILL_FORM ───────────► fillForm(entries)
+                                                              fillLookups(lookups)
+  report shown on panel ◄─────── report ◄──────────────────── what actually landed</pre>
+
+<h3>Why a plain assignment is not enough</h3>
+<p>Setting <code>input.value = "..."</code> on a Salesforce field does nothing useful. The component holds its own copy of the state, and a direct assignment leaves it unaware — the box shows the text and submits blank. S.A.M therefore:</p>
+<ul>
+  <li>writes through <code>HTMLInputElement.prototype</code>'s native <code>value</code> setter, which is the one the framework has instrumented;</li>
+  <li>dispatches <code>input</code> and <code>change</code> afterwards, which is what it listens for;</li>
+  <li>marks both events <code>composed: true</code>, because these fields live inside shadow roots and an event that does not cross that boundary never reaches the component.</li>
+</ul>
+<p class="small">The test suite asserts against what the framework's own listeners saw, not against what the DOM holds, precisely because those two can disagree.</p>
+
+<h3>Timings and limits</h3>
+<table>
+  <thead><tr><th style="width:34%">Behaviour</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>A plan waits for a form to open</td><td>10 minutes, then dropped</td></tr>
+    <tr><td>Wait for a lookup's results</td><td>4 seconds, then "no results"</td></tr>
+    <tr><td>Settle time before judging a match unique</td><td>250 ms after the first row appears</td></tr>
+    <tr><td>Pause after selecting a record</td><td>200 ms, then the next lookup</td></tr>
+    <tr><td>Salesforce tabs tried</td><td>All of them, until one reports success</td></tr>
+  </tbody>
+</table>
+
+<h2>11. Changing the mapping</h2>
+
+<p>If your org labels a field differently, the fix is one line. The map lives in <code>extension/src/lib/salesforce.js</code>:</p>
+
+<pre>export const FIELD_MAP = [
+  { key: 'fico', labels: [/^\s*loan fico\s*$/i, /^\s*fico\s*$/i, /\bfico\b/i] },
+  ...
+];</pre>
+
+<p>Each entry lists the label patterns to try, most specific first. To teach it a new label, add a pattern to the front of that field's list. To map a field S.A.M currently ignores, add a new entry whose <code>key</code> is the application field name.</p>
+
+<p>Lookups work the same way in <code>LOOKUP_MAP</code>, and the never-filled list is <code>UNSUPPLIED</code>. All three are plain data with no DOM involved, so they can be checked against your form without an org in front of you.</p>
+
+<p class="small">Send the exact labels your form renders and these can be updated for you — a screenshot of the form with the labels visible is enough.</p>
+
+<h2>12. The REST API alternative</h2>
+
+<p>If you ever get administrator support, the API is the better integration: it does not depend on labels, it cannot fill the wrong box, and it works without the form being open. What it requires:</p>
+
+<ul>
+  <li>A <b>Connected App</b> in your org, created by an administrator.</li>
+  <li>An <b>OAuth flow</b> — most likely the PKCE web-server flow, since a browser extension cannot hold a client secret.</li>
+  <li>The <b>API names</b> of every custom field on the application object (the <code>__c</code> names, not the labels).</li>
+  <li>A decision about <b>who the records belong to</b>: the agent's own session, or a service user.</li>
+</ul>
+
+<p>The mapping work you do in section 11 is not wasted if that happens — the field list is the same, the labels are simply replaced by API names.</p>
+
+<h2>13. Security and privacy</h2>
+
+<ul>
+  <li><b>Nothing leaves your browser.</b> There is no server, no telemetry and no third-party call anywhere in this path. The value goes from one tab, through the extension, into another tab.</li>
+  <li><b>No lead data is stored.</b> Settings, field bindings, saved applications and the enabled-site list are kept locally. Borrower data is held only while the record is on screen.</li>
+  <li><b>No credentials are involved.</b> S.A.M uses the Salesforce session you are already logged into. It never sees, stores or transmits a password or token.</li>
+  <li><b>It acts only when you press the button.</b> On a Salesforce host the extension draws nothing and does nothing until a handoff arrives.</li>
+  <li><b>It submits nothing.</b> Review and submit are always yours.</li>
+</ul>
+
+<div class="warn">
+  <b>Worth confirming with your compliance team</b>
+  This automates keystrokes into your own authenticated Salesforce session — the same thing you would do by hand, faster. That is ordinary browser-extension behaviour, but if your shop has a policy on automation touching the CRM, it is a five-minute conversation worth having before the floor is using it.
+</div>
+
+</body>
+</html>
