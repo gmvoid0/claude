@@ -1104,6 +1104,62 @@ test('correcting the application moves the cash-out figure with it', { skip }, a
   }
 });
 
+test('the borrower name survives a screen that mislabels the name boxes', { skip }, async () => {
+  // The live failure: every field on a real agent screen read correctly
+  // except the two that make up the borrower's name, so the panel header and
+  // the application both sat empty on a form that plainly showed both.
+  //
+  // The cause was structural rather than a missing pattern. Label resolution
+  // returns the first thing it finds; when a page hands it the wrong text,
+  // that text scores zero for every field and the element is dropped — with
+  // `name="first_name"` sitting unread on the very same input. The attribute
+  // is now scored alongside the label, at a lower weight, so a wrong label
+  // costs precision rather than the whole field.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'vicidial-live.html');
+
+    const out = await page.evaluate(() => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      return {
+        fullName: root.querySelector('[data-app-field=fullName]').value,
+        who: root.querySelector('.who').textContent.trim(),
+        balance: root.querySelector('[data-in=firstLien]').value,
+        state: root.querySelector('[data-in=state]').value,
+        fico: root.querySelector('[data-app-field=fico]').value,
+      };
+    });
+
+    assert.equal(out.fullName, 'SAMIR GEORGE', 'the name fills from the attributes');
+    assert.match(out.who, /SAMIR GEORGE/, 'and the header names who is on the phone');
+    assert.match(out.who, /SIMPSONVILLE, SC/);
+
+    // The rest of the screen must not have been disturbed by the fallback.
+    assert.equal(out.balance, '131853');
+    assert.equal(out.state, 'SC');
+    assert.equal(out.fico, '655');
+  } finally {
+    await page.close();
+  }
+});
+
+test('a visible label still beats the attribute under it', { skip }, async () => {
+  // The relabelling case this tool was built for: the balance box is really
+  // named `vendor_lead_code`, and scoring the attribute must not undo that.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const got = await detectOn(page, 'agent-screen.html');
+    assert.equal(got.firstLien?.raw, '270900');
+    assert.notEqual(got.firstLien?.labelSource, 'name');
+    assert.equal(got.firstName?.raw, 'RANDY D');
+    assert.equal(got.lastName?.raw, 'ROLLINS');
+  } finally {
+    await page.close();
+  }
+});
+
 test('a name field bound by hand fills the application', { skip }, async () => {
   // The escape hatch for a screen this cannot read. Detection covers First
   // and Last boxes and a combined name field; a dialer that labels it

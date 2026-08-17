@@ -196,6 +196,9 @@ export const FIELDS = {
     patterns: [
       { re: /^\s*last\s*(name)?\s*:?\s*$/i, score: 100 },
       { re: /^\s*surname\s*:?\s*$/i, score: 95 },
+      // Attribute spellings, which is what a mislabelled field falls back to.
+      { re: /^\s*lname\s*$/i, score: 95 },
+      { re: /^\s*(borrower|customer|contact)\s*last\s*(name)?\s*$/i, score: 95 },
     ],
   },
 
@@ -204,6 +207,8 @@ export const FIELDS = {
     kind: 'text',
     patterns: [
       { re: /^\s*first\s*(name)?\s*:?\s*$/i, score: 100 },
+      { re: /^\s*fname\s*$/i, score: 95 },
+      { re: /^\s*(borrower|customer|contact)\s*first\s*(name)?\s*$/i, score: 95 },
     ],
   },
 
@@ -290,11 +295,27 @@ export const SOURCE_WEIGHT = {
  * Combines label match, discovery source, and value plausibility.
  */
 export function scoreCandidate(fieldKey, candidate) {
-  const base = scoreLabel(fieldKey, candidate.label);
-  if (!base) return 0;
+  // Two chances, and the second one matters more than it looks.
+  //
+  // Label resolution returns the *first* thing it finds, in priority order.
+  // When a page hands it something that happens to be wrong — a stray cell,
+  // a caption belonging to the field above — that wrong label scores zero
+  // for every field and the element is lost, even with `name="first_name"`
+  // sitting right there on it. That is exactly how a live VICIdial screen
+  // ended up with the borrower's name detected nowhere while every other
+  // field on the same form read correctly.
+  //
+  // So the attribute is always scored too, at its own lower weight. A
+  // visible label still wins whenever it means anything; the attribute only
+  // decides the cases the label got wrong.
+  const labelScore = scoreLabel(fieldKey, candidate.label)
+    * (SOURCE_WEIGHT[candidate.labelSource] ?? 0.5);
+  const attrScore = candidate.attrLabel
+    ? scoreLabel(fieldKey, candidate.attrLabel) * SOURCE_WEIGHT.name
+    : 0;
 
-  const weight = SOURCE_WEIGHT[candidate.labelSource] ?? 0.5;
-  let score = base * weight;
+  let score = Math.max(labelScore, attrScore);
+  if (!score) return 0;
 
   const field = FIELDS[fieldKey];
   const parsed = parseValue(field.kind, candidate.raw);
@@ -495,12 +516,14 @@ export function collectCandidates(root = document) {
       if (!isVisible(el)) continue;
       if (el.closest?.(`#${PANEL_HOST_ID}`)) continue;
       const { label, labelSource } = findLabel(el, sameRegionAs(el) ?? labelHolders, labelHolders);
-      if (!label) continue;
+      const attrLabel = attributeLabel(el);
+      if (!label && !attrLabel) continue;
       candidates.push({
         uid: ++uid,
         el,
-        label,
-        labelSource,
+        label: label ?? attrLabel,
+        labelSource: label ? labelSource : 'name',
+        attrLabel,
         raw: readValue(el),
         editable: true,
         isAvm: isAvmLabel(label),
@@ -664,6 +687,19 @@ function findLabel(el, textHolders, fallbackHolders = null) {
   }
 
   return { label: null, labelSource: null };
+}
+
+/**
+ * The element's own `name` or `id`, as words.
+ *
+ * `first_name` becomes "first name", which is what the field patterns are
+ * written against. Kept separate from the resolved label so it can be
+ * scored independently rather than only as a last resort.
+ */
+export function attributeLabel(el) {
+  const raw = el?.getAttribute?.('name') || el?.id;
+  if (!raw) return null;
+  return cleanLabel(String(raw).replace(/[_\-.]+/g, ' '));
 }
 
 /** Text immediately before the element, within the same parent. */
