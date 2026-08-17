@@ -141,6 +141,23 @@ same number.
 Redfin works the same way. Turn the whole behaviour off in settings if you
 don't want it.
 
+### When Zillow asks you to prove you're human
+
+Call floors share one office IP, so "Press & Hold to confirm you are a
+human" is a normal morning rather than an edge case. That used to fail
+invisibly: a background lookup tab landed on the verification page, found no
+value, and closed itself on the timeout — the panel just never got a number
+and never said why.
+
+Now the page is recognised and **the tab is brought to the front**, the
+auto-close is called off so it can't vanish mid-verification, and the panel
+says what happened. Hold the button for two seconds and the value arrives
+through the ordinary path. If the preview window is the one that hit the
+check, it flags for attention instead of yanking focus off the dialer.
+
+Nothing here solves or works around the check. It is a human verification;
+this puts it in front of the human.
+
 ### The preview window
 
 **Preview on Zillow** opens a small browser window beside the dialer showing

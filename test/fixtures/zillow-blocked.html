@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Access to this page has been denied.</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 64px 24px; text-align: center; }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    p { color: #555; max-width: 460px; margin: 8px auto; }
+    #px-captcha { width: 302px; height: 80px; margin: 28px auto; background: #f2f2f2; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <!--
+    A PerimeterX interstitial, which is what Zillow serves an IP it does not
+    like. Reproduced here because the failure it caused was invisible: a
+    background lookup tab landed on this page, found no value, and closed
+    itself before anyone saw it.
+  -->
+  <h1>Please verify you are a human</h1>
+  <p>Access to this page has been denied because we believe you are using automation tools to browse the website.</p>
+  <div id="px-captcha">Press &amp; Hold to confirm you are a human</div>
+  <p>Reference ID: 6f2c0f11-8a51-11ef-9b2d-2f3f1a4c8d90</p>
+</body>
+</html>

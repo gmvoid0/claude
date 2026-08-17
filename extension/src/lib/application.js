@@ -120,18 +120,28 @@ function hintFor(field, result) {
   return `up to ${formatMoney(raw)}`;
 }
 
+const trim = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
+
 function autoValue(field, inputs, result, address) {
   if (!field.from) return '';
 
   if (field.from === 'address') return address ?? '';
 
-  // One box for the name, assembled from the parts the lead screen holds
-  // separately. Salesforce splits it apart again on the way out.
+  // One box for the name. Most lead screens hold it as First and Last, some
+  // hold it whole, and this fills from whichever the screen actually has.
+  // Salesforce splits it apart again on the way out.
+  //
+  // The parts win when the screen carries both, since they are unambiguous
+  // about which half is the surname. A lone half loses to a combined field:
+  // "ROLLINS" on an application is worse than "RANDY D ROLLINS".
   if (field.from === 'name') {
-    return joinName({
-      first: inputs.firstName?.value ?? '',
-      last: inputs.lastName?.value ?? '',
-    });
+    const first = trim(inputs.firstName?.value);
+    const last = trim(inputs.lastName?.value);
+    const whole = trim(inputs.fullName?.value);
+
+    if (first && last) return joinName({ first, last });
+    if (whole) return whole;
+    return joinName({ first, last });
   }
 
   const input = inputs[field.from];

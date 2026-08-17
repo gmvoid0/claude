@@ -20,6 +20,19 @@ test('the two mortgage fields do not collide', () => {
   assert.equal(scoreLabel('payment', 'Mortgage Balance'), 0);
 });
 
+test('a whole name is recognised, and screen furniture is not', () => {
+  for (const label of ['Name', 'Full Name', 'Borrower Name', 'Customer', 'Lead Name', 'Applicant']) {
+    assert.ok(scoreLabel('fullName', label) >= 85, `${label} should be read as the name`);
+  }
+  // A dialer screen is covered in things ending in "name" that are not the
+  // borrower. Filling an application with the name of a calling list would
+  // be worse than leaving it blank.
+  for (const label of ['User Name', 'Agent Name', 'Campaign Name', 'List Name',
+    'Company Name', 'Employer Name', 'First Name', 'Last Name', 'Co-Borrower Name']) {
+    assert.equal(scoreLabel('fullName', label), 0, `${label} must not be read as the borrower`);
+  }
+});
+
 test('a balance label is never read as a home value', () => {
   for (const label of ['Mortgage Balance', 'Loan Balance', 'Payoff', 'Principal Balance']) {
     assert.equal(scoreLabel('propertyValue', label), 0, `${label} must not score as value`);

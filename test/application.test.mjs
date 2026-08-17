@@ -290,3 +290,49 @@ test('an edited name replaces the assembled one', () => {
   assert.equal(application.fullName.value, 'RANDALL ROLLINS');
   assert.equal(application.fullName.source, 'manual');
 });
+
+/* --- names that arrive in one box rather than two ----------------------- */
+
+function nameFrom(detected) {
+  const inputs = mergeInputs({ detected, keys: [...KEYS, 'fullName'] });
+  return buildApplication({ inputs }).fullName;
+}
+
+test('a screen holding the whole name in one box still fills the field', () => {
+  // The name is the one thing an agent should never have to type: it is on
+  // screen the moment the call connects. Screens that do not split it into
+  // First and Last used to leave the field empty.
+  const field = nameFrom({ fullName: { raw: 'RANDY D ROLLINS', label: 'Borrower Name', source: 'auto' } });
+  assert.equal(field.value, 'RANDY D ROLLINS');
+  assert.equal(field.source, 'auto');
+});
+
+test('separate first and last win over a combined field', () => {
+  // They are unambiguous about which half is the surname.
+  const field = nameFrom({
+    firstName: { raw: 'RANDY D', label: 'First', source: 'auto' },
+    lastName: { raw: 'ROLLINS', label: 'Last', source: 'auto' },
+    fullName: { raw: 'ROLLINS, RANDY D', label: 'Name', source: 'auto' },
+  });
+  assert.equal(field.value, 'RANDY D ROLLINS');
+});
+
+test('a lone surname loses to the whole name', () => {
+  // "ROLLINS" on an application is worse than "RANDY D ROLLINS".
+  const field = nameFrom({
+    lastName: { raw: 'ROLLINS', label: 'Last', source: 'auto' },
+    fullName: { raw: 'RANDY D ROLLINS', label: 'Name', source: 'auto' },
+  });
+  assert.equal(field.value, 'RANDY D ROLLINS');
+});
+
+test('one half of the name still beats an empty box', () => {
+  const field = nameFrom({ firstName: { raw: 'RANDY D', label: 'First', source: 'auto' } });
+  assert.equal(field.value, 'RANDY D');
+});
+
+test('no name anywhere leaves the field empty rather than guessing', () => {
+  const field = nameFrom({ city: { raw: 'ROCKWOOD', source: 'auto' } });
+  assert.equal(field.value, '');
+  assert.equal(field.source, 'none');
+});

@@ -36,6 +36,98 @@ export function valuationSite(hostname) {
 /** Plausible band for a US home value; anything outside is a misread. */
 const VALUE_RANGE = [20000, 25000000];
 
+/* ------------------------------------------------------------------ *
+ * Bot checks
+ * ------------------------------------------------------------------ */
+
+/**
+ * Recognise a page that is asking a human to prove they are one.
+ *
+ * This matters most where it is least visible. A lookup opened in a
+ * background tab is invisible by design, so a "Press & Hold to confirm you
+ * are a human" page sits there unseen until the tab closes itself, and the
+ * agent is told nothing — the value simply never arrives. On a call floor
+ * sharing one office IP that is not rare, it is most mornings.
+ *
+ * So the challenge is detected and the tab is brought to the front instead,
+ * where a two-second hold clears it and the value comes back through the
+ * ordinary path. Nothing here attempts to solve or bypass the check: it is
+ * a human verification, and putting it in front of the human is the point.
+ *
+ * Matching is on rendered text and on the containers the common vendors
+ * mount — PerimeterX, Cloudflare, reCAPTCHA, hCaptcha — and is deliberately
+ * anchored to short pages. A property page mentioning the word "captcha"
+ * somewhere in a review is not a challenge.
+ */
+const CHALLENGE_SELECTORS = [
+  '#px-captcha',                 // PerimeterX, which is what Zillow uses
+  '[id^="px-captcha"]',
+  '#challenge-form',             // Cloudflare
+  '#cf-challenge-running',
+  '.cf-browser-verification',
+  '.g-recaptcha',
+  '#recaptcha',
+  '.h-captcha',
+  'iframe[src*="recaptcha"]',
+  'iframe[src*="hcaptcha"]',
+  'iframe[title*="challenge" i]',
+];
+
+const CHALLENGE_PHRASES = [
+  /press\s*(&|and)\s*hold/i,
+  /confirm you are a human/i,
+  /verify (that )?you('re| are) (a )?human/i,
+  /are you a human/i,
+  /prove you('re| are) not a robot/i,
+  /i'?m not a robot/i,
+  /unusual (traffic|activity)/i,
+  /automated (requests|traffic)/i,
+  /access to this page has been denied/i,
+  /checking your browser before/i,
+  /please verify you are a human/i,
+];
+
+/** A challenge page is short. Anything long is a real page. */
+const CHALLENGE_TEXT_CAP = 4000;
+
+/**
+ * @returns {{ kind: string, label: string }|null}
+ */
+export function detectChallenge(doc = document) {
+  try {
+    for (const selector of CHALLENGE_SELECTORS) {
+      const el = doc.querySelector(selector);
+      // A hidden reCAPTCHA badge rides along on plenty of ordinary forms, so
+      // the container has to actually be rendered to count.
+      if (el && isRendered(el)) {
+        return { kind: 'captcha', label: 'verification' };
+      }
+    }
+
+    const text = (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (!text || text.length > CHALLENGE_TEXT_CAP) return null;
+
+    for (const re of CHALLENGE_PHRASES) {
+      if (re.test(text)) return { kind: 'challenge', label: 'verification' };
+    }
+  } catch { /* hostile or torn-down document */ }
+
+  return null;
+}
+
+function isRendered(el) {
+  try {
+    const r = el.getBoundingClientRect?.();
+    if (r && (r.width > 0 || r.height > 0)) return true;
+    // A challenge that has not laid out yet still counts if it is in the tree
+    // and not explicitly hidden.
+    return !!el.ownerDocument?.defaultView
+      && el.ownerDocument.defaultView.getComputedStyle(el).display !== 'none';
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Extract { value, valueLabel, address, site, source } from a document,
  * or null when the page isn't a property page or nothing could be read.

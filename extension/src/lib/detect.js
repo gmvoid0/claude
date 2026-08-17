@@ -206,6 +206,36 @@ export const FIELDS = {
       { re: /^\s*first\s*(name)?\s*:?\s*$/i, score: 100 },
     ],
   },
+
+  /**
+   * A name held in one box rather than split into first and last.
+   *
+   * Plenty of screens do this, and where they do the application's Full name
+   * field had nothing to fill from — the one field an agent should never
+   * have to type, because the name is on screen the moment the call connects.
+   *
+   * The exclusions carry the weight here. A dialer screen is covered in
+   * things ending in "name" that are not the borrower: the agent's own user
+   * name, the campaign, the list, the file. Filling an application with the
+   * name of a calling list would be worse than leaving it blank, so anything
+   * that is not plainly a person's name on this record is refused.
+   */
+  fullName: {
+    label: 'Name',
+    kind: 'text',
+    exclude: [
+      /\b(first|last|middle|sur)\s*name\b/i,
+      /\b(user|agent|rep|owner|manager|supervisor)\b/i,
+      /\b(campaign|list|file|group|queue|status|company|business|employer|lender|bank)\b/i,
+      /\bco[-\s]?borrower\b/i,
+      /\b(login|account|screen|display|db|table|field)\s*name\b/i,
+    ],
+    patterns: [
+      { re: /^\s*(full|borrower|customer|client|contact|lead|applicant)\s*name\s*:?\s*$/i, score: 100 },
+      { re: /^\s*(borrower|customer|client|applicant)\s*:?\s*$/i, score: 90 },
+      { re: /^\s*name\s*:?\s*$/i, score: 85 },
+    ],
+  },
 };
 
 export const FIELD_KEYS = Object.keys(FIELDS);

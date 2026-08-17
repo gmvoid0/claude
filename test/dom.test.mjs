@@ -381,6 +381,51 @@ test('extracts the Zestimate and address from a Zillow property page', { skip },
   }
 });
 
+test('a bot check is recognised so it can be put in front of a human', { skip }, async () => {
+  // The failure this covers was a silent one: a background lookup tab landed
+  // on a "Press & Hold" page, found no value, and closed itself on the
+  // timeout. Nothing reached the panel and nothing said why.
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  const origin = `http://127.0.0.1:${port}`;
+  try {
+    await page.goto(`${origin}/test/fixtures/zillow-blocked.html`);
+
+    const out = await page.evaluate(async (base) => {
+      const { detectChallenge, extractValuation } = await import(`${base}/extension/src/lib/valuation.js`);
+      return {
+        challenge: detectChallenge(document),
+        value: extractValuation(document, {
+          hostname: 'www.zillow.com',
+          href: 'https://www.zillow.com/homes/x_rb/',
+        }),
+      };
+    }, origin);
+
+    assert.ok(out.challenge, 'the verification page must be recognised');
+    assert.equal(out.challenge.kind, 'captcha');
+    assert.equal(out.value, null, 'and must never yield a figure');
+  } finally {
+    await page.close();
+  }
+});
+
+test('an ordinary property page is not mistaken for a bot check', { skip }, async () => {
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  const origin = `http://127.0.0.1:${port}`;
+  try {
+    await page.goto(`${origin}/test/fixtures/zillow-property.html`);
+    const challenge = await page.evaluate(async (base) => {
+      const { detectChallenge } = await import(`${base}/extension/src/lib/valuation.js`);
+      return detectChallenge(document);
+    }, origin);
+    assert.equal(challenge, null, 'a real page must not be surfaced as a challenge');
+  } finally {
+    await page.close();
+  }
+});
+
 test('a Zillow value still resolves when the embedded JSON is gone', { skip }, async () => {
   const { browser, port } = await setup();
   const page = await browser.newPage();
@@ -912,6 +957,7 @@ test('the application fills from the record and offers to save once worked on', 
 
       const saveBtn = root.querySelector('[data-act=app-save]');
       const read = () => ({
+        fullName: root.querySelector('[data-app-field=fullName]').value,
         balance: root.querySelector('[data-app-field=balance]').value,
         value: root.querySelector('[data-app-field=value]').value,
         cashOut: root.querySelector('[data-app-field=cashOut]').value,

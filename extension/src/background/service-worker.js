@@ -68,14 +68,61 @@ async function openLookup({ url, address }) {
 
   try {
     const tab = await chrome.tabs.create({ url, active: false });
-    pendingLookup = { tabId: tab.id, address, startedAt: Date.now() };
+    pendingLookup = { tabId: tab.id, address, startedAt: Date.now(), surfaced: false };
 
     setTimeout(() => {
-      if (pendingLookup?.tabId === tab.id) closeLookup(tab.id);
+      // A tab brought forward for a bot check belongs to the agent now.
+      // Closing it out from under them mid-verification would be the worst
+      // possible moment to do it.
+      if (pendingLookup?.tabId === tab.id && !pendingLookup.surfaced) closeLookup(tab.id);
     }, LOOKUP_TIMEOUT_MS);
   } catch {
     pendingLookup = null;
   }
+}
+
+/**
+ * A lookup page is asking a human to prove they are one.
+ *
+ * The failure this fixes is a silent one. The background tab is invisible by
+ * design, so a "Press & Hold" page sat there unseen until the timeout closed
+ * it, and the panel simply never received a value — nothing on screen said
+ * why. On a floor sharing one office IP that is most mornings, not an edge
+ * case.
+ *
+ * So the tab comes to the front, the auto-close is called off, and the panel
+ * is told what happened. Two seconds of holding a button clears it and the
+ * value arrives through the ordinary path. Nothing is solved or bypassed
+ * here: it is a human verification, and this puts it in front of the human.
+ */
+async function surfaceChallenge(msg, sender) {
+  const tabId = sender?.tab?.id;
+  const notify = () => broadcast({
+    type: 'SAM_LOOKUP_BLOCKED',
+    site: msg?.site ?? 'The lookup site',
+    kind: msg?.kind ?? 'challenge',
+  });
+
+  if (tabId == null) { notify(); return; }
+
+  // The mini browser is already on screen; ask for attention rather than
+  // yanking focus off the dialer.
+  if (miniWindow?.tabId === tabId) {
+    try { await chrome.windows.update(miniWindow.windowId, { drawAttention: true }); }
+    catch { /* window gone */ }
+    notify();
+    return;
+  }
+
+  if (pendingLookup?.tabId !== tabId) { notify(); return; }
+
+  pendingLookup.surfaced = true;
+  try {
+    const tab = await chrome.tabs.update(tabId, { active: true });
+    if (tab?.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
+  } catch { /* tab closed already */ }
+
+  notify();
 }
 
 function closeLookup(tabId) {
@@ -239,6 +286,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         closeLookup(tabId);
       }
     }
+    sendResponse?.({ ok: true });
+    return true;
+  }
+
+  if (msg?.type === 'SAM_VALUATION_BLOCKED') {
+    surfaceChallenge(msg, sender);
     sendResponse?.({ ok: true });
     return true;
   }

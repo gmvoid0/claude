@@ -20,7 +20,7 @@ import { computeEquity, solveBalanceFromPayment } from '../lib/equity.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
-import { extractValuation, valuationSite } from '../lib/valuation.js';
+import { extractValuation, valuationSite, detectChallenge } from '../lib/valuation.js';
 import { zillowSearchUrl, redfinSearchUrl } from '../lib/address.js';
 import { mergeInputs, decideExternalValue, leadAddress, carryForwardDetection, detectionSignature }
   from '../lib/merge.js';
@@ -67,6 +67,7 @@ const state = {
   coBorrower: false,     // second borrower section shown
   frameFields: {},       // fields harvested from child frames
   externalValue: null,   // latest value seen on a Zillow/Redfin tab
+  lookupBlocked: null,   // a lookup page is asking for human verification
   miniOpen: false,       // the mini browser window is up
   miniAddress: null,     // the address it is currently showing
   recordKey: null,
@@ -87,7 +88,7 @@ export async function start() {
   const site = valuationSite(location.hostname);
   if (site) {
     if (state.prefs.readValuationSites !== false && await anySiteEnabled()) {
-      const reporter = startValuationReporter();
+      const reporter = startValuationReporter(site);
       // Honour the setting being switched off without needing a reload.
       chrome.runtime.onMessage.addListener(async (msg) => {
         if (msg?.type !== 'SAM_SETTINGS_CHANGED') return;
@@ -163,6 +164,15 @@ function handleMessage(msg, _sender, sendResponse) {
     case 'SAM_EXTERNAL_VALUE':
       if (IS_TOP && msg.valuation) {
         state.externalValue = msg.valuation;
+        // A value arriving is proof the check was cleared.
+        state.lookupBlocked = null;
+        recompute();
+      }
+      return;
+
+    case 'SAM_LOOKUP_BLOCKED':
+      if (IS_TOP) {
+        state.lookupBlocked = { site: msg.site ?? 'The lookup site', at: Date.now() };
         recompute();
       }
       return;
@@ -219,10 +229,11 @@ function overridesFromPrefs(prefs = {}) {
  * content without a page load, so this re-reads on mutation as well as on a
  * slow interval, and only sends when the value or address actually changes.
  */
-function startValuationReporter() {
+function startValuationReporter(site) {
   let lastSignature = null;
   let lastRunAt = 0;
   let stopped = false;
+  let challengeReported = false;
 
   const report = () => {
     if (stopped) return;
@@ -238,7 +249,15 @@ function startValuationReporter() {
     try {
       found = extractValuation(document, location);
     } catch { /* markup changed under us; try again next tick */ }
-    if (!found) return;
+
+    if (!found) {
+      // No value and a bot check on screen: this tab is stuck behind a
+      // human verification. Say so, so it can be put in front of a human
+      // rather than expiring unseen in the background.
+      reportChallenge();
+      return;
+    }
+    challengeReported = false;
 
     const signature = `${found.value}|${found.address}`;
     if (signature === lastSignature) return;
@@ -248,6 +267,22 @@ function startValuationReporter() {
       chrome.runtime.sendMessage({ type: 'SAM_VALUATION_REPORT', valuation: found });
     } catch { /* worker asleep or context torn down */ }
   };
+
+  function reportChallenge() {
+    if (challengeReported) return;
+    const challenge = detectChallenge(document);
+    if (!challenge) return;
+
+    challengeReported = true;
+    try {
+      chrome.runtime.sendMessage({
+        type: 'SAM_VALUATION_BLOCKED',
+        site: site?.label ?? 'The lookup site',
+        kind: challenge.kind,
+        url: location.href,
+      });
+    } catch { /* worker asleep or context torn down */ }
+  }
 
   const debounced = debounce(report, 400);
   let observer = null;
@@ -485,6 +520,8 @@ function scan(force) {
 
   if (recordChanged) {
     state.recordKey = recordKey;
+    // Whatever the last lookup ran into belonged to the last caller.
+    state.lookupBlocked = null;
     if (state.prefs?.resetValueOnNewRecord) {
       // A new caller is on the line — carrying the last lead's home value
       // forward would silently produce a wrong number, so drop everything
@@ -588,17 +625,20 @@ function findRecordId() {
 
 function buildRecordKey(detected) {
   if (detected.__recordId?.raw) return `id:${detected.__recordId.raw}`;
-  const parts = ['lastName', 'street', 'zip']
-    .map((k) => cleanLabel(detected[k]?.raw) ?? '')
+  const surname = detected.lastName?.raw ?? detected.fullName?.raw;
+  const parts = [surname, detected.street?.raw, detected.zip?.raw]
+    .map((raw) => cleanLabel(raw) ?? '')
     .filter(Boolean);
   return parts.length ? parts.join('|').toLowerCase() : null;
 }
 
 function buildRecordLabel(detected) {
+  // Split first and last where the screen has them, the whole-name field
+  // where it doesn't.
   const name = [detected.firstName?.raw, detected.lastName?.raw]
     .map((s) => cleanLabel(s))
     .filter(Boolean)
-    .join(' ');
+    .join(' ') || cleanLabel(detected.fullName?.raw) || '';
   const place = [cleanLabel(detected.city?.raw), normalizeState(detected.state?.raw)]
     .filter(Boolean)
     .join(', ');
@@ -677,6 +717,16 @@ function recompute({ forceInputs = false } = {}) {
       text: `Loan type "${truncate(inputs.program.value, 24)}" was not recognised. Pick the program.`,
     });
   }
+  // A lookup stuck behind a bot check. Said plainly, because the agent is
+  // about to be looking at a verification page and should know why.
+  if (state.lookupBlocked && !inputs.propertyValue.value) {
+    result.warnings.unshift({
+      level: 'warn',
+      text: `${state.lookupBlocked.site} is asking to verify you are human. `
+        + 'The tab has been brought to the front — clear it and the value comes back here.',
+    });
+  }
+
   if (inputs.state.value && !inputs.state.normalized) {
     result.warnings.unshift({
       level: 'warn',
