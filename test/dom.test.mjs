@@ -1289,13 +1289,17 @@ test('the loan type dropdown options are readable against their popup', { skip }
 
 /* --- handing the application to Salesforce ------------------------------ */
 
-async function fillSalesforce(page, { coBorrower = false } = {}) {
+const LEAD_ADDRESS = {
+  street: '189 LEDGERWOOD LN', city: 'ROCKWOOD', state: 'TN', zip: '37854',
+};
+
+async function fillSalesforce(page, { coBorrower = false, addressParts = LEAD_ADDRESS } = {}) {
   const { port } = await setup();
   const origin = `http://127.0.0.1:${port}`;
   await page.goto(`${origin}/test/fixtures/salesforce-application.html`);
   if (coBorrower) await page.click('#add-co');
 
-  return page.evaluate(async ({ base, withCo }) => {
+  return page.evaluate(async ({ base, withCo, parts }) => {
     const { planFill } = await import(`${base}/extension/src/lib/salesforce.js`);
     const { fillForm } = await import(`${base}/extension/src/content/fill.js`);
 
@@ -1304,13 +1308,14 @@ async function fillSalesforce(page, { coBorrower = false } = {}) {
       fullName: v('RANDY D ROLLINS'),
       fico: v('712'), phone: v('3024239504'),
       income: v('$96,000'), disability: v('30%'),
-      street: v('189 LEDGERWOOD LN'), city: v('ROCKWOOD'),
-      state: v('TN'), zip: v('37854'),
+      // Deliberately absent: the real application holds one address line, and
+      // the parts travel separately. Putting them here would test a shape
+      // that never occurs.
       coFullName: v('JANE ROLLINS'),
       coFico: v('698'), coIncome: v('$54,000'),
     };
 
-    const plan = planFill(application, { includeCoBorrower: withCo });
+    const plan = planFill(application, { includeCoBorrower: withCo, addressParts: parts });
     const result = fillForm(plan.entries);
 
     const byName = (n) => document.querySelector(`[name="${n}"]`)?.value ?? null;
@@ -1330,7 +1335,7 @@ async function fillSalesforce(page, { coBorrower = false } = {}) {
         coIncome: byName('c-05'),
       },
     };
-  }, { base: origin, withCo: coBorrower });
+  }, { base: origin, withCo: coBorrower, parts: addressParts });
 }
 
 test('fills the Salesforce borrower section by label', { skip }, async () => {
@@ -1348,6 +1353,29 @@ test('fills the Salesforce borrower section by label', { skip }, async () => {
     assert.equal(values.state, 'TN');
     assert.equal(values.zip, '37854');
     assert.deepEqual(result.notFound, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the property address fills the four boxes the form asks for', { skip }, async () => {
+  // S.A.M holds the address as one line for the agent. The form wants it in
+  // four, and without the parts those four entries matched nothing — the
+  // address simply never left the panel.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    const withParts = await fillSalesforce(page, { addressParts: LEAD_ADDRESS });
+    assert.equal(withParts.values.street, '189 LEDGERWOOD LN');
+    assert.equal(withParts.values.city, 'ROCKWOOD');
+    assert.equal(withParts.values.state, 'TN');
+    assert.equal(withParts.values.zip, '37854');
+
+    // And without them the four boxes stay empty rather than being guessed at.
+    const without = await fillSalesforce(page, { addressParts: {} });
+    assert.equal(without.values.street, '');
+    assert.equal(without.values.city, '');
+    assert.equal(without.values.zip, '');
   } finally {
     await page.close();
   }

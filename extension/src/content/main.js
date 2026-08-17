@@ -982,8 +982,15 @@ function effectiveInputs() {
 
 /** Type the current application into an open Salesforce form. */
 async function sendToSalesforce() {
+  const inputs = state.lastInputs ?? {};
   const plan = planFill(state.lastApplication, {
     includeCoBorrower: state.coBorrower,
+    addressParts: {
+      street: inputs.street?.value,
+      city: inputs.city?.value,
+      state: inputs.state?.normalized ?? inputs.state?.value,
+      zip: inputs.zip?.value,
+    },
     lookupDefaults: {
       loanOfficer: state.prefs?.loanOfficer ?? '',
       transferAgent: state.prefs?.transferAgent ?? '',

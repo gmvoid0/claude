@@ -377,7 +377,15 @@ async function deliverHandoff() {
   let tabs = [];
   try {
     tabs = await chrome.tabs.query({
-      url: ['https://*.my.site.com/*', 'https://*.lightning.force.com/*', 'https://*.force.com/*'],
+      // Must stay in step with SALESFORCE_HOSTS in lib/salesforce.js. An org
+      // on *.salesforce.com had a content script listening and no tab query
+      // that could find it, so every handoff reported "no Salesforce tab".
+      url: [
+        'https://*.my.site.com/*',
+        'https://*.lightning.force.com/*',
+        'https://*.force.com/*',
+        'https://*.salesforce.com/*',
+      ],
     });
   } catch {
     return { ok: false, reason: 'no-permission' };

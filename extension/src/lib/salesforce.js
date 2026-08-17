@@ -137,12 +137,23 @@ export function plainValue(key, value) {
  * Returns { entries, lookups, missing } — plain fields to fill, lookups to
  * search and select, and fields the form wants that S.A.M never captured.
  */
-export function planFill(application, { includeCoBorrower = false, lookupDefaults = {} } = {}) {
+export function planFill(application, {
+  includeCoBorrower = false, lookupDefaults = {}, addressParts = {},
+} = {}) {
   const entries = [];
 
   // S.A.M holds one name; the form wants two. Split here rather than making
   // an agent type the same name twice.
+  // The form wants the address in four boxes; S.A.M holds it as one line for
+  // the agent and keeps the parts it was assembled from. Without them these
+  // four entries matched nothing and the property address never left the
+  // panel — a blank that looked like a mapping problem and was a plumbing one.
   const named = { ...application };
+  for (const part of ['street', 'city', 'state', 'zip']) {
+    const value = String(addressParts?.[part] ?? '').trim();
+    if (value) named[part] = { value };
+  }
+
   for (const [whole, first, last] of [
     ['fullName', 'firstName', 'lastName'],
     ['coFullName', 'coFirstName', 'coLastName'],
