@@ -22,10 +22,11 @@ CRMs, LOS screens and listing pages.
 │                CASH OUT                  │
 │               $120,681                   │
 │         ABOVE $10,000 THRESHOLD          │
-│  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░│                  │
-│  Max loan                     $391,581   │
-│  Gross equity                 $129,100   │
-│  Current LTV                     67.7%   │
+│  Now 67.7%  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░│  Cap 100%│
+├──────────────────────────────────────────┤
+│  ASSUMPTIONS            applied to every │
+│  Fee  2.15% financed             $8,419  │
+│  Finance the upfront fee            [ON] │
 ╰──────────────────────────────────────────╯
 ```
 
@@ -141,45 +142,6 @@ same number.
 Redfin works the same way. Turn the whole behaviour off in settings if you
 don't want it.
 
-## VA take-home
-
-The LTV maths says whether the equity is there. VA's residual income rule
-says whether the loan actually goes — and it is the one that kills files
-that look fine on paper. VA doesn't underwrite on debt-to-income alone; it
-requires a minimum amount left in the borrower's pocket every month after
-taxes, debts, the new payment, and the cost of running the house.
-
-The section calculates it live, in VA's own order:
-
-```
-take-home = gross monthly income − taxes
-residual  = take-home − debts − new payment − maintenance & utilities
-```
-
-Take-home appears the moment an income does — it fills itself from the
-annual figure on the application, so nobody types it twice — and each
-further figure sharpens the answer rather than gating it. The region comes
-from the lead's state, the family size is a dropdown, and the verdict is a
-green or red pill against the published minimum.
-
-| Setting | Where it comes from |
-| --- | --- |
-| Region | The lead's state — Northeast / Midwest / South / West |
-| Family size | Dropdown, 1 to 7+ |
-| Loan tier | The total loan this panel just calculated (under or over $80,000) |
-| Withholding | Settings, default 22%, overridable per borrower |
-| Maintenance | VA's own $0.14 per square foot, if you enter square footage |
-
-Above 41% DTI, VA wants residual **20% above** the table figure, and the
-panel raises the bar and says so. If square footage is blank the maintenance
-figure can't be included, and the panel says that too — leaving it out makes
-residual look better than it is, which is the direction this tool must never
-be quietly wrong in.
-
-The figures are the tables in **VA Pamphlet 26-7, Chapter 4, Topic 9**, held
-as constants in `lib/residual.js` so they can be checked against the
-handbook rather than reverse-engineered out of a spreadsheet.
-
 ### When Zillow asks you to prove you're human
 
 Call floors share one office IP, so "Press & Hold to confirm you are a
@@ -199,16 +161,17 @@ this puts it in front of the human.
 
 ### The preview window
 
-**Preview on Zillow** opens a small browser window beside the dialer showing
-the lead's address — photos, beds and baths, tax history, the things you get
-asked about mid-call. It stays where you put it, and once it's open it
-follows each new record without taking focus, so it's showing the person
-you're actually talking to. Its value flows into the panel through the same
-path as any other Zillow tab.
+A small browser window beside the dialer showing the lead's address —
+photos, beds and baths, tax history, the things you get asked about
+mid-call. It opens on its own as soon as a record has an address, so the
+property is on screen before you think to ask for it, and it follows each
+new call without taking focus. Its value flows into the panel through the
+same path as any other Zillow tab.
 
-Nothing opens until you click it, and closing the window turns the button
-back off. If you'd rather not have the button at all, turn it off under
-Behaviour in settings.
+**Preview on Zillow** / **Close preview** on the panel controls it. Close it
+and it stays closed — it will not reopen on the next call until you press
+the button again, because shutting it once should be enough. Both the button
+and the automatic opening can be turned off under Behaviour in settings.
 
 It is a real browser window rather than a frame embedded in the panel, and
 that is not a shortcut. Zillow sends `X-Frame-Options: DENY` specifically so
@@ -218,6 +181,27 @@ security control belonging to someone else, and removing it to extract data
 is a different act from reading a page you have open. A popup window is the
 same navigation you make by hand today, with nothing bypassed, and it looks
 the same.
+
+## Assumptions
+
+Every switch that moves the cash-out figure is on the panel, under
+**Assumptions**, and every one of them is a standing assumption: change it
+mid-call and it applies to this record immediately and to every call after
+it. The same switches live in Settings, and the two stay in step.
+
+| | What it does |
+| --- | --- |
+| LTV override | Caps every program at one number instead of its own maximum |
+| Loan limit | A county or investor ceiling on the base loan |
+| Closing costs | Deducted from the borrower's proceeds |
+| Fee | Read-only: what the current switches actually charge, and whether it is financed or due at closing |
+| Finance the upfront fee | VA funding fee or FHA UFMIP into the loan, or paid at closing |
+| VA funding fee waived | Service-connected disability. Raises cash-out, so it is off unless you mean it |
+| VA subsequent use | The 3.3% tier rather than 2.15% first use |
+| Value is an estimate | Applies the AVM haircut to hand-typed values too |
+
+A toggle you have to open a settings page to reach is a toggle nobody flips
+mid-call, which was the point of moving them here.
 
 ## Interface
 
@@ -389,7 +373,12 @@ are toggleable per program in settings.
 
 The funding fee is waived for veterans receiving or eligible for VA
 compensation for a service-connected disability — tick **VA funding fee
-exempt** and the full 100% becomes available.
+waived** and the full 100% becomes available.
+
+Switching **Finance the upfront fee** off does not make the fee disappear:
+it is due at closing, comes out of the proceeds, and is deducted from the
+cash figure. On a $400,000 VA cash-out that is $8,600 — the difference
+between the two arrangements is real money, and both are quoted honestly.
 
 Every number in that table is editable in **Rules & settings**. Treat the
 defaults as a starting point to check against your own matrix, not as

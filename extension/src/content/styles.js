@@ -878,54 +878,37 @@ details.adv > *:not(summary):last-child { padding-bottom: 12px; }
 details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margin-bottom: 11px; }
 
 /* ------------------------------------------------------------------ *
- * VA take-home
+ * Standing assumptions
  * ------------------------------------------------------------------ */
 
-.va-region {
-  margin-left: 8px;
-  font-size: 10px;
+.asm-note {
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 9.5px;
   font-weight: 600;
   letter-spacing: .02em;
   color: var(--label-3);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.va-region:empty { display: none; }
 
-/* Take-home is the number the borrower recognises, so it gets the weight
-   inside this section the way cash-out does in the panel overall. */
-.va-head {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  margin-top: 11px;
-  padding-top: 10px;
-  border-top: 0.5px solid var(--separator);
-}
-.va-head .cap {
-  font-size: 10px;
+/* The fee sits in a field row but is an output, so it reads as a figure
+   rather than as something to type in. */
+.feeval {
+  padding: 8px 10px;
+  font-size: 14px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: var(--label-3);
-}
-.va-head .num {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  color: var(--label-2);
+  background: var(--fill);
+  border: 0.5px solid transparent;
+  border-radius: var(--r-field);
 }
-.va-head .num.good { color: var(--green-deep); }
-.va-head .num.none { color: var(--label-3); }
-.va-head .pill { margin-top: 0; margin-left: auto; flex: none; }
+/* Paid at closing rather than financed: it comes out of the borrower's
+   proceeds, so it is coloured like something that costs them. */
+.feeval.out { color: var(--orange-deep); }
 
-details.va .grid { margin-top: 9px; }
-details.va .cell .v.good { color: var(--green-deep); }
-details.va .cell .v.bad  { color: var(--red-deep); }
-details.va .msgs { margin-top: 9px; }
-details.va .msgs:empty { display: none; }
+details.asm .check:first-of-type { margin-top: 4px; }
+details.asm .check span { flex: 1; min-width: 0; }
 
 /* --- iOS switch --- */
 .check {

@@ -817,75 +817,63 @@ test('collapsing leaves the title bar and nothing else', { skip }, async () => {
   }
 });
 
-test('VA take-home calculates live as the figures go in', { skip }, async () => {
+test('the assumptions on the panel move the figure and stick', { skip }, async () => {
   const { browser } = await setup();
   const page = await browser.newPage();
   try {
-    await bootPanel(page, 'agent-screen.html');   // TN, VA loan, $270,900 balance
+    await bootPanel(page, 'agent-screen.html');   // VA, TN, $270,900 balance
 
     const out = await page.evaluate(async () => {
       const root = document.getElementById('__sam_panel_host__').shadowRoot;
-      const settle = () => new Promise((r) => setTimeout(r, 60));
-      const text = (sel) => root.querySelector(sel)?.textContent?.trim() ?? null;
+      const settle = () => new Promise((r) => setTimeout(r, 120));
+      const cash = () => root.querySelector('[data-out=cash]').textContent.trim();
 
-      const type = async (sel, value) => {
-        const el = root.querySelector(sel);
-        el.value = value;
-        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+      const value = root.querySelector('[data-in=propertyValue]');
+      value.value = '400000';
+      value.dispatchEvent(new Event('input', { bubbles: true }));
+      await settle();
+      const financed = cash();
+
+      const toggle = async (key) => {
+        const el = root.querySelector(`[data-ovr=${key}]`);
+        el.checked = !el.checked;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
         await settle();
       };
 
-      const shot = () => ({
-        takeHome: text('[data-va=takeHome]'),
-        residual: text('[data-va=residual]'),
-        required: text('[data-va=required]'),
-        dti: text('[data-va=dti]'),
-        verdict: text('[data-va=verdict]'),
-        region: text('[data-va=region]'),
-      });
+      // Paying the funding fee at closing instead of financing it.
+      await toggle('financeFee');
+      const atClosing = cash();
 
-      const empty = shot();
+      // Waiving it altogether.
+      await toggle('feeExempt');
+      const waived = cash();
 
-      // Income alone must already say something.
-      await type('[data-va=income]', '8000');
-      const income = shot();
+      const stored = await window.chrome.storage.local.get('prefs');
 
-      await type('[data-va=debts]', '650');
-      await type('[data-va=payment]', '2100');
-      await type('[data-va=sqft]', '1800');
-      await type('[data-va=family]', '3');
-      const full = shot();
-
-      // A payment this size puts DTI well past the benchmark and leaves
-      // $738 residual against a raised $1,067 requirement.
-      await type('[data-va=payment]', '4600');
-      const short = shot();
-
-      return { empty, income, full, short };
+      return {
+        financed,
+        atClosing,
+        waived,
+        feeShown: root.querySelector('[data-ovr=feeAmount]').textContent.trim(),
+        prefs: stored.prefs ?? null,
+      };
     });
 
-    assert.equal(out.empty.takeHome, '—');
-    assert.match(out.empty.verdict, /income/i);
+    assert.equal(out.financed, '$120,681', 'fee financed inside the 100% cap');
+    // 400,000 − 270,900 − 8,600 funding fee due at closing.
+    assert.equal(out.atClosing, '$120,500', 'an unfinanced fee comes out of the proceeds');
+    assert.equal(out.waived, '$129,100', 'no fee at all is the full equity');
+    assert.equal(out.feeShown, '—', 'and nothing is charged once waived');
 
-    assert.equal(out.income.takeHome, '$6,240', '8000 less 22% withholding');
-    assert.match(out.income.verdict, /payment/i, 'no verdict without a payment');
-
-    assert.equal(out.full.residual, '$3,238', '6240 − 650 − 2100 − 252 maintenance');
-    assert.equal(out.full.required, '$889', 'South, family of three, loan over $80k');
-    assert.match(out.full.region, /South/);
-    assert.match(out.full.region, /family of 3/);
-    assert.equal(out.full.dti, '34.4%');
-    assert.match(out.full.verdict, /passes/i);
-
-    assert.equal(out.short.residual, '$738');
-    assert.equal(out.short.required, '$1,067', 'above 41% DTI the table figure gains 20%');
-    assert.match(out.short.verdict, /short \$329/i, 'the gap is named, not just failed');
+    assert.equal(out.prefs.financeFee, false, 'the switch is a standing assumption');
+    assert.equal(out.prefs.feeExempt, true);
   } finally {
     await page.close();
   }
 });
 
-test('the property preview opens on demand and then follows the record', { skip }, async () => {
+test('the property preview is up from the start, and stays shut once closed', { skip }, async () => {
   const { browser } = await setup();
   const page = await browser.newPage();
   try {
@@ -896,7 +884,7 @@ test('the property preview opens on demand and then follows the record', { skip 
       const btn = root.querySelector('[data-act=mini]');
       const settle = () => new Promise((r) => setTimeout(r, 150));
 
-      // Intercept the worker so the window is never actually opened.
+      // Intercept the worker so no window is actually opened.
       const sent = [];
       window.chrome.runtime.sendMessage = async (msg) => {
         sent.push(msg);
@@ -905,60 +893,60 @@ test('the property preview opens on demand and then follows the record', { skip 
         return {};
       };
 
-      const shown = btn.getBoundingClientRect().width > 0;
-      const closedLabel = btn.textContent;
-
-      // A new record while the preview is closed must not open anything.
-      window.loadNextRecord({
-        id: '7164888', first: 'DALE', last: 'PARK', address: '12 BIRCH RD',
-        city: 'RENO', state: 'NV', zip: '89501', balance: '210000', loanType: 'FHA',
-      });
-      await settle();
-      const unsolicited = sent.filter((m) => m.type === 'SAM_OPEN_MINI').length;
+      // It opened itself on the record that was already on screen.
+      const openedOnLoad = btn.textContent;
 
       btn.click();
       await settle();
-      const opened = sent.find((m) => m.type === 'SAM_OPEN_MINI') ?? null;
-      const openLabel = btn.textContent;
+      const afterClose = btn.textContent;
 
-      // Next call: the preview should move with it, without taking focus.
+      // A closed preview must not come back on the next call.
       window.loadNextRecord({
         id: '7164777', first: 'MARIA', last: 'CHEN', address: '44 OAK ST',
         city: 'AUSTIN', state: 'TX', zip: '78701', balance: '318450', loanType: 'CV',
       });
       await settle();
-      const followed = sent.filter((m) => m.type === 'SAM_OPEN_MINI').at(-1) ?? null;
+      const reopened = sent.filter((m) => m.type === 'SAM_OPEN_MINI').length;
 
+      // Asking for it back cancels that.
       btn.click();
       await settle();
+      const asked = sent.filter((m) => m.type === 'SAM_OPEN_MINI').at(-1) ?? null;
+
+      // And from then on it follows each new call again.
+      window.loadNextRecord({
+        id: '7164666', first: 'DALE', last: 'PARK', address: '12 BIRCH RD',
+        city: 'RENO', state: 'NV', zip: '89501', balance: '210000', loanType: 'FHA',
+      });
+      await settle();
+      const followed = sent.filter((m) => m.type === 'SAM_OPEN_MINI').at(-1) ?? null;
 
       return {
-        shown,
-        closedLabel,
-        unsolicited,
-        opened,
-        openLabel,
-        followed,
+        openedOnLoad,
+        afterClose,
         closeSent: sent.some((m) => m.type === 'SAM_CLOSE_MINI'),
+        reopened,
+        asked,
+        followed,
         finalLabel: btn.textContent,
       };
     });
 
-    assert.equal(out.shown, true, 'the button is offered once an address is known');
-    assert.match(out.closedLabel, /preview/i);
-    assert.equal(out.unsolicited, 0, 'nothing opens until the agent asks for it');
-
-    assert.ok(out.opened, 'clicking asks the worker for a window');
-    assert.match(out.opened.url, /zillow\.com/);
-    assert.match(decodeURIComponent(out.opened.url), /12 BIRCH RD/);
-    assert.match(out.openLabel, /close/i, 'the button tracks what is actually open');
-
-    assert.match(decodeURIComponent(out.followed.url), /44 OAK ST/,
-      'an open preview follows the next call');
-    assert.equal(out.followed.focused, false, 'and never steals focus mid-call');
-
+    assert.match(out.openedOnLoad, /close/i, 'the preview is up without being asked for');
     assert.equal(out.closeSent, true);
-    assert.match(out.finalLabel, /preview/i);
+    assert.match(out.afterClose, /preview/i);
+
+    assert.equal(out.reopened, 0, 'closing it once should be enough');
+
+    assert.ok(out.asked, 'the button brings it back');
+    assert.match(decodeURIComponent(out.asked.url), /44 OAK ST/, 'on the record now on screen');
+    assert.notEqual(out.asked.focused, false,
+      'a click is a request to look at it, so that one does come forward');
+
+    assert.match(decodeURIComponent(out.followed.url), /12 BIRCH RD/, 'and follows the next call');
+    assert.equal(out.followed.focused, false,
+      'but a call landing never pulls focus off the dialer');
+    assert.match(out.finalLabel, /close/i);
   } finally {
     await page.close();
   }

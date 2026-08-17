@@ -42,11 +42,17 @@ export const DEFAULT_PREFS = {
    */
   autoLookup: false,
   /**
-   * Offer the mini browser — a small always-on-top-ish popup window showing
-   * the lead's address on Zillow. Nothing opens until the agent clicks the
-   * button; this only decides whether the button is there at all.
+   * Offer the mini browser — a small popup window showing the lead's address
+   * on Zillow. This decides whether the button is there at all.
    */
   miniBrowser: true,
+  /**
+   * Open it on its own as soon as a record has an address, so the property
+   * is on screen before the agent thinks to ask for it. Closing the window
+   * stops it re-opening until the button is pressed again — an agent who
+   * shut it deliberately should not have to keep shutting it.
+   */
+  miniBrowserAuto: true,
   /**
    * Standing assumptions. These live here rather than on the panel because
    * they are shop policy, not per-call decisions — they should apply to every
@@ -64,14 +70,6 @@ export const DEFAULT_PREFS = {
   loanOfficer: '',
   transferAgent: '',
   loanOfficerAssistant: '',
-
-  /**
-   * Withholding assumed when working out take-home pay, as a percentage.
-   * A standing assumption rather than a per-call one: it is a shop's rule of
-   * thumb, and an agent typing it on every call would get it wrong sooner or
-   * later. Overridable on the panel for the borrower who is clearly different.
-   */
-  withholdingRate: 22,
 
   ltvOverride: '',           // blank = use the program maximum
   loanLimit: '',             // blank = no county / investor ceiling

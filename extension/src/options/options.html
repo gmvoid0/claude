@@ -161,12 +161,19 @@
       Offer the property preview window
       <span class="help">
         Puts a "Preview on Zillow" button on the panel. It opens a small
-        browser window beside the dialer showing the lead's address, and once
-        it is open it follows each new record without taking focus. Nothing
-        opens until you click it, and closing the window turns the button
-        back off. It is an ordinary window in your own browser session, not
-        an embedded frame — Zillow refuses to be embedded, and working around
-        that is not something this extension does.
+        browser window beside the dialer showing the lead's address, and
+        follows each new record without taking focus. It is an ordinary
+        window in your own browser session, not an embedded frame — Zillow
+        refuses to be embedded, and working around that is not something this
+        extension does.
+      </span>
+    </label>
+    <label class="check"><input type="checkbox" id="miniBrowserAuto" />
+      Open the preview automatically
+      <span class="help">
+        The property is on screen before you think to ask for it, rather than
+        after a click. Closing the window stops it opening on its own again
+        until you press the button — shutting it once should be enough.
       </span>
     </label>
     <label class="check"><input type="checkbox" id="readValuationSites" />

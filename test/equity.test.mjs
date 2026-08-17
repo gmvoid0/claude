@@ -143,6 +143,170 @@ test('a loan limit caps the base loan below the LTV maximum', () => {
   assert.ok(r.warnings.some((w) => /loan limit/i.test(w.text)));
 });
 
+/* --- the fee that is not financed --------------------------------------- */
+
+test('an upfront fee paid at closing comes out of the cash', () => {
+  // The bug this covers: switching off "finance the fee" left the fee out of
+  // the calculation entirely, so the panel showed the borrower $8,600 more
+  // than they would receive. Wrong in the optimistic direction, on the number
+  // the agent says out loud.
+  const financed = computeEquity(BASE);
+  const atClosing = computeEquity({ ...BASE, financeFee: false });
+
+  assert.equal(atClosing.maxBaseLoan, 400000, 'the loan itself reaches the full 100%');
+  assert.equal(atClosing.financedFee, 0);
+  assert.equal(atClosing.unfinancedFee, 8600, '2.15% of the base loan, due at closing');
+  assert.equal(atClosing.estimatedCashToBorrower, 400000 - 270900 - 8600);
+
+  assert.ok(atClosing.estimatedCashToBorrower < financed.estimatedCashToBorrower,
+    'and it must not look better than financing it');
+  assert.ok(atClosing.warnings.some((w) => /due at closing/i.test(w.text)));
+});
+
+test('every dollar of the loan is accounted for, on every program', () => {
+  // base loan = liens + closing costs + any fee paid at closing + cash out.
+  // If this ever fails, money has been invented or lost somewhere.
+  for (const program of ['VA', 'FHA', 'CONV', 'USDA']) {
+    for (const financeFee of [true, false]) {
+      for (const closingCosts of [0, 6500]) {
+        const r = computeEquity({ ...BASE, program, financeFee, closingCosts });
+        const accounted = r.totalLiens + r.closingCosts + r.unfinancedFee
+          + r.estimatedCashToBorrower;
+        assert.ok(Math.abs(accounted - r.maxBaseLoan) < 0.01,
+          `${program} financeFee=${financeFee} costs=${closingCosts}: `
+          + `${accounted} vs base ${r.maxBaseLoan}`);
+      }
+    }
+  }
+});
+
+test('a waived fee is charged neither way', () => {
+  const r = computeEquity({ ...BASE, financeFee: false, feeExempt: true });
+  assert.equal(r.unfinancedFee, 0);
+  assert.equal(r.financedFee, 0);
+  assert.equal(r.estimatedCashToBorrower, 129100);
+});
+
+test('FHA UFMIP financed on top costs the borrower no proceeds', () => {
+  // It rides above the 80% base rather than being squeezed inside it, so
+  // unlike VA it does not reduce what the borrower walks away with.
+  const financed = computeEquity({ ...BASE, program: 'FHA' });
+  assert.equal(financed.maxBaseLoan, 320000);
+  assert.equal(financed.unfinancedFee, 0);
+  assert.equal(financed.estimatedCashToBorrower, 320000 - 270900);
+
+  const atClosing = computeEquity({ ...BASE, program: 'FHA', financeFee: false });
+  assert.equal(atClosing.maxBaseLoan, 320000, 'the base loan is the same either way');
+  assert.equal(atClosing.unfinancedFee, 5600, '1.75% of 320,000');
+  assert.equal(atClosing.estimatedCashToBorrower, 320000 - 270900 - 5600);
+});
+
+test('break-even accounts for how the fee is being paid', () => {
+  // Three different arrangements, three different answers, and each has to
+  // actually break even — a break-even figure that is wrong sends an agent
+  // back to a lead that is still dead.
+  for (const input of [
+    { ...BASE, financeFee: true },                    // VA, fee inside the cap
+    { ...BASE, financeFee: false },                   // VA, fee at closing
+    { ...BASE, program: 'FHA', financeFee: false },   // FHA, fee at closing
+    { ...BASE, program: 'CONV' },                     // no fee at all
+    { ...BASE, closingCosts: 6500 },
+  ]) {
+    const r = computeEquity(input);
+    assert.ok(r.minValueToBreakEven > 0, 'a break-even value is offered');
+
+    const at = computeEquity({ ...input, propertyValue: r.minValueToBreakEven });
+    assert.ok(at.estimatedCashToBorrower >= 0,
+      `${input.program} financeFee=${input.financeFee}: cash ${at.estimatedCashToBorrower} at break-even`);
+
+    const below = computeEquity({ ...input, propertyValue: r.minValueToBreakEven - 5000 });
+    assert.ok(below.estimatedCashToBorrower < 0, 'and below it the deal is dead');
+  }
+});
+
+test('no break-even is offered when a loan limit is what binds', () => {
+  // Past a hard loan limit a higher value buys no more loan, so there is no
+  // value at which the deal comes back — quoting one would be a lie.
+  const r = computeEquity({ ...BASE, propertyValue: 300000, firstLien: 290000, loanLimit: 250000 });
+
+  assert.equal(r.maxBaseLoan, 250000);
+  assert.ok(r.estimatedCashToBorrower < 0);
+  assert.equal(r.minValueToBreakEven, null);
+});
+
+/* --- invariants, over the whole input space ------------------------------ */
+
+/** Deterministic PRNG, so a failure is reproducible rather than a rumour. */
+function seeded(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+test('the things that must always hold, hold across 4,000 scenarios', () => {
+  const rand = seeded(20260817);
+  const pick = (list) => list[Math.floor(rand() * list.length)];
+
+  for (let i = 0; i < 4000; i++) {
+    const input = {
+      propertyValue: Math.round(60000 + rand() * 1400000),
+      firstLien: Math.round(rand() * 900000),
+      secondLien: rand() < 0.25 ? Math.round(rand() * 90000) : 0,
+      program: pick(['VA', 'FHA', 'CONV']),
+      state: pick(['TN', 'TX', 'CA', 'NY', null]),
+      closingCosts: pick([0, 4500, 12000]),
+      financeFee: rand() < 0.5,
+      feeExempt: rand() < 0.2,
+      subsequentUse: rand() < 0.2,
+      valueIsAvm: rand() < 0.3,
+      loanLimit: rand() < 0.15 ? Math.round(200000 + rand() * 600000) : null,
+    };
+    const r = computeEquity(input, mergeRules({ avmHaircut: 0.05 }));
+    const where = `#${i} ${JSON.stringify(input)}`;
+
+    // 1. The base loan never exceeds the LTV ceiling on the screening value.
+    assert.ok(r.maxBaseLoan <= r.propertyValue * r.maxLtv + 0.01, `cap breached: ${where}`);
+
+    // 2. When the fee is financed inside the cap, the *total* loan is what
+    //    must fit under it — this is the whole point of the VA arithmetic.
+    if (r.feeFinanced && r.upfrontFeeRate > 0 && r.program === 'VA') {
+      assert.ok(r.totalLoanAmount <= r.propertyValue * r.maxLtv + 0.01,
+        `total loan breached the cap: ${where}`);
+    }
+
+    // 3. Nothing is invented or lost between the loan and the borrower.
+    const accounted = r.totalLiens + r.closingCosts + r.unfinancedFee + r.estimatedCashToBorrower;
+    assert.ok(Math.abs(accounted - r.maxBaseLoan) < 0.011, `money went missing: ${where}`);
+
+    // 4. Cash out can never exceed the equity when the cap is 100% or less.
+    if (r.maxLtv <= 1) {
+      assert.ok(r.estimatedCashToBorrower <= r.grossEquity + 0.01,
+        `cash exceeded equity: ${where}`);
+    }
+
+    // 5. A quoted break-even value must actually break even.
+    if (r.minValueToBreakEven != null) {
+      const at = computeEquity(
+        { ...input, propertyValue: r.minValueToBreakEven },
+        mergeRules({ avmHaircut: 0.05 }),
+      );
+      assert.ok(at.estimatedCashToBorrower >= 0,
+        `break-even ${r.minValueToBreakEven} still short by `
+        + `${at.estimatedCashToBorrower}: ${where}`);
+    }
+
+    // 6. Figures are either usable numbers or explicitly absent. NaN reaching
+    //    the panel would render as a blank or "$NaN" mid-call.
+    for (const key of ['maxBaseLoan', 'financedFee', 'unfinancedFee', 'totalLoanAmount',
+      'grossEquity', 'currentLtv', 'estimatedCashToBorrower', 'minValueToBreakEven']) {
+      const v = r[key];
+      assert.ok(v == null || Number.isFinite(v), `${key} was ${v}: ${where}`);
+    }
+  }
+});
+
 test('a manual LTV override beats the program default', () => {
   const r = computeEquity({ ...BASE, ltvOverride: 0.9 });
 

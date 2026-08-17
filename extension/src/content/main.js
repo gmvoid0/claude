@@ -17,7 +17,6 @@
 
 import { collectCandidates, assignFields, readValue, FIELDS, cleanLabel } from '../lib/detect.js';
 import { computeEquity } from '../lib/equity.js';
-import { computeTakeHome, monthlyFromAnnual, DEFAULT_TAX_RATE } from '../lib/residual.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
@@ -64,7 +63,6 @@ const state = {
   },
   avmTouched: false,     // true once the agent sets the AVM flag by hand
   app: {},               // application fields the agent typed
-  takeHome: {},          // VA take-home fields the agent typed
   appDraft: null,        // unsaved application carried over from the last record
   coBorrower: false,     // second borrower section shown
   frameFields: {},       // fields harvested from child frames
@@ -72,6 +70,7 @@ const state = {
   lookupBlocked: null,   // a lookup page is asking for human verification
   miniOpen: false,       // the mini browser window is up
   miniAddress: null,     // the address it is currently showing
+  miniDismissed: false,  // the agent closed it; stop opening it on its own
   recordKey: null,
   recordLabel: '',
   lastSignature: '',
@@ -180,9 +179,11 @@ function handleMessage(msg, _sender, sendResponse) {
       return;
 
     case 'SAM_MINI_CLOSED':
-      // Closed with the window's own button rather than ours.
+      // Closed with the window's own button rather than ours. Same meaning:
+      // they want it gone, so it does not come back on the next record.
       state.miniOpen = false;
       state.miniAddress = null;
+      state.miniDismissed = true;
       state.panel?.setMiniOpen(false);
       return;
 
@@ -201,6 +202,31 @@ async function reloadSettings() {
   state.overrides = overridesFromPrefs(state.prefs);
   state.avmTouched = false;
   scheduleRecompute();
+}
+
+/**
+ * Panel key -> the preference that stores it.
+ *
+ * Closing costs is the one that differs: the panel calls it what it is, the
+ * setting has always been named for the fact that it is a default.
+ */
+const OVERRIDE_PREFS = {
+  ltvOverride: 'ltvOverride',
+  loanLimit: 'loanLimit',
+  closingCosts: 'defaultClosingCosts',
+  financeFee: 'financeFee',
+  feeExempt: 'feeExempt',
+  subsequentUse: 'subsequentUse',
+  valueIsAvm: 'valueIsAvm',
+};
+
+async function persistOverride(key, value) {
+  const pref = OVERRIDE_PREFS[key];
+  if (!pref) return;
+  try {
+    await setPrefs({ [pref]: value });
+    state.prefs = { ...state.prefs, [pref]: value };
+  } catch { /* storage unavailable; it still applies to this session */ }
 }
 
 /**
@@ -333,7 +359,11 @@ async function activate() {
       onOverrideChange: (key, value) => {
         state.overrides[key] = value;
         if (key === 'valueIsAvm') state.avmTouched = true;
+        // Recompute first so the figure moves under the agent's finger, then
+        // persist. These are standing assumptions: one flipped on the panel
+        // is meant to hold for every call after it, not just this one.
         recompute();
+        persistOverride(key, value);
       },
       onPick: (field) => beginPick(field),
       onApplicationChange: (field, value) => {
@@ -373,14 +403,12 @@ async function activate() {
         recompute();
       },
       onTakeHomeChange: (field, value) => {
-        state.takeHome[field] = value;
         recompute();
       },
       onCopy: () => copySummary(),
       onReset: () => {
         state.manual = {};
         state.app = {};
-        state.takeHome = {};
         state.overrides = overridesFromPrefs(state.prefs);
         state.avmTouched = false;
         scan(true);
@@ -534,7 +562,6 @@ function scan(force) {
         };
       }
       state.app = {};
-      state.takeHome = {};
       state.manual = {};
       state.coBorrower = false;
       state.overrides = overridesFromPrefs(state.prefs);
@@ -737,16 +764,11 @@ function recompute({ forceInputs = false } = {}) {
     coBorrower: state.coBorrower,
   });
 
-  const { takeHome, fields: takeHomeFields } = takeHomeState(inputs, result, application);
-
   state.lastResult = result;
   state.lastInputs = inputs;
   state.lastApplication = application;
-  state.lastTakeHome = takeHome;
 
   state.panel.render({
-    takeHome,
-    takeHomeFields,
     inputs,
     overrides: state.overrides,
     result,
@@ -823,9 +845,13 @@ async function toggleMiniBrowser() {
     catch { /* worker asleep; the window is orphaned but harmless */ }
     state.miniOpen = false;
     state.miniAddress = null;
+    state.miniDismissed = true;
     state.panel?.setMiniOpen(false);
     return;
   }
+
+  // Asking for it back cancels the dismissal.
+  state.miniDismissed = false;
 
   const address = leadAddress(state.lastInputs ?? effectiveInputs());
   if (!address) {
@@ -848,17 +874,32 @@ async function toggleMiniBrowser() {
 }
 
 /**
- * Point an open preview at the record now on screen.
+ * Keep the preview pointed at the record now on screen, and open it in the
+ * first place if it is meant to be up.
  *
- * Unfocused: the agent is typing into the dialer, and a window stealing
- * focus mid-call is how you lose a keystroke into the wrong field.
+ * Always unfocused: the agent is typing into the dialer, and a window
+ * stealing focus mid-call is how you lose a keystroke into the wrong field.
+ * The window appears beside them, it does not take over.
+ *
+ * `miniDismissed` is the whole reason this does not become a nuisance. An
+ * agent who closes the preview has said something, and a tool that reopens
+ * it on the next call has not listened. It stays shut until they press the
+ * button again.
  */
 function followMiniBrowser(inputs) {
-  if (!state.miniOpen) return;
+  const wanted = state.miniOpen
+    || (state.prefs?.miniBrowser !== false
+      && state.prefs?.miniBrowserAuto !== false
+      && !state.miniDismissed);
+  if (!wanted) return;
+
   const address = leadAddress(inputs);
   if (!address || address === state.miniAddress) return;
 
   state.miniAddress = address;
+  state.miniOpen = true;
+  state.panel?.setMiniOpen(true);
+
   try {
     chrome.runtime.sendMessage({
       type: 'SAM_OPEN_MINI',
@@ -1057,62 +1098,6 @@ async function beginPick(fieldKey) {
   }
 }
 
-/* ------------------------------------------------------------------ *
- * VA take-home
- * ------------------------------------------------------------------ */
-
-/**
- * Assemble the take-home calculation from the record, the application and
- * whatever the agent has typed into the section itself.
- *
- * Income is the field worth wiring properly: an agent who has already put an
- * annual figure on the application should not be asked for it again in a
- * different unit. It arrives here as a monthly figure they can overwrite.
- */
-function takeHomeState(inputs, result, application) {
-  const typed = state.takeHome;
-
-  const annual = parseMoney(application?.income?.value);
-  const autoMonthly = monthlyFromAnnual(annual);
-  const defaultTaxRate = parsePercent(String(state.prefs?.withholdingRate ?? ''))
-    ?? DEFAULT_TAX_RATE;
-
-  const fields = {
-    income: {
-      value: typed.income ?? '',
-      source: typed.income != null ? 'manual' : 'auto',
-      placeholder: autoMonthly ? formatMoney(autoMonthly) : '$0',
-    },
-    debts: { value: typed.debts ?? '', source: 'manual', placeholder: '$0' },
-    family: { value: typed.family ?? '1', source: typed.family != null ? 'manual' : 'auto' },
-    payment: {
-      value: typed.payment ?? '',
-      source: 'manual',
-      // The payment on the screen is the one being replaced, but it is the
-      // closest thing to a reference point an agent has mid-call.
-      placeholder: inputs.payment?.num ? `now ${formatMoney(inputs.payment.num)}` : 'PITI',
-    },
-    taxRate: {
-      value: typed.taxRate ?? '',
-      source: 'manual',
-      placeholder: formatPercent(defaultTaxRate, 0),
-    },
-    sqft: { value: typed.sqft ?? '', source: 'manual', placeholder: '—' },
-  };
-
-  const takeHome = computeTakeHome({
-    grossMonthly: parseMoney(typed.income) ?? autoMonthly,
-    taxRate: parsePercent(typed.taxRate) ?? defaultTaxRate,
-    monthlyDebts: parseMoney(typed.debts),
-    housingPayment: parseMoney(typed.payment),
-    squareFeet: parseMoney(typed.sqft),
-    state: inputs.state?.normalized,
-    familySize: Number(typed.family ?? 1),
-    loanAmount: result?.totalLoanAmount,
-  });
-
-  return { takeHome, fields };
-}
 
 /** Store a completed application locally. */
 async function persistApplication(application, label) {
@@ -1192,24 +1177,6 @@ function summaryText(r, inputs, recordLabel) {
     `Closing costs:  ${formatMoney(r.closingCosts)}`,
     `CASH OUT:       ${formatMoney(r.estimatedCashToBorrower)}`,
   );
-  const t = state.lastTakeHome;
-  if (t?.takeHome != null) {
-    lines.push(
-      '',
-      `Take-home:      ${formatMoney(t.takeHome)}/mo`,
-    );
-    if (t.residual != null) lines.push(`Residual:       ${formatMoney(t.residual)}/mo`);
-    if (t.required != null) {
-      lines.push(
-        `VA minimum:     ${formatMoney(t.required)}`
-          + `${t.requirement ? `  (${t.requirement.regionLabel}, family of ${t.requirement.familySize})` : ''}`,
-      );
-    }
-    if (t.meets != null) {
-      lines.push(`Residual test:  ${t.meets ? 'PASSES' : `SHORT ${formatMoney(t.shortfall)}`}`);
-    }
-  }
-
   for (const w of r.warnings ?? []) lines.push(`! ${w.text}`);
   lines.push('', 'Estimate only — not a quote or commitment to lend.');
   return lines.join('\n');

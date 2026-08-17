@@ -94,14 +94,8 @@ export class Panel {
       cash: q('[data-out=cash]'),
       verdict: q('[data-out=verdict]'),
 
-      vaRegion: q('[data-va=region]'),
-      vaTakeHome: q('[data-va=takeHome]'),
-      vaVerdict: q('[data-va=verdict]'),
-      vaResidual: q('[data-va=residual]'),
-      vaRequired: q('[data-va=required]'),
-      vaRequiredLabel: q('[data-va=requiredLabel]'),
-      vaDti: q('[data-va=dti]'),
-      vaMsgs: q('[data-va=msgs]'),
+      feeRate: q('[data-ovr=feeRate]'),
+      feeAmount: q('[data-ovr=feeAmount]'),
 
       barFill: q('.ltvbar .fill'),
       barCap: q('.ltvbar .cap'),
@@ -151,11 +145,14 @@ export class Panel {
     // from the template should cost that one button, not the whole panel —
     // this threw on a single absent element and took the calculator down with
     // it, mid-call, for the sake of a handoff button.
-    for (const key of ['income', 'debts', 'family', 'payment', 'taxRate', 'sqft']) {
-      const el = this.root.querySelector(`[data-va=${key}]`);
-      if (!el) continue;
-      const evt = el.tagName === 'SELECT' ? 'change' : 'input';
-      el.addEventListener(evt, () => this.h.onTakeHomeChange?.(key, el.value));
+    for (const key of ['ltvOverride', 'loanLimit', 'closingCosts',
+      'financeFee', 'feeExempt', 'subsequentUse', 'valueIsAvm']) {
+      const el = this.root.querySelector(`[data-ovr=${key}]`);
+      if (!el || !el.tagName.match(/^(INPUT|SELECT)$/)) continue;
+      const box = el.type === 'checkbox';
+      el.addEventListener(box ? 'change' : 'input', () => {
+        this.h.onOverrideChange?.(key, box ? el.checked : el.value);
+      });
     }
 
     els.btnApp?.addEventListener('click', () => this.toggleDrawer());
@@ -535,7 +532,7 @@ export class Panel {
     // An assumed loan type is a question for the borrower, not a detail.
     els.programRow.classList.toggle('flagged', !!result?.programAssumed);
 
-    this.renderTakeHome(state);
+    this.renderOverrides(overrides, result);
 
     els.resultBox.dataset.tone = !hasValue ? 'idle'
       : result.meetsThreshold ? 'good'
@@ -555,65 +552,43 @@ export class Panel {
   }
 
   /**
-   * VA take-home.
+   * The standing assumptions.
    *
-   * Take-home appears as soon as an income does, and each further figure
-   * sharpens the answer rather than gating it. Waiting for a complete
-   * picture would mean showing nothing for most of the call, which on a
-   * dialer is the same as not being there.
+   * Written into the controls rather than read out of them, so the panel
+   * always shows what the calculation is actually using. An agent flipping
+   * one of these mid-call is changing shop policy from here on, which is
+   * what the section says on its face.
    */
-  renderTakeHome(state) {
-    const { els } = this;
-    const t = state.takeHome;
-    if (!t) return;
-
-    // Values the agent has typed win; everything else follows the record.
-    for (const [key, el] of [
-      ['income', this.root.querySelector('[data-va=income]')],
-      ['debts', this.root.querySelector('[data-va=debts]')],
-      ['family', this.root.querySelector('[data-va=family]')],
-      ['payment', this.root.querySelector('[data-va=payment]')],
-      ['taxRate', this.root.querySelector('[data-va=taxRate]')],
-      ['sqft', this.root.querySelector('[data-va=sqft]')],
-    ]) {
-      if (!el) continue;
-      const entry = state.takeHomeFields?.[key];
-      if (entry?.source === 'auto' || state.forceInputs) {
-        this.setInput(el, entry?.value ?? '', state.forceInputs);
-      }
-      if (el.tagName === 'INPUT' && entry?.placeholder) el.placeholder = entry.placeholder;
+  renderOverrides(overrides = {}, result = null) {
+    for (const [key, value] of Object.entries({
+      ltvOverride: overrides.ltvOverride ?? '',
+      loanLimit: overrides.loanLimit ?? '',
+      closingCosts: overrides.closingCosts ?? '',
+    })) {
+      const el = this.root.querySelector(`[data-ovr=${key}]`);
+      if (el) this.setInput(el, value);
     }
 
-    if (els.vaRegion) {
-      els.vaRegion.textContent = t.requirement
-        ? `${t.requirement.regionLabel} · family of ${t.requirement.familySize}`
-        : '';
+    for (const key of ['financeFee', 'feeExempt', 'subsequentUse', 'valueIsAvm']) {
+      const el = this.root.querySelector(`[data-ovr=${key}]`);
+      // Never fight the agent for a box they are in the middle of clicking.
+      if (el && this.root.activeElement !== el) el.checked = !!overrides[key];
     }
 
-    els.vaTakeHome.textContent = t.takeHome == null ? '—' : formatMoney(t.takeHome);
-    els.vaTakeHome.className = `num ${t.takeHome == null ? 'none' : 'good'}`;
-
-    els.vaResidual.textContent = t.residual == null ? '—' : formatMoney(t.residual);
-    els.vaResidual.className = t.residual == null
-      ? 'v'
-      : `v ${t.meets === false ? 'bad' : 'good'}`;
-
-    els.vaRequired.textContent = t.required == null ? '—' : formatMoney(t.required);
-    els.vaRequiredLabel.textContent = t.highDti ? 'VA minimum +20%' : 'VA minimum';
-    els.vaDti.textContent = t.dti == null ? '—' : formatPercent(t.dti, 1);
-
-    if (t.meets == null) {
-      els.vaVerdict.textContent = t.takeHome == null ? 'Enter income' : 'Enter the new payment';
-      els.vaVerdict.className = 'pill idle';
-    } else if (t.meets) {
-      els.vaVerdict.textContent = 'Passes residual';
-      els.vaVerdict.className = 'pill good';
-    } else {
-      els.vaVerdict.textContent = `Short ${formatMoney(t.shortfall)}`;
-      els.vaVerdict.className = 'pill bad';
+    // The fee is the assumption most easily got wrong, so show what the
+    // current combination of switches actually produces.
+    const { feeRate, feeAmount } = this.els;
+    if (feeRate) {
+      feeRate.textContent = result?.upfrontFeeRate
+        ? `${formatPercent(result.upfrontFeeRate, 2)} ${result.feeFinanced ? 'financed' : 'at closing'}`
+        : (result?.feeLabel ? 'none' : '');
+      feeRate.className = `src ${result?.upfrontFeeRate ? 'auto' : ''}`;
     }
-
-    this.renderMessageList(els.vaMsgs, t.warnings ?? []);
+    if (feeAmount) {
+      const amount = result?.financedFee || result?.unfinancedFee || 0;
+      feeAmount.textContent = amount ? formatMoney(amount) : '—';
+      feeAmount.className = `feeval${result?.unfinancedFee ? ' out' : ''}`;
+    }
   }
 
   renderBar(result) {
@@ -881,64 +856,52 @@ const TEMPLATE = `
   <div class="msgs"></div>
 
   <!--
-    VA take-home. The rule that decides files the LTV maths says are fine:
-    VA requires money left in the borrower's pocket after taxes, debts, the
-    new payment and the cost of running the house.
+    The standing assumptions, on the panel rather than only in Settings.
+    Every one of them moves the cash-out figure, and a toggle you have to
+    open a settings page to reach is a toggle nobody flips mid-call.
+    Changing one here changes it everywhere: it applies to this record
+    immediately and to every call after it.
   -->
-  <details class="adv va" open>
-    <summary>VA take-home <span class="va-region" data-va="region"></span></summary>
+  <details class="adv asm" open>
+    <summary>Assumptions <span class="asm-note">applied to every call</span></summary>
 
-    <div class="three">
+    <div class="two">
       <div class="row">
-        <label>Gross / mo</label>
-        <input type="text" data-va="income" placeholder="$0" inputmode="decimal" />
+        <label>LTV override</label>
+        <input type="text" data-ovr="ltvOverride" placeholder="auto" inputmode="decimal" />
       </div>
       <div class="row">
-        <label>Debts / mo</label>
-        <input type="text" data-va="debts" placeholder="$0" inputmode="decimal" />
+        <label>Loan limit</label>
+        <input type="text" data-ovr="loanLimit" placeholder="none" inputmode="decimal" />
+      </div>
+    </div>
+    <div class="two">
+      <div class="row">
+        <label>Closing costs</label>
+        <input type="text" data-ovr="closingCosts" placeholder="$0" inputmode="decimal" />
       </div>
       <div class="row">
-        <label>Family</label>
-        <select data-va="family">
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-          <option value="5">5</option>
-          <option value="6">6</option>
-          <option value="7">7+</option>
-        </select>
+        <label>Fee <span class="src" data-ovr="feeRate"></span></label>
+        <div class="feeval" data-ovr="feeAmount">—</div>
       </div>
     </div>
 
-    <div class="three">
-      <div class="row">
-        <label>New payment</label>
-        <input type="text" data-va="payment" placeholder="PITI" inputmode="decimal" />
-      </div>
-      <div class="row">
-        <label>Tax rate</label>
-        <input type="text" data-va="taxRate" placeholder="22%" inputmode="decimal" />
-      </div>
-      <div class="row">
-        <label>Sq ft</label>
-        <input type="text" data-va="sqft" placeholder="—" inputmode="decimal" />
-      </div>
-    </div>
-
-    <div class="va-head">
-      <span class="cap">Take-home</span>
-      <span class="num none" data-va="takeHome">—</span>
-      <span class="pill idle" data-va="verdict">—</span>
-    </div>
-
-    <div class="grid">
-      <div class="cell"><div class="k">Left after housing &amp; debts</div><div class="v" data-va="residual">—</div></div>
-      <div class="cell"><div class="k" data-va="requiredLabel">VA minimum</div><div class="v sub" data-va="required">—</div></div>
-      <div class="cell"><div class="k">DTI</div><div class="v sub" data-va="dti">—</div></div>
-    </div>
-
-    <div class="msgs" data-va="msgs"></div>
+    <label class="check">
+      <span>Finance the upfront fee</span>
+      <input type="checkbox" data-ovr="financeFee" />
+    </label>
+    <label class="check">
+      <span>VA funding fee waived</span>
+      <input type="checkbox" data-ovr="feeExempt" />
+    </label>
+    <label class="check">
+      <span>VA subsequent use</span>
+      <input type="checkbox" data-ovr="subsequentUse" />
+    </label>
+    <label class="check">
+      <span>Value is an estimate</span>
+      <input type="checkbox" data-ovr="valueIsAvm" />
+    </label>
   </details>
 
   <div class="foot">

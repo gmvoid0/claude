@@ -141,6 +141,7 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
       currentLtv: null,
       maxBaseLoan: null,
       financedFee: null,
+      unfinancedFee: 0,
       totalLoanAmount: null,
       resultingLtv: null,
       cashOutBeforeCosts: null,
@@ -185,6 +186,13 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
   maxBaseLoan = floorDollar(maxBaseLoan);
 
   const financedFee = financeFee ? round2(maxBaseLoan * feeRate) : 0;
+
+  // An upfront fee that is not financed does not vanish — it is due at
+  // closing, and on a cash-out it comes out of the proceeds. Leaving it out
+  // overstated cash to the borrower by the whole fee: on a $400,000 VA
+  // cash-out that is $8,600 promised on the phone that never arrives.
+  const unfinancedFee = !financeFee && feeRate > 0 ? round2(maxBaseLoan * feeRate) : 0;
+
   const totalLoanAmount = round2(maxBaseLoan + financedFee);
   const resultingLtv = value > 0 ? totalLoanAmount / value : null;
 
@@ -197,9 +205,18 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
 
   // --- Cash out ------------------------------------------------------------
   // The financed fee raises the loan but goes to the agency, not the borrower,
-  // so it never appears in cash-out. Closing costs reduce net proceeds.
+  // so it never appears in cash-out. Closing costs and any fee being paid at
+  // closing rather than financed both reduce net proceeds.
   const cashOutBeforeCosts = round2(maxBaseLoan - totalLiens);
-  const estimatedCashToBorrower = round2(cashOutBeforeCosts - closingCosts);
+  const estimatedCashToBorrower = round2(cashOutBeforeCosts - closingCosts - unfinancedFee);
+
+  if (unfinancedFee > 0) {
+    warnings.push({
+      level: 'info',
+      text: `${cfg?.feeLabel ?? 'The upfront fee'} of ${fmtPlain(unfinancedFee)} is not being financed, `
+        + 'so it is due at closing and has been taken out of the cash figure.',
+    });
+  }
 
   let shortfall = null;
   if (estimatedCashToBorrower < 0) {
@@ -212,18 +229,46 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
 
   // What would the property need to be worth to break even (zero cash out)?
   //
+  // Worked backwards from the loan rather than forwards from the LTV, because
+  // the base loan is floored to whole dollars and the fee is rounded to
+  // cents. Solving in LTV terms and rounding at the end left break-even
+  // figures a few cents short — the deal still dead at the value the panel
+  // said would revive it, which is the one thing this figure must never do.
+  //
+  // Step one: the base loan that clears the payoff.
+  //
+  //   cash = base − liens − costs − (fee, if it is being paid at closing)
+  //        = base x (1 − unfinancedRate) − liens − costs
+  //
+  // Step two: the value that produces that base loan. The fee only affects
+  // this step when it is financed *inside* the cap, where the base loan is
+  // squeezed to make room for it. Financed on top (FHA) it rides above the
+  // base and costs the borrower nothing here.
+  //
   // Reported in the same units as the figure that was entered. When an AVM
   // haircut is in play the calculation runs on the discounted value, so the
   // result is grossed back up — otherwise the agent would be comparing a
   // post-haircut target against the pre-haircut number on their screen and
   // would read a dead lead as a live one.
-  const feeDivisor = financeFee && feeInsideCap ? 1 / (1 + feeRate) : 1;
-  const breakEvenScreening = maxLtv > 0
-    ? (totalLiens + closingCosts) / (maxLtv * feeDivisor)
-    : null;
-  const minValueToBreakEven = breakEvenScreening == null
-    ? null
-    : Math.ceil(haircutApplied ? breakEvenScreening / (1 - haircut) : breakEvenScreening);
+  const unfinancedRate = financeFee ? 0 : feeRate;
+
+  let minValueToBreakEven = null;
+  if (maxLtv > 0 && unfinancedRate < 1) {
+    const neededBase = Math.ceil((totalLiens + closingCosts) / (1 - unfinancedRate));
+
+    // A loan limit the payoff cannot fit under means *no* value breaks even.
+    // Testing whether the limit binds at today's value is not enough: on a
+    // borrower who is underwater the limit often does not bind now and does
+    // bind at the value that would clear them, and the panel quoted a target
+    // that leaves them six figures short.
+    const limitAllows = loanLimit == null || loanLimit <= 0 || neededBase <= loanLimit;
+
+    if (limitAllows) {
+      const baseToValue = financeFee && feeInsideCap ? 1 + feeRate : 1;
+      const screening = (neededBase * baseToValue) / maxLtv;
+      minValueToBreakEven = Math.ceil(haircutApplied ? screening / (1 - haircut) : screening);
+    }
+  }
 
   // --- Plausibility checks -------------------------------------------------
   if (totalLiens > value) {
@@ -279,6 +324,7 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
     ltvSource,
     maxBaseLoan,
     financedFee,
+    unfinancedFee,
     feeLabel: cfg?.feeLabel ?? null,
     upfrontFeeRate: feeRate,
     feeFinanced: financeFee,

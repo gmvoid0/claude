@@ -70,6 +70,7 @@ function renderPrefs() {
   $('resetValueOnNewRecord').checked = prefs.resetValueOnNewRecord !== false;
   $('showLookupLinks').checked = prefs.showLookupLinks !== false;
   $('miniBrowser').checked = prefs.miniBrowser !== false;
+  $('miniBrowserAuto').checked = prefs.miniBrowserAuto !== false;
   $('readValuationSites').checked = prefs.readValuationSites !== false;
   $('loanOfficer').value = prefs.loanOfficer ?? '';
   $('transferAgent').value = prefs.transferAgent ?? '';
@@ -175,6 +176,7 @@ async function save() {
     resetValueOnNewRecord: $('resetValueOnNewRecord').checked,
     showLookupLinks: $('showLookupLinks').checked,
     miniBrowser: $('miniBrowser').checked,
+    miniBrowserAuto: $('miniBrowserAuto').checked,
     readValuationSites: $('readValuationSites').checked,
     loanOfficer: $('loanOfficer').value.trim(),
     transferAgent: $('transferAgent').value.trim(),
