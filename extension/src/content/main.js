@@ -42,6 +42,17 @@ const IS_TOP = window.top === window;
 /** Fields the agent can type over. */
 const EDITABLE = ['propertyValue', 'firstLien', 'secondLien', 'program', 'state'];
 
+/**
+ * Application fields that are a calculator input wearing a different label.
+ * Editing one of these on the form drives the estimator too, so the two
+ * halves of the panel can never show different numbers for the same thing.
+ */
+const APPLICATION_TO_INPUT = {
+  value: 'propertyValue',
+  balance: 'firstLien',
+  loanType: 'program',
+};
+
 /** How long a value read from a valuation tab stays usable. */
 const VALUATION_TTL_MS = 30 * 60 * 1000;
 
@@ -368,6 +379,12 @@ async function activate() {
       onPick: (field) => beginPick(field),
       onApplicationChange: (field, value) => {
         state.app[field] = value;
+        // Some of the form is the calculator's own inputs under another
+        // label. Correcting the balance on the application and watching the
+        // cash-out figure not move would read as the tool being broken —
+        // and the agent would be right.
+        const mirrored = APPLICATION_TO_INPUT[field];
+        if (mirrored) state.manual[mirrored] = value;
         recompute();
       },
       onSaveApplication: () => persistApplication(state.lastApplication, state.recordLabel),

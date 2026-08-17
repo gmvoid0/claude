@@ -107,8 +107,9 @@ async function surfaceChallenge(msg, sender) {
 
   // The mini browser is already on screen; ask for attention rather than
   // yanking focus off the dialer.
-  if (miniWindow?.tabId === tabId) {
-    try { await chrome.windows.update(miniWindow.windowId, { drawAttention: true }); }
+  const mini = await loadMini();
+  if (mini?.tabId === tabId) {
+    try { await chrome.windows.update(mini.windowId, { drawAttention: true }); }
     catch { /* window gone */ }
     notify();
     return;
@@ -153,18 +154,56 @@ function closeLookup(tabId) {
 let miniWindow = null;   // { windowId, tabId, url, address }
 
 const MINI = { width: 540, height: 780 };
+const MINI_KEY = 'miniWindow';
+
+/**
+ * Remember which window is the preview, across service-worker restarts.
+ *
+ * This worker is killed after about thirty seconds of quiet and restarted on
+ * the next message, taking every variable with it. Holding the window id in
+ * memory alone meant that after any pause — which is to say between most
+ * calls — the worker had forgotten the window existed and opened a second
+ * one. By the end of a shift the agent had a row of them.
+ *
+ * Session storage rather than local: the id is meaningless once the browser
+ * closes, and persisting it would have the same failure in a slower form.
+ */
+async function loadMini() {
+  if (miniWindow) return miniWindow;
+  try {
+    const stored = await chrome.storage.session.get(MINI_KEY);
+    const held = stored?.[MINI_KEY];
+    if (!held?.windowId) return null;
+    // Trust nothing: the agent may have closed it while we were not running.
+    await chrome.windows.get(held.windowId);
+    miniWindow = held;
+  } catch {
+    miniWindow = null;
+    chrome.storage.session?.remove(MINI_KEY).catch(() => {});
+  }
+  return miniWindow;
+}
+
+async function rememberMini(value) {
+  miniWindow = value;
+  try {
+    if (value) await chrome.storage.session.set({ [MINI_KEY]: value });
+    else await chrome.storage.session.remove(MINI_KEY);
+  } catch { /* session storage unavailable; in-memory still works */ }
+}
 
 async function openMini({ url, address, focused = true }) {
   if (!url) return { ok: false, open: false, reason: 'no-address' };
 
-  if (miniWindow) {
+  const existing = await loadMini();
+  if (existing) {
     try {
-      await chrome.windows.update(miniWindow.windowId, { focused, drawAttention: !focused });
-      if (url !== miniWindow.url) await chrome.tabs.update(miniWindow.tabId, { url });
-      miniWindow = { ...miniWindow, url, address };
+      await chrome.windows.update(existing.windowId, { focused, drawAttention: !focused });
+      if (url !== existing.url) await chrome.tabs.update(existing.tabId, { url });
+      await rememberMini({ ...existing, url, address });
       return { ok: true, open: true };
     } catch {
-      miniWindow = null;   // closed behind our back; fall through and re-open
+      await rememberMini(null);   // closed behind our back; fall through
     }
   }
 
@@ -177,15 +216,15 @@ async function openMini({ url, address, focused = true }) {
       height: MINI.height,
       ...(await miniPlacement()),
     });
-    miniWindow = {
+    await rememberMini({
       windowId: win.id,
       tabId: win.tabs?.[0]?.id ?? null,
       url,
       address,
-    };
+    });
     return { ok: true, open: true };
   } catch {
-    miniWindow = null;
+    await rememberMini(null);
     return { ok: false, open: false, reason: 'blocked' };
   }
 }
@@ -211,8 +250,8 @@ async function miniPlacement() {
 }
 
 async function closeMini() {
-  const open = miniWindow;
-  miniWindow = null;
+  const open = await loadMini();
+  await rememberMini(null);
   if (!open) return { ok: true, open: false };
   try {
     await chrome.windows.remove(open.windowId);
@@ -222,9 +261,10 @@ async function closeMini() {
 
 // The agent can close it with the window's own button, which no message
 // tells us about. Watch for it, or the panel's toggle goes out of step.
-chrome.windows?.onRemoved?.addListener((windowId) => {
-  if (miniWindow?.windowId !== windowId) return;
-  miniWindow = null;
+chrome.windows?.onRemoved?.addListener(async (windowId) => {
+  const held = await loadMini();
+  if (held?.windowId !== windowId) return;
+  await rememberMini(null);
   broadcast({ type: 'SAM_MINI_CLOSED' });
 });
 
@@ -269,7 +309,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg?.type === 'SAM_MINI_STATE') {
-    sendResponse?.({ ok: true, open: !!miniWindow, address: miniWindow?.address ?? null });
+    loadMini().then((held) => sendResponse?.({
+      ok: true,
+      open: !!held,
+      address: held?.address ?? null,
+    }));
     return true;
   }
 

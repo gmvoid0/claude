@@ -94,8 +94,7 @@ export class Panel {
       cash: q('[data-out=cash]'),
       verdict: q('[data-out=verdict]'),
 
-      feeRate: q('[data-ovr=feeRate]'),
-      feeAmount: q('[data-ovr=feeAmount]'),
+      feeLine: q('[data-ovr=feeLine]'),
 
       barFill: q('.ltvbar .fill'),
       barCap: q('.ltvbar .cap'),
@@ -124,6 +123,7 @@ export class Panel {
       btnCopy: q('[data-act=copy]'),
       btnPickValue: q('[data-act=pick-propertyValue]'),
       btnPickFirst: q('[data-act=pick-firstLien]'),
+      btnPickName: q('[data-act=pick-fullName]'),
       btnReset: q('[data-act=reset]'),
     };
   }
@@ -145,14 +145,9 @@ export class Panel {
     // from the template should cost that one button, not the whole panel —
     // this threw on a single absent element and took the calculator down with
     // it, mid-call, for the sake of a handoff button.
-    for (const key of ['ltvOverride', 'loanLimit', 'closingCosts',
-      'financeFee', 'feeExempt', 'subsequentUse', 'valueIsAvm']) {
+    for (const key of ['financeFee', 'feeExempt', 'subsequentUse', 'valueIsAvm']) {
       const el = this.root.querySelector(`[data-ovr=${key}]`);
-      if (!el || !el.tagName.match(/^(INPUT|SELECT)$/)) continue;
-      const box = el.type === 'checkbox';
-      el.addEventListener(box ? 'change' : 'input', () => {
-        this.h.onOverrideChange?.(key, box ? el.checked : el.value);
-      });
+      el?.addEventListener('change', () => this.h.onOverrideChange?.(key, el.checked));
     }
 
     els.btnApp?.addEventListener('click', () => this.toggleDrawer());
@@ -168,9 +163,12 @@ export class Panel {
     els.btnReset?.addEventListener('click', () => this.h.onReset?.());
     els.btnPickValue?.addEventListener('click', () => this.h.onPick?.('propertyValue'));
     els.btnPickFirst?.addEventListener('click', () => this.h.onPick?.('firstLien'));
+    els.btnPickName?.addEventListener('click', () => this.h.onPick?.('fullName'));
 
     this.enableDrag(this.root.querySelector('.hd'));
-    this.enableResize(els.grip);
+    for (const handle of this.root.querySelectorAll('[data-act=resize]')) {
+      this.enableResize(handle);
+    }
   }
 
   enableDrag(handle) {
@@ -218,8 +216,9 @@ export class Panel {
    * flexible and in practice just gives an agent two ways to make the layout
    * lopsided mid-call.
    */
-  enableResize(grip) {
-    if (!grip) return;
+  enableResize(handle) {
+    if (!handle) return;
+    const axis = handle.dataset.axis ?? 'xy';
 
     let startX = 0, startY = 0, startW = 0, startH = 0, resizing = false;
 
@@ -228,30 +227,38 @@ export class Panel {
       startX = e.clientX;
       startY = e.clientY;
       startW = this.width;
-      startH = this.bodyHeight ?? this.root.querySelector('.body').getBoundingClientRect().height;
+      startH = this.bodyHeight
+        ?? this.root.querySelector('.body')?.getBoundingClientRect().height
+        ?? 0;
       e.preventDefault();
       e.stopPropagation();
+      // The host page may be listening on the window with capture; while a
+      // drag is in flight the panel owns the pointer.
+      this.wrap.classList.add('resizing');
       window.addEventListener('mousemove', onMove, true);
       window.addEventListener('mouseup', onUp, true);
     };
 
     const onMove = (e) => {
       if (!resizing) return;
-      // Dragging left widens, because the grip is on the left edge.
-      this.setSize({
-        width: startW - (e.clientX - startX),
-        height: startH + (e.clientY - startY),
-      });
+      const next = {};
+      // Dragging left widens: the handles are on the left edge, because the
+      // panel is docked right and has nowhere to grow on that side.
+      if (axis.includes('x')) next.width = startW - (e.clientX - startX);
+      if (axis.includes('y')) next.height = startH + (e.clientY - startY);
+      this.setSize(next);
     };
 
     const onUp = () => {
+      if (!resizing) return;
       resizing = false;
+      this.wrap.classList.remove('resizing');
       window.removeEventListener('mousemove', onMove, true);
       window.removeEventListener('mouseup', onUp, true);
       this.h.onResize?.({ width: this.width, height: this.bodyHeight });
     };
 
-    grip.addEventListener('mousedown', onDown);
+    handle.addEventListener('mousedown', onDown);
   }
 
   /**
@@ -478,6 +485,7 @@ export class Panel {
 
     els.btnPickValue.classList.toggle('picking', picking === 'propertyValue');
     els.btnPickFirst.classList.toggle('picking', picking === 'firstLien');
+    els.btnPickName?.classList.toggle('picking', picking === 'fullName');
 
     // --- value read from a Zillow / Redfin tab
     this.renderExternal(state.external);
@@ -560,35 +568,30 @@ export class Panel {
    * what the section says on its face.
    */
   renderOverrides(overrides = {}, result = null) {
-    for (const [key, value] of Object.entries({
-      ltvOverride: overrides.ltvOverride ?? '',
-      loanLimit: overrides.loanLimit ?? '',
-      closingCosts: overrides.closingCosts ?? '',
-    })) {
-      const el = this.root.querySelector(`[data-ovr=${key}]`);
-      if (el) this.setInput(el, value);
-    }
-
     for (const key of ['financeFee', 'feeExempt', 'subsequentUse', 'valueIsAvm']) {
       const el = this.root.querySelector(`[data-ovr=${key}]`);
       // Never fight the agent for a box they are in the middle of clicking.
       if (el && this.root.activeElement !== el) el.checked = !!overrides[key];
     }
 
-    // The fee is the assumption most easily got wrong, so show what the
-    // current combination of switches actually produces.
-    const { feeRate, feeAmount } = this.els;
-    if (feeRate) {
-      feeRate.textContent = result?.upfrontFeeRate
-        ? `${formatPercent(result.upfrontFeeRate, 2)} ${result.feeFinanced ? 'financed' : 'at closing'}`
-        : (result?.feeLabel ? 'none' : '');
-      feeRate.className = `src ${result?.upfrontFeeRate ? 'auto' : ''}`;
+    // What the current combination of switches actually charges. The fee is
+    // the assumption most easily got wrong, and the difference between
+    // financing it and paying it at closing is real money to the borrower.
+    const line = this.els.feeLine;
+    if (!line) return;
+
+    const amount = result?.financedFee || result?.unfinancedFee || 0;
+    if (!amount) {
+      line.textContent = result?.upfrontFeeRate === 0 && result?.feeLabel
+        ? 'No upfront fee on this program.'
+        : '';
+      line.className = 'asm-fee';
+      return;
     }
-    if (feeAmount) {
-      const amount = result?.financedFee || result?.unfinancedFee || 0;
-      feeAmount.textContent = amount ? formatMoney(amount) : '—';
-      feeAmount.className = `feeval${result?.unfinancedFee ? ' out' : ''}`;
-    }
+    line.className = `asm-fee${result.unfinancedFee ? ' out' : ''}`;
+    line.textContent = `${result.feeLabel ?? 'Upfront fee'} `
+      + `${formatPercent(result.upfrontFeeRate, 2)} — ${formatMoney(amount)} `
+      + (result.unfinancedFee ? 'due at closing, out of the proceeds' : 'financed into the loan');
   }
 
   renderBar(result) {
@@ -856,35 +859,15 @@ const TEMPLATE = `
   <div class="msgs"></div>
 
   <!--
-    The standing assumptions, on the panel rather than only in Settings.
-    Every one of them moves the cash-out figure, and a toggle you have to
-    open a settings page to reach is a toggle nobody flips mid-call.
-    Changing one here changes it everywhere: it applies to this record
-    immediately and to every call after it.
+    The switches that move the figure, on the panel because a toggle you
+    have to leave the call to reach is a toggle nobody flips. The numeric
+    settings they pair with — LTV override, loan limit, closing costs —
+    stay in Settings: they are typed once for a shop, not adjusted per
+    borrower, and duplicating them in two places invites the two to
+    disagree about which one is live.
   -->
   <details class="adv asm" open>
     <summary>Assumptions <span class="asm-note">applied to every call</span></summary>
-
-    <div class="two">
-      <div class="row">
-        <label>LTV override</label>
-        <input type="text" data-ovr="ltvOverride" placeholder="auto" inputmode="decimal" />
-      </div>
-      <div class="row">
-        <label>Loan limit</label>
-        <input type="text" data-ovr="loanLimit" placeholder="none" inputmode="decimal" />
-      </div>
-    </div>
-    <div class="two">
-      <div class="row">
-        <label>Closing costs</label>
-        <input type="text" data-ovr="closingCosts" placeholder="$0" inputmode="decimal" />
-      </div>
-      <div class="row">
-        <label>Fee <span class="src" data-ovr="feeRate"></span></label>
-        <div class="feeval" data-ovr="feeAmount">—</div>
-      </div>
-    </div>
 
     <label class="check">
       <span>Finance the upfront fee</span>
@@ -902,12 +885,15 @@ const TEMPLATE = `
       <span>Value is an estimate</span>
       <input type="checkbox" data-ovr="valueIsAvm" />
     </label>
+
+    <div class="asm-fee" data-ovr="feeLine"></div>
   </details>
 
   <div class="foot">
     <button class="btn primary" data-act="copy">Copy summary</button>
     <button class="btn" data-act="pick-propertyValue">Bind value</button>
     <button class="btn" data-act="pick-firstLien">Bind balance</button>
+    <button class="btn wide" data-act="pick-fullName">Bind name</button>
     <button class="btn wide" data-act="reset">Reset</button>
   </div>
 
@@ -917,5 +903,12 @@ const TEMPLATE = `
   </div>
 </div>
 
-<div class="grip" data-act="resize" title="Drag to resize"></div>
+<!--
+  Resize handles. Three of them rather than one corner: the corner alone was
+  an 18px target hidden behind the drawer's scrollbar, and a control nobody
+  can hit is a control that does not exist.
+-->
+<div class="rz rz-left" data-act="resize" data-axis="x" title="Drag to resize"></div>
+<div class="rz rz-bottom" data-act="resize" data-axis="y" title="Drag to resize"></div>
+<div class="grip" data-act="resize" data-axis="xy" title="Drag to resize"></div>
 `;

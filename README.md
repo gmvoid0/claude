@@ -62,9 +62,12 @@ Drag the panel by its header; it remembers where you put it.
 
 Four strategies, tried in order, per field:
 
-1. **A field you bound by clicking.** The *Bind value* / *Bind balance*
-   buttons let you click the exact element. Stored per page, survives
-   reloads. This is the escape hatch when detection guesses wrong.
+1. **A field you bound by clicking.** The *Bind value*, *Bind balance* and
+   *Bind name* buttons let you click the exact element. Stored per page,
+   survives reloads, and outranks everything below. This is the escape hatch
+   when detection guesses wrong — if your screen labels the borrower's name
+   something this has never seen, bind it once and it is solved for that
+   page.
 2. **The visible label.** `<label for>`, ARIA, the adjacent table cell, or
    the preceding text. Visible labels always outrank the `name` attribute,
    which matters on VICIdial because relabelled fields keep their original
@@ -189,19 +192,21 @@ Every switch that moves the cash-out figure is on the panel, under
 mid-call and it applies to this record immediately and to every call after
 it. The same switches live in Settings, and the two stay in step.
 
-| | What it does |
+| On the panel | What it does |
 | --- | --- |
-| LTV override | Caps every program at one number instead of its own maximum |
-| Loan limit | A county or investor ceiling on the base loan |
-| Closing costs | Deducted from the borrower's proceeds |
-| Fee | Read-only: what the current switches actually charge, and whether it is financed or due at closing |
-| Finance the upfront fee | VA funding fee or FHA UFMIP into the loan, or paid at closing |
+| Finance the upfront fee | VA funding fee or FHA UFMIP into the loan, or paid at closing out of the proceeds |
 | VA funding fee waived | Service-connected disability. Raises cash-out, so it is off unless you mean it |
 | VA subsequent use | The 3.3% tier rather than 2.15% first use |
 | Value is an estimate | Applies the AVM haircut to hand-typed values too |
 
-A toggle you have to open a settings page to reach is a toggle nobody flips
-mid-call, which was the point of moving them here.
+Under them is a line saying what the current combination actually charges
+and where it comes from — financed into the loan, or due at closing.
+
+The numbers these pair with — **LTV override**, **loan limit**, **closing
+costs**, the AVM haircut, the screening threshold — stay in Settings. They
+are typed once for a shop rather than adjusted per borrower, and nothing
+appears in both places: two copies of one switch is two places to disagree
+about which one is live.
 
 ## Interface
 
@@ -215,9 +220,9 @@ The one constraint that overrides aesthetics: this sits on top of a working
 dialer screen and gets read between sentences, so it stays dense and
 high-contrast. Polish is not allowed to cost legibility.
 
-The panel can be moved by its title bar and resized by the grip on its
-bottom-left corner — dragging outward widens both columns together, and the
-size is remembered per browser profile. The **–** button collapses it to a
+The panel can be moved by its title bar and resized from its left and bottom
+edges, or the corner between them — dragging outward widens both columns
+together, and the size is remembered per browser profile. The **–** button collapses it to a
 chip showing just the record on the line, and restores it exactly as it was.
 
 ## Listening to the call

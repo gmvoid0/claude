@@ -365,26 +365,50 @@ export const PANEL_CSS = `
   overscroll-behavior: contain;
 }
 
-/* Resize grip. Bottom-left, because the panel docks right — a grip on that
-   edge grows into the space the panel has rather than off-screen. */
+/* Resize handles, on the left and bottom edges — the panel docks right, so
+   those are the edges it can grow from without going off-screen.
+
+   Three handles rather than one corner. The corner alone was an 18px target
+   sitting behind the drawer's scrollbar, which in practice meant the panel
+   could not be resized at all. The edges are wide enough to hit without
+   aiming, and sit above the scrollable columns. */
+.rz {
+  position: absolute;
+  z-index: 5;
+}
+.rz-left {
+  left: 0; top: 0; bottom: 18px;
+  width: 8px;
+  cursor: ew-resize;
+}
+.rz-bottom {
+  left: 18px; right: 0; bottom: 0;
+  height: 8px;
+  cursor: ns-resize;
+}
 .grip {
   position: absolute;
   left: 0; bottom: 0;
-  width: 18px; height: 18px;
+  width: 22px; height: 22px;
   cursor: nesw-resize;
-  z-index: 2;
+  z-index: 6;
 }
 .grip::before {
   content: "";
   position: absolute;
-  left: 4px; bottom: 4px;
-  width: 8px; height: 8px;
+  left: 5px; bottom: 5px;
+  width: 9px; height: 9px;
   border-left: 2px solid var(--label-3);
   border-bottom: 2px solid var(--label-3);
   border-bottom-left-radius: 3px;
-  opacity: .7;
+  opacity: .75;
 }
+
+/* The edges are invisible until the pointer is near them, then they show a
+   hairline so it is obvious what is about to happen. */
+.rz:hover, .wrap.resizing .rz { background: var(--blue); opacity: .28; }
 .grip:hover::before { opacity: 1; border-color: var(--blue); }
+.wrap.resizing { user-select: none; }
 
 /* ------------------------------------------------------------------ *
  * Collapsed — the title bar and nothing else
@@ -408,6 +432,7 @@ export const PANEL_CSS = `
 }
 .wrap.collapsed .body,
 .wrap.collapsed .drawer,
+.wrap.collapsed .rz,
 .wrap.collapsed .grip { display: none !important; }
 .wrap.collapsed .hd { border-bottom: none; }
 
@@ -891,21 +916,21 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
   white-space: nowrap;
 }
 
-/* The fee sits in a field row but is an output, so it reads as a figure
-   rather than as something to type in. */
-.feeval {
+/* What the switches above actually charge. An output, not a control. */
+.asm-fee {
+  margin-top: 9px;
   padding: 8px 10px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--r-field);
+  background: var(--fill);
+  font-size: 11.5px;
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
   color: var(--label-2);
-  background: var(--fill);
-  border: 0.5px solid transparent;
-  border-radius: var(--r-field);
 }
+.asm-fee:empty { display: none; }
 /* Paid at closing rather than financed: it comes out of the borrower's
    proceeds, so it is coloured like something that costs them. */
-.feeval.out { color: var(--orange-deep); }
+.asm-fee.out { background: rgba(255,149,0,.13); color: var(--orange-deep); }
 
 details.asm .check:first-of-type { margin-top: 4px; }
 details.asm .check span { flex: 1; min-width: 0; }

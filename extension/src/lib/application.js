@@ -139,6 +139,11 @@ function autoValue(field, inputs, result, address) {
     const last = trim(inputs.lastName?.value);
     const whole = trim(inputs.fullName?.value);
 
+    // A field the agent bound by clicking it outranks anything guessed. They
+    // pointed at the name on their own screen; there is nothing to weigh
+    // that against.
+    if (whole && inputs.fullName?.source === 'bound') return whole;
+
     if (first && last) return joinName({ first, last });
     if (whole) return whole;
     return joinName({ first, last });

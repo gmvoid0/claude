@@ -855,7 +855,7 @@ test('the assumptions on the panel move the figure and stick', { skip }, async (
         financed,
         atClosing,
         waived,
-        feeShown: root.querySelector('[data-ovr=feeAmount]').textContent.trim(),
+        feeShown: root.querySelector('[data-ovr=feeLine]').textContent.trim(),
         prefs: stored.prefs ?? null,
       };
     });
@@ -864,7 +864,7 @@ test('the assumptions on the panel move the figure and stick', { skip }, async (
     // 400,000 − 270,900 − 8,600 funding fee due at closing.
     assert.equal(out.atClosing, '$120,500', 'an unfinanced fee comes out of the proceeds');
     assert.equal(out.waived, '$129,100', 'no fee at all is the full equity');
-    assert.equal(out.feeShown, '—', 'and nothing is charged once waived');
+    assert.match(out.feeShown, /no upfront fee/i, 'and the fee line says so');
 
     assert.equal(out.prefs.financeFee, false, 'the switch is a standing assumption');
     assert.equal(out.prefs.feeExempt, true);
@@ -1041,6 +1041,112 @@ test('the application fills from the record and offers to save once worked on', 
 
     assert.equal(state.before.saveHidden, true, 'auto-fill alone must not offer a save');
     assert.equal(state.after.saveHidden, false, 'the agent\'s own entry does');
+  } finally {
+    await page.close();
+  }
+});
+
+test('correcting the application moves the cash-out figure with it', { skip }, async () => {
+  // The two halves of the panel are one thing. Fixing the balance on the
+  // form and watching the headline sit still would read as the tool being
+  // broken, and the agent would be right.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const settle = () => new Promise((r) => setTimeout(r, 120));
+      const read = () => ({
+        cash: root.querySelector('[data-out=cash]').textContent.trim(),
+        value: root.querySelector('[data-in=propertyValue]').value,
+        balance: root.querySelector('[data-in=firstLien]').value,
+        program: root.querySelector('[data-in=program]').value,
+      });
+
+      const type = async (field, text) => {
+        const el = root.querySelector(`[data-app-field=${field}]`);
+        // Focus first, as a human would: the panel deliberately refuses to
+        // write into a field that has the caret in it.
+        el.focus();
+        el.value = text;
+        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+        await settle();
+      };
+
+      await type('value', '400000');
+      const afterValue = read();
+
+      await type('balance', '250000');
+      const afterBalance = read();
+
+      await type('loanType', 'CONV');
+      const afterProgram = read();
+
+      return { afterValue, afterBalance, afterProgram };
+    });
+
+    assert.equal(out.afterValue.value, '400000', 'the estimator takes the value from the form');
+    assert.equal(out.afterValue.cash, '$120,681');
+
+    assert.equal(out.afterBalance.balance, '250000');
+    assert.equal(out.afterBalance.cash, '$141,581', 'a lower payoff frees more cash');
+
+    assert.equal(out.afterProgram.program, 'CONV');
+    assert.equal(out.afterProgram.cash, '$70,000', 'conventional caps at 80% of value');
+  } finally {
+    await page.close();
+  }
+});
+
+test('a name field bound by hand fills the application', { skip }, async () => {
+  // The escape hatch for a screen this cannot read. Detection covers First
+  // and Last boxes and a combined name field; a dialer that labels it
+  // something else entirely is a screen nobody here can see, so the agent
+  // points at it once and it sticks for that page.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const before = await page.evaluate(() => {
+      // A name box this detector has no pattern for, put somewhere the
+      // pointer can reach it.
+      const odd = document.createElement('input');
+      odd.type = 'text';
+      odd.id = 'odd_name_box';
+      odd.value = 'DOROTHY VANCE-HOLLIS';
+      odd.style.cssText = 'position:fixed;left:20px;top:400px;width:260px;z-index:9';
+      document.body.appendChild(odd);
+
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      root.querySelector('[data-act=pick-fullName]').click();
+      return root.querySelector('[data-app-field=fullName]').value;
+    });
+
+    // A real pointer: the picker tracks what is under the cursor, which is
+    // how it knows what a click means.
+    const box = await page.evaluate(() => {
+      const r = document.getElementById('odd_name_box').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await page.mouse.move(box.x, box.y);
+    await page.mouse.click(box.x, box.y);
+
+    await page.waitForFunction(
+      () => document.getElementById('__sam_panel_host__').shadowRoot
+        .querySelector('[data-app-field=fullName]').value === 'DOROTHY VANCE-HOLLIS',
+      null,
+      { timeout: 4000 },
+    ).catch(() => {});
+
+    const after = await page.evaluate(() => document.getElementById('__sam_panel_host__')
+      .shadowRoot.querySelector('[data-app-field=fullName]').value);
+
+    assert.equal(before, 'RANDY D ROLLINS', 'detection had already found the split name');
+    assert.equal(after, 'DOROTHY VANCE-HOLLIS',
+      'a field bound by hand outranks anything the detector guessed');
   } finally {
     await page.close();
   }
