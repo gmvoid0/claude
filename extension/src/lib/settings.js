@@ -12,6 +12,7 @@ const KEYS = {
   rules: 'ruleOverrides',
   prefs: 'prefs',
   panelPos: 'panelPos',
+  panelSize: 'panelSize',
   applications: 'applications',
 };
 
@@ -157,7 +158,7 @@ export async function setPrefs(patch) {
   return next;
 }
 
-/* --- panel position ----------------------------------------------------- */
+/* --- panel position and size -------------------------------------------- */
 
 export async function getPanelPos() {
   return get(KEYS.panelPos, null);
@@ -165,6 +166,22 @@ export async function getPanelPos() {
 
 export async function setPanelPos(pos) {
   await set(KEYS.panelPos, pos);
+}
+
+/**
+ * The size the agent dragged the panel to, as { width, height }.
+ *
+ * Kept apart from prefs: prefs are shop policy that changes how a figure is
+ * calculated, and this is one person's window arrangement. Re-clamped to the
+ * current window on every mount, so a size stored on one screen can never
+ * strand the panel off the edge of another.
+ */
+export async function getPanelSize() {
+  return get(KEYS.panelSize, null);
+}
+
+export async function setPanelSize(size) {
+  await set(KEYS.panelSize, size);
 }
 
 /* --- saved applications ------------------------------------------------- */

@@ -26,7 +26,7 @@ import { mergeInputs, decideExternalValue, leadAddress, carryForwardDetection, d
   from '../lib/merge.js';
 import {
   isSiteEnabled, setSiteEnabled, getBindings, setBinding, anySiteEnabled,
-  getRuleOverrides, getPrefs, getPanelPos, setPanelPos, setPrefs,
+  getRuleOverrides, getPrefs, getPanelPos, setPanelPos, getPanelSize, setPanelSize, setPrefs,
 } from '../lib/settings.js';
 import {
   buildApplication, filledCount, isWorthSaving, impliesFeeExemption, toText, toPlain,
@@ -352,11 +352,13 @@ async function activate() {
       onCollapse: (collapsed) => setPrefs({ startCollapsed: collapsed }),
       onDrawerToggle: (open) => setPrefs({ startWithApplication: open }),
       onMove: (pos) => setPanelPos(pos),
+      onResize: (size) => setPanelSize(size),
     });
 
     state.panel.mount({
       collapsed: !!state.prefs.startCollapsed,
       pos: await getPanelPos(),
+      size: await getPanelSize(),
     });
 
     // The application is the point of the tool, not an extra, so it is open

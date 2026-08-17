@@ -722,6 +722,99 @@ test('the application drawer opens beside the calculator, not above it', { skip 
   }
 });
 
+test('collapsing leaves the title bar and nothing else', { skip }, async () => {
+  // Regression: the collapse rule was declared above `.wrap.with-drawer`,
+  // which carries the same specificity and therefore won. With the drawer
+  // open — the default — collapsing kept the two-column grid at full width
+  // and only hid the calculator body, so a 980px pill radius stretched the
+  // remaining panel into a giant oval sitting over the dialer. It read as a
+  // freeze because the thing that was supposed to get out of the way had
+  // instead grown.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(() => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const wrap = root.querySelector('.wrap');
+      const rect = (sel) => root.querySelector(sel).getBoundingClientRect().toJSON();
+      const shot = () => ({
+        wrap: rect('.wrap'),
+        header: rect('.hd'),
+        drawer: rect('[data-app=drawer]'),
+        body: rect('.body'),
+        radius: parseFloat(getComputedStyle(wrap).borderBottomLeftRadius),
+      });
+
+      if (root.querySelector('[data-app=drawer]').hidden) root.querySelector('[data-act=app]').click();
+      const open = shot();
+      root.querySelector('[data-act=collapse]').click();
+      const collapsed = shot();
+      root.querySelector('[data-act=collapse]').click();
+      return { open, collapsed, restored: shot() };
+    });
+
+    assert.ok(out.open.drawer.width > 100, 'the drawer starts open');
+
+    assert.equal(out.collapsed.drawer.width, 0, 'the drawer must go with the body');
+    assert.equal(out.collapsed.body.width, 0, 'the calculator must be hidden');
+    assert.ok(out.collapsed.wrap.height <= out.collapsed.header.height + 2,
+      `collapsed panel must be no taller than its title bar (was ${out.collapsed.wrap.height})`);
+    assert.ok(out.collapsed.wrap.width < out.open.wrap.width / 2,
+      `collapsed panel must shrink (${out.open.wrap.width} -> ${out.collapsed.wrap.width})`);
+    assert.ok(out.collapsed.radius < 60,
+      `a pill radius on a full-size panel is what drew the oval (was ${out.collapsed.radius})`);
+
+    assert.ok(out.restored.drawer.width > 100, 'expanding brings the application back');
+    assert.ok(Math.abs(out.restored.wrap.width - out.open.wrap.width) < 2,
+      'and restores the width it had');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the panel can be dragged to a new size and remembers it', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const before = await page.evaluate(() => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const grip = root.querySelector('.grip').getBoundingClientRect();
+      return {
+        width: root.querySelector('.body').getBoundingClientRect().width,
+        grip: { x: grip.left + grip.width / 2, y: grip.top + grip.height / 2 },
+      };
+    });
+
+    // The grip is on the bottom-left corner, so dragging left widens.
+    await page.mouse.move(before.grip.x, before.grip.y);
+    await page.mouse.down();
+    await page.mouse.move(before.grip.x - 60, before.grip.y - 20, { steps: 6 });
+    await page.mouse.up();
+
+    const after = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const stored = await window.chrome.storage.local.get('panelSize');
+      return {
+        width: root.querySelector('.body').getBoundingClientRect().width,
+        drawer: root.querySelector('[data-app=drawer]').getBoundingClientRect().width,
+        stored: stored.panelSize ?? null,
+      };
+    });
+
+    assert.ok(after.width > before.width + 40,
+      `dragging left must widen the panel (${before.width} -> ${after.width})`);
+    assert.ok(Math.abs(after.drawer - after.width) < 2,
+      'both columns move together rather than going lopsided');
+    assert.ok(after.stored?.width > before.width, 'the size survives the next call');
+  } finally {
+    await page.close();
+  }
+});
+
 test('the application fills from the record and offers to save once worked on', { skip }, async () => {
   const { browser } = await setup();
   const page = await browser.newPage();

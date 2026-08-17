@@ -12,6 +12,11 @@ import { APPLICATION_FIELDS, CO_BORROWER_FIELDS } from '../lib/application.js';
 import { PANEL_CSS } from './styles.js';
 import { PANEL_HOST_ID as HOST_ID } from '../lib/constants.js';
 
+/** Matches `--panel-w` in the stylesheet; one column's width. */
+const DEFAULT_WIDTH = 358;
+const MIN_WIDTH = 300;
+const MIN_HEIGHT = 240;
+
 export class Panel {
   constructor(handlers = {}) {
     this.h = handlers;
@@ -20,7 +25,7 @@ export class Panel {
     this.mounted = false;
   }
 
-  mount({ collapsed = false, pos = null } = {}) {
+  mount({ collapsed = false, pos = null, size = null } = {}) {
     if (this.mounted) return;
 
     const host = document.createElement('div');
@@ -42,6 +47,9 @@ export class Panel {
     this.hostEl = host;
     this.cacheEls();
     this.wireEvents();
+    this.width = DEFAULT_WIDTH;
+    this.bodyHeight = null;
+    this.setSize(size ?? {});
     this.setPosition(pos ?? { right: 16, bottom: 16 });
     if (collapsed) this.toggleCollapse(true);
 
@@ -121,6 +129,7 @@ export class Panel {
       btnDraftDiscard: q('[data-act=draft-discard]'),
       programRow: q('[data-field=program]'),
       resultBox: q('.result'),
+      grip: q('[data-act=resize]'),
       btnCopy: q('[data-act=copy]'),
       btnPickValue: q('[data-act=pick-propertyValue]'),
       btnPickFirst: q('[data-act=pick-firstLien]'),
@@ -164,6 +173,7 @@ export class Panel {
     els.btnPickFirst?.addEventListener('click', () => this.h.onPick?.('firstLien'));
 
     this.enableDrag(this.root.querySelector('.hd'));
+    this.enableResize(els.grip);
   }
 
   enableDrag(handle) {
@@ -200,6 +210,76 @@ export class Panel {
     handle.addEventListener('mousedown', onDown);
   }
 
+  /**
+   * Drag-to-resize from the bottom-left corner.
+   *
+   * Bottom-left because the panel is docked to the right of the screen: a
+   * grip on that edge grows the panel into the space it has, rather than
+   * pushing it off-screen.
+   *
+   * One width governs both columns. Two independent widths sounds more
+   * flexible and in practice just gives an agent two ways to make the layout
+   * lopsided mid-call.
+   */
+  enableResize(grip) {
+    if (!grip) return;
+
+    let startX = 0, startY = 0, startW = 0, startH = 0, resizing = false;
+
+    const onDown = (e) => {
+      resizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startW = this.width;
+      startH = this.bodyHeight ?? this.root.querySelector('.body').getBoundingClientRect().height;
+      e.preventDefault();
+      e.stopPropagation();
+      window.addEventListener('mousemove', onMove, true);
+      window.addEventListener('mouseup', onUp, true);
+    };
+
+    const onMove = (e) => {
+      if (!resizing) return;
+      // Dragging left widens, because the grip is on the left edge.
+      this.setSize({
+        width: startW - (e.clientX - startX),
+        height: startH + (e.clientY - startY),
+      });
+    };
+
+    const onUp = () => {
+      resizing = false;
+      window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseup', onUp, true);
+      this.h.onResize?.({ width: this.width, height: this.bodyHeight });
+    };
+
+    grip.addEventListener('mousedown', onDown);
+  }
+
+  /**
+   * Apply a size, clamped to something usable.
+   *
+   * The width is one column: with the drawer open the panel occupies twice
+   * it, which is why the ceiling halves. Both bounds are checked against the
+   * live window rather than the size stored last time, so a panel sized on a
+   * large monitor still fits when the same profile opens on a laptop.
+   */
+  setSize({ width, height } = {}) {
+    const columns = this.drawerOpen ? 2 : 1;
+    const maxWidth = Math.max(MIN_WIDTH, Math.floor((window.innerWidth - 24) / columns));
+    const maxHeight = Math.max(MIN_HEIGHT, window.innerHeight - 120);
+
+    if (width != null) {
+      this.width = Math.round(clamp(width, MIN_WIDTH, maxWidth));
+      this.wrap.style.setProperty('--panel-w', `${this.width}px`);
+    }
+    if (height != null) {
+      this.bodyHeight = Math.round(clamp(height, MIN_HEIGHT, maxHeight));
+      this.wrap.style.setProperty('--panel-h', `${this.bodyHeight}px`);
+    }
+  }
+
   setPosition(pos) {
     const s = this.wrap.style;
     s.left = s.top = s.right = s.bottom = '';
@@ -209,10 +289,20 @@ export class Panel {
     if (pos.bottom != null) s.bottom = `${pos.bottom}px`;
   }
 
+  /**
+   * Collapse to the title bar, or restore.
+   *
+   * The drawer's open/closed state is deliberately left alone: collapsing is
+   * "get out of my way for a second", not "close my application". The CSS
+   * hides the drawer while collapsed and it comes back exactly as it was.
+   */
   toggleCollapse(force) {
     this.collapsed = force ?? !this.collapsed;
     this.wrap.classList.toggle('collapsed', this.collapsed);
-    this.els.btnCollapse.textContent = this.collapsed ? '▣' : '—';
+    if (this.els.btnCollapse) {
+      this.els.btnCollapse.textContent = this.collapsed ? '▣' : '–';
+      this.els.btnCollapse.title = this.collapsed ? 'Expand (Alt+E)' : 'Collapse (Alt+E)';
+    }
     this.h.onCollapse?.(this.collapsed);
   }
 
@@ -245,6 +335,10 @@ export class Panel {
     this.wrap.classList.toggle('with-drawer', this.drawerOpen);
     this.els.btnApp.classList.toggle('on', this.drawerOpen);
     if (this.drawerOpen && this.collapsed) this.toggleCollapse(false);
+    // Opening the drawer doubles the width the panel occupies, so a width
+    // that fitted one column may not fit two. Re-clamp rather than let the
+    // panel run off the side of the screen.
+    this.setSize({ width: this.width });
     this.h.onDrawerToggle?.(this.drawerOpen);
   }
 
@@ -779,4 +873,6 @@ const TEMPLATE = `
     commitment to lend.
   </div>
 </div>
+
+<div class="grip" data-act="resize" title="Drag to resize"></div>
 `;

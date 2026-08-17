@@ -56,7 +56,9 @@ export const PANEL_CSS = `
 
   position: fixed;
   z-index: 2147483600;
-  width: 358px;
+  --panel-w: 358px;
+  --panel-h: 78vh;
+  width: var(--panel-w);
 
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
                "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -110,8 +112,6 @@ export const PANEL_CSS = `
   }
 }
 
-.wrap.collapsed { width: auto; border-radius: var(--r-pill); }
-
 /* ------------------------------------------------------------------ *
  * Application drawer
  *
@@ -125,21 +125,21 @@ export const PANEL_CSS = `
    the moment a border pushed the row past its width. */
 .wrap.with-drawer {
   display: grid;
-  grid-template-columns: 342px 358px;
+  grid-template-columns: var(--panel-w) var(--panel-w);
   grid-template-areas:
     "hd     hd"
     "drawer body";
-  width: 700px;
+  width: calc(var(--panel-w) * 2);
 }
 .wrap.with-drawer .hd     { grid-area: hd; }
 .wrap.with-drawer .drawer { grid-area: drawer; }
-.wrap.with-drawer .body   { grid-area: body; }
+.wrap.with-drawer .body   { grid-area: body; width: 100%; }
 
 .drawer {
-  width: 342px;
+  width: 100%;
   border-right: 0.5px solid var(--separator);
   background: var(--fill);
-  max-height: 78vh;
+  max-height: var(--panel-h);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -360,11 +360,56 @@ export const PANEL_CSS = `
 
 .body {
   padding: 12px;
-  max-height: 78vh;
+  max-height: var(--panel-h);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.wrap.collapsed .body { display: none; }
+
+/* Resize grip. Bottom-left, because the panel docks right — a grip on that
+   edge grows into the space the panel has rather than off-screen. */
+.grip {
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 18px; height: 18px;
+  cursor: nesw-resize;
+  z-index: 2;
+}
+.grip::before {
+  content: "";
+  position: absolute;
+  left: 4px; bottom: 4px;
+  width: 8px; height: 8px;
+  border-left: 2px solid var(--label-3);
+  border-bottom: 2px solid var(--label-3);
+  border-bottom-left-radius: 3px;
+  opacity: .7;
+}
+.grip:hover::before { opacity: 1; border-color: var(--blue); }
+
+/* ------------------------------------------------------------------ *
+ * Collapsed — the title bar and nothing else
+ *
+ * Declared after the drawer and body rules deliberately: the with-drawer
+ * rule carries the same specificity, so a collapse rule written above it lost.
+ * When that happened,
+ * the panel kept its two-column grid and its full width, the drawer stayed
+ * on screen, and a 980px radius over a box that size drew the giant oval
+ * that made minimising look like a freeze.
+ *
+ * Everything that can hold height is taken out, so what remains is bounded
+ * by the header no matter what state the panel was in when it collapsed.
+ * ------------------------------------------------------------------ */
+.wrap.collapsed,
+.wrap.collapsed.with-drawer {
+  display: block;
+  width: auto;
+  max-width: min(340px, calc(100vw - 32px));
+  border-radius: var(--r-panel);
+}
+.wrap.collapsed .body,
+.wrap.collapsed .drawer,
+.wrap.collapsed .grip { display: none !important; }
+.wrap.collapsed .hd { border-bottom: none; }
 
 /* ------------------------------------------------------------------ *
  * Grouped sections
