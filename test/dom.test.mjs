@@ -774,6 +774,85 @@ test('collapsing leaves the title bar and nothing else', { skip }, async () => {
   }
 });
 
+test('the property preview opens on demand and then follows the record', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const btn = root.querySelector('[data-act=mini]');
+      const settle = () => new Promise((r) => setTimeout(r, 150));
+
+      // Intercept the worker so the window is never actually opened.
+      const sent = [];
+      window.chrome.runtime.sendMessage = async (msg) => {
+        sent.push(msg);
+        if (msg.type === 'SAM_OPEN_MINI') return { ok: true, open: true };
+        if (msg.type === 'SAM_CLOSE_MINI') return { ok: true, open: false };
+        return {};
+      };
+
+      const shown = btn.getBoundingClientRect().width > 0;
+      const closedLabel = btn.textContent;
+
+      // A new record while the preview is closed must not open anything.
+      window.loadNextRecord({
+        id: '7164888', first: 'DALE', last: 'PARK', address: '12 BIRCH RD',
+        city: 'RENO', state: 'NV', zip: '89501', balance: '210000', loanType: 'FHA',
+      });
+      await settle();
+      const unsolicited = sent.filter((m) => m.type === 'SAM_OPEN_MINI').length;
+
+      btn.click();
+      await settle();
+      const opened = sent.find((m) => m.type === 'SAM_OPEN_MINI') ?? null;
+      const openLabel = btn.textContent;
+
+      // Next call: the preview should move with it, without taking focus.
+      window.loadNextRecord({
+        id: '7164777', first: 'MARIA', last: 'CHEN', address: '44 OAK ST',
+        city: 'AUSTIN', state: 'TX', zip: '78701', balance: '318450', loanType: 'CV',
+      });
+      await settle();
+      const followed = sent.filter((m) => m.type === 'SAM_OPEN_MINI').at(-1) ?? null;
+
+      btn.click();
+      await settle();
+
+      return {
+        shown,
+        closedLabel,
+        unsolicited,
+        opened,
+        openLabel,
+        followed,
+        closeSent: sent.some((m) => m.type === 'SAM_CLOSE_MINI'),
+        finalLabel: btn.textContent,
+      };
+    });
+
+    assert.equal(out.shown, true, 'the button is offered once an address is known');
+    assert.match(out.closedLabel, /preview/i);
+    assert.equal(out.unsolicited, 0, 'nothing opens until the agent asks for it');
+
+    assert.ok(out.opened, 'clicking asks the worker for a window');
+    assert.match(out.opened.url, /zillow\.com/);
+    assert.match(decodeURIComponent(out.opened.url), /12 BIRCH RD/);
+    assert.match(out.openLabel, /close/i, 'the button tracks what is actually open');
+
+    assert.match(decodeURIComponent(out.followed.url), /44 OAK ST/,
+      'an open preview follows the next call');
+    assert.equal(out.followed.focused, false, 'and never steals focus mid-call');
+
+    assert.equal(out.closeSent, true);
+    assert.match(out.finalLabel, /preview/i);
+  } finally {
+    await page.close();
+  }
+});
+
 test('the panel can be dragged to a new size and remembers it', { skip }, async () => {
   const { browser } = await setup();
   const page = await browser.newPage();

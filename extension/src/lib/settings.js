@@ -42,6 +42,12 @@ export const DEFAULT_PREFS = {
    */
   autoLookup: false,
   /**
+   * Offer the mini browser — a small always-on-top-ish popup window showing
+   * the lead's address on Zillow. Nothing opens until the agent clicks the
+   * button; this only decides whether the button is there at all.
+   */
+  miniBrowser: true,
+  /**
    * Standing assumptions. These live here rather than on the panel because
    * they are shop policy, not per-call decisions — they should apply to every
    * record automatically without an agent remembering to set them.

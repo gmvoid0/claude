@@ -799,7 +799,35 @@ input.warnval {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.lookup { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+.lookup { display: flex; align-items: center; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+.lookup-links { display: contents; }
+
+/* The mini browser. Reads as an action rather than a link, because it opens
+   a window rather than navigating away from the call. */
+.btn.mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  font-size: 11px;
+  border-radius: var(--r-pill);
+  background: var(--fill-strong);
+  color: var(--blue);
+}
+.btn.mini::before {
+  content: "";
+  width: 9px; height: 8px;
+  border: 1.5px solid currentColor;
+  border-top-width: 3px;
+  border-radius: 2px;
+  flex: none;
+}
+.btn.mini.on {
+  background: linear-gradient(180deg, var(--blue-hi) 0%, var(--blue) 52%, var(--blue-lo) 100%);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.40), 0 1px 2px rgba(0,0,0,.18);
+}
+
 .lookup a {
   font-size: 11px; font-weight: 600;
   color: var(--blue);

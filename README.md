@@ -141,6 +141,28 @@ same number.
 Redfin works the same way. Turn the whole behaviour off in settings if you
 don't want it.
 
+### The preview window
+
+**Preview on Zillow** opens a small browser window beside the dialer showing
+the lead's address — photos, beds and baths, tax history, the things you get
+asked about mid-call. It stays where you put it, and once it's open it
+follows each new record without taking focus, so it's showing the person
+you're actually talking to. Its value flows into the panel through the same
+path as any other Zillow tab.
+
+Nothing opens until you click it, and closing the window turns the button
+back off. If you'd rather not have the button at all, turn it off under
+Behaviour in settings.
+
+It is a real browser window rather than a frame embedded in the panel, and
+that is not a shortcut. Zillow sends `X-Frame-Options: DENY` specifically so
+its pages cannot be embedded; the only way to put one inside the panel is to
+strip that header off the response on its way into your browser. That is a
+security control belonging to someone else, and removing it to extract data
+is a different act from reading a page you have open. A popup window is the
+same navigation you make by hand today, with nothing bypassed, and it looks
+the same.
+
 ## Interface
 
 The panel is styled in an iOS idiom — translucent materials over a backdrop
@@ -153,7 +175,16 @@ The one constraint that overrides aesthetics: this sits on top of a working
 dialer screen and gets read between sentences, so it stays dense and
 high-contrast. Polish is not allowed to cost legibility.
 
+The panel can be moved by its title bar and resized by the grip on its
+bottom-left corner — dragging outward widens both columns together, and the
+size is remembered per browser profile. The **–** button collapses it to a
+chip showing just the record on the line, and restores it exactly as it was.
+
 ## Listening to the call
+
+**Currently switched off at the panel.** The recogniser and its number
+parsing are still here and still tested, but nothing in the interface starts
+them; this section describes what turning it back on gets you.
 
 S.A.M can transcribe the call and turn what it hears into application fields.
 It uses the browser's own speech recognition — free, no account, no key — and

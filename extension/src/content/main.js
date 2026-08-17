@@ -67,6 +67,8 @@ const state = {
   coBorrower: false,     // second borrower section shown
   frameFields: {},       // fields harvested from child frames
   externalValue: null,   // latest value seen on a Zillow/Redfin tab
+  miniOpen: false,       // the mini browser window is up
+  miniAddress: null,     // the address it is currently showing
   recordKey: null,
   recordLabel: '',
   lastSignature: '',
@@ -163,6 +165,13 @@ function handleMessage(msg, _sender, sendResponse) {
         state.externalValue = msg.valuation;
         recompute();
       }
+      return;
+
+    case 'SAM_MINI_CLOSED':
+      // Closed with the window's own button rather than ours.
+      state.miniOpen = false;
+      state.miniAddress = null;
+      state.panel?.setMiniOpen(false);
       return;
 
     case 'SAM_SETTINGS_CHANGED':
@@ -317,6 +326,7 @@ async function activate() {
         }
         recompute();
       },
+      onMiniBrowser: () => toggleMiniBrowser(),
       onUseExternal: () => {
         const ext = state.externalValue;
         if (!ext?.value) return;
@@ -372,6 +382,15 @@ async function activate() {
       const res = await chrome.runtime.sendMessage({ type: 'SAM_REQUEST_VALUATION' });
       if (res?.valuation) state.externalValue = res.valuation;
     } catch { /* worker asleep; the next report will push it */ }
+
+    // A preview window outlives a reload of the dialer tab, so ask rather
+    // than assume — otherwise the button offers to open a second one.
+    try {
+      const mini = await chrome.runtime.sendMessage({ type: 'SAM_MINI_STATE' });
+      state.miniOpen = !!mini?.open;
+      state.miniAddress = mini?.address ?? null;
+      state.panel.setMiniOpen(state.miniOpen);
+    } catch { /* worker asleep; the button assumes closed */ }
   }
 
   installWatchers();
@@ -618,6 +637,7 @@ function recompute({ forceInputs = false } = {}) {
   const inputs = effectiveInputs();
   const external = applyExternalValue(inputs);
   maybeStartLookup(inputs);
+  followMiniBrowser(inputs);
 
   // The AVM flag follows detection until the agent overrides it by hand;
   // the override then sticks until the next record.
@@ -689,6 +709,7 @@ function recompute({ forceInputs = false } = {}) {
     live: state.running,
     picking: state.picking,
     showLookupLinks: state.prefs?.showLookupLinks !== false,
+    showMiniBrowser: state.prefs?.miniBrowser !== false,
     lookupUrls: buildLookupUrls(inputs),
   });
 }
@@ -730,6 +751,70 @@ function maybeStartLookup(inputs) {
       address,
     });
   } catch { /* worker asleep; the manual link still works */ }
+}
+
+/* ------------------------------------------------------------------ *
+ * Mini browser
+ * ------------------------------------------------------------------ */
+
+/**
+ * Open or close the property preview.
+ *
+ * Nothing opens until this is clicked — the window is a deliberate act, not
+ * something that appears on its own when a call lands. Once it is open it
+ * follows the record, because a preview showing the previous caller's house
+ * is worse than no preview at all.
+ */
+async function toggleMiniBrowser() {
+  if (state.miniOpen) {
+    try { await chrome.runtime.sendMessage({ type: 'SAM_CLOSE_MINI' }); }
+    catch { /* worker asleep; the window is orphaned but harmless */ }
+    state.miniOpen = false;
+    state.miniAddress = null;
+    state.panel?.setMiniOpen(false);
+    return;
+  }
+
+  const address = leadAddress(state.lastInputs ?? effectiveInputs());
+  if (!address) {
+    state.panel?.setMiniOpen(false);
+    return;
+  }
+
+  let res = null;
+  try {
+    res = await chrome.runtime.sendMessage({
+      type: 'SAM_OPEN_MINI',
+      url: zillowSearchUrl(address),
+      address,
+    });
+  } catch { /* worker asleep */ }
+
+  state.miniOpen = !!res?.open;
+  state.miniAddress = state.miniOpen ? address : null;
+  state.panel?.setMiniOpen(state.miniOpen);
+}
+
+/**
+ * Point an open preview at the record now on screen.
+ *
+ * Unfocused: the agent is typing into the dialer, and a window stealing
+ * focus mid-call is how you lose a keystroke into the wrong field.
+ */
+function followMiniBrowser(inputs) {
+  if (!state.miniOpen) return;
+  const address = leadAddress(inputs);
+  if (!address || address === state.miniAddress) return;
+
+  state.miniAddress = address;
+  try {
+    chrome.runtime.sendMessage({
+      type: 'SAM_OPEN_MINI',
+      url: zillowSearchUrl(address),
+      address,
+      focused: false,
+    });
+  } catch { /* worker asleep; the button still works */ }
 }
 
 /**

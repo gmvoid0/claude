@@ -69,6 +69,7 @@ function renderPrefs() {
   $('pollMs').value = prefs.pollMs ?? 400;
   $('resetValueOnNewRecord').checked = prefs.resetValueOnNewRecord !== false;
   $('showLookupLinks').checked = prefs.showLookupLinks !== false;
+  $('miniBrowser').checked = prefs.miniBrowser !== false;
   $('readValuationSites').checked = prefs.readValuationSites !== false;
   $('loanOfficer').value = prefs.loanOfficer ?? '';
   $('transferAgent').value = prefs.transferAgent ?? '';
@@ -173,6 +174,7 @@ async function save() {
     pollMs: clampInt($('pollMs').value, 0, 5000, 400),
     resetValueOnNewRecord: $('resetValueOnNewRecord').checked,
     showLookupLinks: $('showLookupLinks').checked,
+    miniBrowser: $('miniBrowser').checked,
     readValuationSites: $('readValuationSites').checked,
     loanOfficer: $('loanOfficer').value.trim(),
     transferAgent: $('transferAgent').value.trim(),

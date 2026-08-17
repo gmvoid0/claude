@@ -26,18 +26,23 @@ function freshValuation() {
   return latestValuation;
 }
 
-async function broadcastValuation() {
-  const valuation = freshValuation();
-  if (!valuation) return;
+/** Send a message to the top frame of every tab that will listen. */
+async function broadcast(message, options = { frameId: 0 }) {
   try {
     const tabs = await chrome.tabs.query({});
     await Promise.all(tabs.map((tab) =>
       tab.id == null
         ? null
         : chrome.tabs
-            .sendMessage(tab.id, { type: 'SAM_EXTERNAL_VALUE', valuation }, { frameId: 0 })
-            .catch(() => { /* no panel on this tab */ })));
+            .sendMessage(tab.id, message, options)
+            .catch(() => { /* no listener on this tab */ })));
   } catch { /* tabs unavailable */ }
+}
+
+async function broadcastValuation() {
+  const valuation = freshValuation();
+  if (!valuation) return;
+  await broadcast({ type: 'SAM_EXTERNAL_VALUE', valuation });
 }
 
 /**
@@ -79,6 +84,104 @@ function closeLookup(tabId) {
 }
 
 /**
+ * The mini browser.
+ *
+ * A small popup window — no tab strip, no omnibox — showing the lead's
+ * address on Zillow beside the dialer, so the agent can see the photos and
+ * the comps while the customer is still talking. The value it finds arrives
+ * in the panel through the ordinary valuation path, because S.A.M's content
+ * script runs in this window like any other.
+ *
+ * It is a real browser window, not an embedded frame. Zillow sends
+ * `X-Frame-Options: DENY` precisely so its pages cannot be embedded, and the
+ * only way to put it in an iframe is to strip that header on the way in.
+ * That is a deliberate security control belonging to someone else, and
+ * stripping it is not something to ship under a lender's name. A popup
+ * window is the same navigation the agent performs by hand today, in their
+ * own session, with nothing bypassed — and it looks and behaves the same.
+ *
+ * One window, reused. A window per lookup would bury the dialer by the
+ * fourth call of the morning.
+ */
+let miniWindow = null;   // { windowId, tabId, url, address }
+
+const MINI = { width: 540, height: 780 };
+
+async function openMini({ url, address, focused = true }) {
+  if (!url) return { ok: false, open: false, reason: 'no-address' };
+
+  if (miniWindow) {
+    try {
+      await chrome.windows.update(miniWindow.windowId, { focused, drawAttention: !focused });
+      if (url !== miniWindow.url) await chrome.tabs.update(miniWindow.tabId, { url });
+      miniWindow = { ...miniWindow, url, address };
+      return { ok: true, open: true };
+    } catch {
+      miniWindow = null;   // closed behind our back; fall through and re-open
+    }
+  }
+
+  try {
+    const win = await chrome.windows.create({
+      url,
+      type: 'popup',
+      focused,
+      width: MINI.width,
+      height: MINI.height,
+      ...(await miniPlacement()),
+    });
+    miniWindow = {
+      windowId: win.id,
+      tabId: win.tabs?.[0]?.id ?? null,
+      url,
+      address,
+    };
+    return { ok: true, open: true };
+  } catch {
+    miniWindow = null;
+    return { ok: false, open: false, reason: 'blocked' };
+  }
+}
+
+/**
+ * Put it against the left edge of the window the agent is working in.
+ *
+ * The panel docks right, so the left side is the half of a dialer screen
+ * with the least on it. Chrome places the window itself if the current
+ * window's geometry is unavailable.
+ */
+async function miniPlacement() {
+  try {
+    const current = await chrome.windows.getLastFocused();
+    if (current?.left == null || current?.top == null) return {};
+    return {
+      left: Math.max(0, Math.round(current.left + 32)),
+      top: Math.max(0, Math.round(current.top + 64)),
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function closeMini() {
+  const open = miniWindow;
+  miniWindow = null;
+  if (!open) return { ok: true, open: false };
+  try {
+    await chrome.windows.remove(open.windowId);
+  } catch { /* already gone */ }
+  return { ok: true, open: false };
+}
+
+// The agent can close it with the window's own button, which no message
+// tells us about. Watch for it, or the panel's toggle goes out of step.
+chrome.windows?.onRemoved?.addListener((windowId) => {
+  if (miniWindow?.windowId !== windowId) return;
+  miniWindow = null;
+  broadcast({ type: 'SAM_MINI_CLOSED' });
+});
+
+/**
  * An application waiting to be typed into Salesforce.
  *
  * Held rather than pushed, because the form may not be open yet. Whichever
@@ -108,14 +211,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === 'SAM_OPEN_MINI') {
+    openMini(msg).then((res) => sendResponse?.(res));
+    return true;
+  }
+
+  if (msg?.type === 'SAM_CLOSE_MINI') {
+    closeMini().then((res) => sendResponse?.(res));
+    return true;
+  }
+
+  if (msg?.type === 'SAM_MINI_STATE') {
+    sendResponse?.({ ok: true, open: !!miniWindow, address: miniWindow?.address ?? null });
+    return true;
+  }
+
   if (msg?.type === 'SAM_VALUATION_REPORT') {
     if (msg.valuation?.value) {
       latestValuation = { ...msg.valuation, at: Date.now(), tabId: sender?.tab?.id ?? null };
       broadcastValuation();
 
-      // The tab existed only to produce this figure.
+      // A background lookup tab existed only to produce this figure, so it
+      // goes as soon as it has. The mini browser is never closed this way —
+      // the agent opened it to look at the property, not to harvest a number.
       const tabId = sender?.tab?.id;
-      if (tabId != null && pendingLookup?.tabId === tabId) closeLookup(tabId);
+      if (tabId != null && pendingLookup?.tabId === tabId && miniWindow?.tabId !== tabId) {
+        closeLookup(tabId);
+      }
     }
     sendResponse?.({ ok: true });
     return true;
@@ -144,18 +266,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 async function broadcastSettings() {
-  try {
-    const tabs = await chrome.tabs.query({});
-    await Promise.all(
-      tabs.map((tab) =>
-        tab.id == null
-          ? null
-          : chrome.tabs
-              .sendMessage(tab.id, { type: 'SAM_SETTINGS_CHANGED' })
-              .catch(() => { /* no content script on this tab */ }),
-      ),
-    );
-  } catch { /* tabs permission unavailable */ }
+  // Every frame, not just the top one: a child frame harvests fields too.
+  await broadcast({ type: 'SAM_SETTINGS_CHANGED' }, undefined);
 }
 
 /**

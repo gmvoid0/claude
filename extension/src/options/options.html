@@ -157,6 +157,18 @@
     <label class="check"><input type="checkbox" id="showLookupLinks" />
       Show value-lookup links built from the scraped address
     </label>
+    <label class="check"><input type="checkbox" id="miniBrowser" />
+      Offer the property preview window
+      <span class="help">
+        Puts a "Preview on Zillow" button on the panel. It opens a small
+        browser window beside the dialer showing the lead's address, and once
+        it is open it follows each new record without taking focus. Nothing
+        opens until you click it, and closing the window turns the button
+        back off. It is an ordinary window in your own browser session, not
+        an embedded frame — Zillow refuses to be embedded, and working around
+        that is not something this extension does.
+      </span>
+    </label>
     <label class="check"><input type="checkbox" id="readValuationSites" />
       Pull the home value from Zillow / Redfin tabs you open
       <span class="help">

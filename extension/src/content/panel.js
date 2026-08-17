@@ -73,6 +73,8 @@ export class Panel {
       valueHint: q('[data-hint=propertyValue]'),
       valueSrc: q('[data-src=propertyValue]'),
       lookup: q('.lookup'),
+      lookupLinks: q('.lookup-links'),
+      btnMini: q('[data-act=mini]'),
 
       extRow: q('[data-ext=row]'),
       extBadge: q('[data-ext=badge]'),
@@ -167,6 +169,7 @@ export class Panel {
     els.btnDraftDiscard?.addEventListener('click', () => this.h.onDiscardDraft?.());
     els.coToggle?.addEventListener('change', () => this.h.onCoBorrowerToggle?.(els.coToggle.checked));
     els.btnUseExt?.addEventListener('click', () => this.h.onUseExternal?.());
+    els.btnMini?.addEventListener('click', () => this.h.onMiniBrowser?.());
     els.btnCopy?.addEventListener('click', () => this.h.onCopy?.());
     els.btnReset?.addEventListener('click', () => this.h.onReset?.());
     els.btnPickValue?.addEventListener('click', () => this.h.onPick?.('propertyValue'));
@@ -657,36 +660,49 @@ export class Panel {
   }
 
   renderLookup(state) {
-    const { showLookupLinks, lookupUrls } = state;
+    const { showLookupLinks, showMiniBrowser, lookupUrls } = state;
     const host = this.els.lookup;
+    const links = this.els.lookupLinks;
+    const address = lookupUrls?.address;
 
-    if (!showLookupLinks || !lookupUrls?.address) {
-      host.style.display = 'none';
+    const wantMini = !!address && showMiniBrowser !== false;
+    const wantLinks = !!address && showLookupLinks !== false;
+
+    if (this.els.btnMini) this.els.btnMini.hidden = !wantMini;
+    host.style.display = wantMini || wantLinks ? '' : 'none';
+
+    if (!wantLinks) {
+      links.textContent = '';
       // Clear the cache key too, otherwise coming back to the same address
       // short-circuits below and the links stay hidden for good.
-      delete host.dataset.sig;
+      delete links.dataset.sig;
       return;
     }
 
-    if (host.dataset.sig === lookupUrls.address) return;
-    host.dataset.sig = lookupUrls.address;
+    if (links.dataset.sig === address) return;
+    links.dataset.sig = address;
+    links.textContent = '';
 
-    host.style.display = '';
-    host.textContent = '';
-
-    const links = [
+    for (const [text, href] of [
       ['Open in Zillow', lookupUrls.zillow],
       ['Redfin', lookupUrls.redfin],
-    ];
-    for (const [text, href] of links) {
+    ]) {
       if (!href) continue;
       const a = document.createElement('a');
       a.href = href;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       a.textContent = text;
-      host.appendChild(a);
+      links.appendChild(a);
     }
+  }
+
+  /** Keep the mini-browser button honest about what is actually open. */
+  setMiniOpen(open) {
+    const btn = this.els.btnMini;
+    if (!btn) return;
+    btn.classList.toggle('on', !!open);
+    btn.textContent = open ? 'Close preview' : 'Preview on Zillow';
   }
 }
 
@@ -795,7 +811,10 @@ const TEMPLATE = `
     </div>
     <div class="ext-addr" data-ext="addr"></div>
   </div>
-  <div class="lookup"></div>
+  <div class="lookup">
+    <button class="btn mini" data-act="mini" hidden>Preview on Zillow</button>
+    <span class="lookup-links"></span>
+  </div>
 
   <div class="group">
     <div class="two">
