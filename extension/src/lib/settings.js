@@ -65,6 +65,14 @@ export const DEFAULT_PREFS = {
   transferAgent: '',
   loanOfficerAssistant: '',
 
+  /**
+   * Withholding assumed when working out take-home pay, as a percentage.
+   * A standing assumption rather than a per-call one: it is a shop's rule of
+   * thumb, and an agent typing it on every call would get it wrong sooner or
+   * later. Overridable on the panel for the borrower who is clearly different.
+   */
+  withholdingRate: 22,
+
   ltvOverride: '',           // blank = use the program maximum
   loanLimit: '',             // blank = no county / investor ceiling
 };

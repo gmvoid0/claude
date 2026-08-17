@@ -16,7 +16,8 @@
  */
 
 import { collectCandidates, assignFields, readValue, FIELDS, cleanLabel } from '../lib/detect.js';
-import { computeEquity, solveBalanceFromPayment } from '../lib/equity.js';
+import { computeEquity } from '../lib/equity.js';
+import { computeTakeHome, monthlyFromAnnual, DEFAULT_TAX_RATE } from '../lib/residual.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
@@ -63,6 +64,7 @@ const state = {
   },
   avmTouched: false,     // true once the agent sets the AVM flag by hand
   app: {},               // application fields the agent typed
+  takeHome: {},          // VA take-home fields the agent typed
   appDraft: null,        // unsaved application carried over from the last record
   coBorrower: false,     // second borrower section shown
   frameFields: {},       // fields harvested from child frames
@@ -370,21 +372,15 @@ async function activate() {
         state.avmTouched = true;
         recompute();
       },
-      onSolveChange: (fields) => showSolvedBalance(fields),
-      onUseSolved: (fields) => {
-        const solved = solveFrom(fields);
-        if (solved == null) {
-          state.panel?.setSolverResult('Enter payment, rate and years left first.');
-          return;
-        }
-        state.manual.firstLien = String(Math.round(solved));
+      onTakeHomeChange: (field, value) => {
+        state.takeHome[field] = value;
         recompute();
-        showSolvedBalance(fields);
       },
       onCopy: () => copySummary(),
       onReset: () => {
         state.manual = {};
         state.app = {};
+        state.takeHome = {};
         state.overrides = overridesFromPrefs(state.prefs);
         state.avmTouched = false;
         scan(true);
@@ -538,6 +534,7 @@ function scan(force) {
         };
       }
       state.app = {};
+      state.takeHome = {};
       state.manual = {};
       state.coBorrower = false;
       state.overrides = overridesFromPrefs(state.prefs);
@@ -740,11 +737,16 @@ function recompute({ forceInputs = false } = {}) {
     coBorrower: state.coBorrower,
   });
 
+  const { takeHome, fields: takeHomeFields } = takeHomeState(inputs, result, application);
+
   state.lastResult = result;
   state.lastInputs = inputs;
   state.lastApplication = application;
+  state.lastTakeHome = takeHome;
 
   state.panel.render({
+    takeHome,
+    takeHomeFields,
     inputs,
     overrides: state.overrides,
     result,
@@ -1055,23 +1057,61 @@ async function beginPick(fieldKey) {
   }
 }
 
-/** Reverse a balance out of the payment fields in the panel's solver. */
-function solveFrom({ payment, rate, years } = {}) {
-  const months = parseMoney(years);
-  return solveBalanceFromPayment({
-    payment: parseMoney(payment),
-    annualRate: parsePercent(rate),
-    remainingMonths: months == null ? null : Math.round(months * 12),
-  });
-}
+/* ------------------------------------------------------------------ *
+ * VA take-home
+ * ------------------------------------------------------------------ */
 
-function showSolvedBalance(fields) {
-  const solved = solveFrom(fields);
-  state.panel?.setSolverResult(
-    solved == null
-      ? 'Enter all three to estimate the remaining balance.'
-      : `Estimated balance <b>${formatMoney(solved)}</b>`,
-  );
+/**
+ * Assemble the take-home calculation from the record, the application and
+ * whatever the agent has typed into the section itself.
+ *
+ * Income is the field worth wiring properly: an agent who has already put an
+ * annual figure on the application should not be asked for it again in a
+ * different unit. It arrives here as a monthly figure they can overwrite.
+ */
+function takeHomeState(inputs, result, application) {
+  const typed = state.takeHome;
+
+  const annual = parseMoney(application?.income?.value);
+  const autoMonthly = monthlyFromAnnual(annual);
+  const defaultTaxRate = parsePercent(String(state.prefs?.withholdingRate ?? ''))
+    ?? DEFAULT_TAX_RATE;
+
+  const fields = {
+    income: {
+      value: typed.income ?? '',
+      source: typed.income != null ? 'manual' : 'auto',
+      placeholder: autoMonthly ? formatMoney(autoMonthly) : '$0',
+    },
+    debts: { value: typed.debts ?? '', source: 'manual', placeholder: '$0' },
+    family: { value: typed.family ?? '1', source: typed.family != null ? 'manual' : 'auto' },
+    payment: {
+      value: typed.payment ?? '',
+      source: 'manual',
+      // The payment on the screen is the one being replaced, but it is the
+      // closest thing to a reference point an agent has mid-call.
+      placeholder: inputs.payment?.num ? `now ${formatMoney(inputs.payment.num)}` : 'PITI',
+    },
+    taxRate: {
+      value: typed.taxRate ?? '',
+      source: 'manual',
+      placeholder: formatPercent(defaultTaxRate, 0),
+    },
+    sqft: { value: typed.sqft ?? '', source: 'manual', placeholder: '—' },
+  };
+
+  const takeHome = computeTakeHome({
+    grossMonthly: parseMoney(typed.income) ?? autoMonthly,
+    taxRate: parsePercent(typed.taxRate) ?? defaultTaxRate,
+    monthlyDebts: parseMoney(typed.debts),
+    housingPayment: parseMoney(typed.payment),
+    squareFeet: parseMoney(typed.sqft),
+    state: inputs.state?.normalized,
+    familySize: Number(typed.family ?? 1),
+    loanAmount: result?.totalLoanAmount,
+  });
+
+  return { takeHome, fields };
 }
 
 /** Store a completed application locally. */
@@ -1152,6 +1192,24 @@ function summaryText(r, inputs, recordLabel) {
     `Closing costs:  ${formatMoney(r.closingCosts)}`,
     `CASH OUT:       ${formatMoney(r.estimatedCashToBorrower)}`,
   );
+  const t = state.lastTakeHome;
+  if (t?.takeHome != null) {
+    lines.push(
+      '',
+      `Take-home:      ${formatMoney(t.takeHome)}/mo`,
+    );
+    if (t.residual != null) lines.push(`Residual:       ${formatMoney(t.residual)}/mo`);
+    if (t.required != null) {
+      lines.push(
+        `VA minimum:     ${formatMoney(t.required)}`
+          + `${t.requirement ? `  (${t.requirement.regionLabel}, family of ${t.requirement.familySize})` : ''}`,
+      );
+    }
+    if (t.meets != null) {
+      lines.push(`Residual test:  ${t.meets ? 'PASSES' : `SHORT ${formatMoney(t.shortfall)}`}`);
+    }
+  }
+
   for (const w of r.warnings ?? []) lines.push(`! ${w.text}`);
   lines.push('', 'Estimate only — not a quote or commitment to lend.');
   return lines.join('\n');

@@ -91,22 +91,17 @@ export class Panel {
       state: q('[data-in=state]'),
       stateSrc: q('[data-src=state]'),
 
-      solvePayment: q('[data-solve=payment]'),
-      solveRate: q('[data-solve=rate]'),
-      solveYears: q('[data-solve=years]'),
-      solveOut: q('[data-solve=out]'),
-      btnUseSolved: q('[data-act=use-solved]'),
-
       cash: q('[data-out=cash]'),
       verdict: q('[data-out=verdict]'),
-      maxLoan: q('[data-out=maxLoan]'),
-      equity: q('[data-out=equity]'),
-      currentLtv: q('[data-out=currentLtv]'),
-      maxLtv: q('[data-out=maxLtv]'),
-      fee: q('[data-out=fee]'),
-      feeRow: q('[data-row=fee]'),
-      total: q('[data-out=total]'),
-      breakeven: q('[data-out=breakeven]'),
+
+      vaRegion: q('[data-va=region]'),
+      vaTakeHome: q('[data-va=takeHome]'),
+      vaVerdict: q('[data-va=verdict]'),
+      vaResidual: q('[data-va=residual]'),
+      vaRequired: q('[data-va=required]'),
+      vaRequiredLabel: q('[data-va=requiredLabel]'),
+      vaDti: q('[data-va=dti]'),
+      vaMsgs: q('[data-va=msgs]'),
 
       barFill: q('.ltvbar .fill'),
       barCap: q('.ltvbar .cap'),
@@ -152,14 +147,16 @@ export class Panel {
       el.addEventListener(evt, () => this.h.onManualChange?.(key, el.value));
     }
 
-    for (const el of [els.solvePayment, els.solveRate, els.solveYears]) {
-      el?.addEventListener('input', () => this.h.onSolveChange?.(this.readSolver()));
-    }
     // Optional chaining throughout, deliberately. A control that is missing
     // from the template should cost that one button, not the whole panel —
     // this threw on a single absent element and took the calculator down with
     // it, mid-call, for the sake of a handoff button.
-    els.btnUseSolved?.addEventListener('click', () => this.h.onUseSolved?.(this.readSolver()));
+    for (const key of ['income', 'debts', 'family', 'payment', 'taxRate', 'sqft']) {
+      const el = this.root.querySelector(`[data-va=${key}]`);
+      if (!el) continue;
+      const evt = el.tagName === 'SELECT' ? 'change' : 'input';
+      el.addEventListener(evt, () => this.h.onTakeHomeChange?.(key, el.value));
+    }
 
     els.btnApp?.addEventListener('click', () => this.toggleDrawer());
     els.btnAppSave?.addEventListener('click', () => this.h.onSaveApplication?.());
@@ -433,19 +430,6 @@ export class Panel {
     this.els.value?.select();
   }
 
-  /** Current contents of the balance-from-payment solver. */
-  readSolver() {
-    return {
-      payment: this.els.solvePayment?.value ?? '',
-      rate: this.els.solveRate?.value ?? '',
-      years: this.els.solveYears?.value ?? '',
-    };
-  }
-
-  setSolverResult(text) {
-    if (this.els.solveOut) this.els.solveOut.innerHTML = text;
-  }
-
   /**
    * Set an input's value without disturbing the agent if they're typing in it.
    *
@@ -548,26 +532,10 @@ export class Panel {
       els.valueHint.innerHTML = bits.join(' · ');
     }
 
-    els.maxLoan.textContent = formatMoney(result?.maxBaseLoan);
-
-    els.equity.textContent = formatMoney(result?.grossEquity);
-
     // An assumed loan type is a question for the borrower, not a detail.
     els.programRow.classList.toggle('flagged', !!result?.programAssumed);
-    els.currentLtv.textContent = result?.currentLtv != null ? formatPercent(result.currentLtv, 1) : '—';
-    els.maxLtv.textContent = result?.maxLtv != null
-      ? `${formatPercent(result.maxLtv, result.maxLtv * 100 % 1 === 0 ? 0 : 2)}`
-      : '—';
-    els.maxLtv.title = result?.ltvSource ?? '';
 
-    const showFee = !!result?.financedFee;
-    els.feeRow.style.display = showFee ? '' : 'none';
-    if (showFee) {
-      els.fee.textContent = formatMoney(result.financedFee);
-      els.fee.previousElementSibling.textContent = result.feeLabel ?? 'Upfront fee';
-    }
-    els.total.textContent = formatMoney(result?.totalLoanAmount);
-    els.breakeven.textContent = result?.programLabel ?? '—';
+    this.renderTakeHome(state);
 
     els.resultBox.dataset.tone = !hasValue ? 'idle'
       : result.meetsThreshold ? 'good'
@@ -584,6 +552,68 @@ export class Panel {
 
     this.renderBar(result);
     this.renderMessages(result);
+  }
+
+  /**
+   * VA take-home.
+   *
+   * Take-home appears as soon as an income does, and each further figure
+   * sharpens the answer rather than gating it. Waiting for a complete
+   * picture would mean showing nothing for most of the call, which on a
+   * dialer is the same as not being there.
+   */
+  renderTakeHome(state) {
+    const { els } = this;
+    const t = state.takeHome;
+    if (!t) return;
+
+    // Values the agent has typed win; everything else follows the record.
+    for (const [key, el] of [
+      ['income', this.root.querySelector('[data-va=income]')],
+      ['debts', this.root.querySelector('[data-va=debts]')],
+      ['family', this.root.querySelector('[data-va=family]')],
+      ['payment', this.root.querySelector('[data-va=payment]')],
+      ['taxRate', this.root.querySelector('[data-va=taxRate]')],
+      ['sqft', this.root.querySelector('[data-va=sqft]')],
+    ]) {
+      if (!el) continue;
+      const entry = state.takeHomeFields?.[key];
+      if (entry?.source === 'auto' || state.forceInputs) {
+        this.setInput(el, entry?.value ?? '', state.forceInputs);
+      }
+      if (el.tagName === 'INPUT' && entry?.placeholder) el.placeholder = entry.placeholder;
+    }
+
+    if (els.vaRegion) {
+      els.vaRegion.textContent = t.requirement
+        ? `${t.requirement.regionLabel} · family of ${t.requirement.familySize}`
+        : '';
+    }
+
+    els.vaTakeHome.textContent = t.takeHome == null ? '—' : formatMoney(t.takeHome);
+    els.vaTakeHome.className = `num ${t.takeHome == null ? 'none' : 'good'}`;
+
+    els.vaResidual.textContent = t.residual == null ? '—' : formatMoney(t.residual);
+    els.vaResidual.className = t.residual == null
+      ? 'v'
+      : `v ${t.meets === false ? 'bad' : 'good'}`;
+
+    els.vaRequired.textContent = t.required == null ? '—' : formatMoney(t.required);
+    els.vaRequiredLabel.textContent = t.highDti ? 'VA minimum +20%' : 'VA minimum';
+    els.vaDti.textContent = t.dti == null ? '—' : formatPercent(t.dti, 1);
+
+    if (t.meets == null) {
+      els.vaVerdict.textContent = t.takeHome == null ? 'Enter income' : 'Enter the new payment';
+      els.vaVerdict.className = 'pill idle';
+    } else if (t.meets) {
+      els.vaVerdict.textContent = 'Passes residual';
+      els.vaVerdict.className = 'pill good';
+    } else {
+      els.vaVerdict.textContent = `Short ${formatMoney(t.shortfall)}`;
+      els.vaVerdict.className = 'pill bad';
+    }
+
+    this.renderMessageList(els.vaMsgs, t.warnings ?? []);
   }
 
   renderBar(result) {
@@ -607,8 +637,11 @@ export class Panel {
   }
 
   renderMessages(result) {
-    const msgs = result?.warnings ?? [];
-    const host = this.els.msgs;
+    this.renderMessageList(this.els.msgs, result?.warnings ?? []);
+  }
+
+  renderMessageList(host, msgs) {
+    if (!host) return;
     const next = msgs.map((m) => `${m.level}::${m.text}`).join('|');
     if (host.dataset.sig === next) return;   // avoid pointless DOM churn
     host.dataset.sig = next;
@@ -847,37 +880,65 @@ const TEMPLATE = `
 
   <div class="msgs"></div>
 
-  <details class="adv">
-    <summary>Detail</summary>
-    <div class="grid">
-      <div class="cell"><div class="k">Max loan</div><div class="v" data-out="maxLoan">—</div></div>
-      <div class="cell"><div class="k">Gross equity</div><div class="v" data-out="equity">—</div></div>
-      <div class="cell"><div class="k">Current LTV</div><div class="v sub" data-out="currentLtv">—</div></div>
-      <div class="cell"><div class="k">Max LTV</div><div class="v sub" data-out="maxLtv">—</div></div>
-      <div class="cell" data-row="fee"><div class="k">Fee</div><div class="v sub" data-out="fee">—</div></div>
-      <div class="cell"><div class="k">Total loan</div><div class="v sub" data-out="total">—</div></div>
-      <div class="cell"><div class="k">Program</div><div class="v sub" data-out="breakeven">—</div></div>
-    </div>
-  </details>
+  <!--
+    VA take-home. The rule that decides files the LTV maths says are fine:
+    VA requires money left in the borrower's pocket after taxes, debts, the
+    new payment and the cost of running the house.
+  -->
+  <details class="adv va" open>
+    <summary>VA take-home <span class="va-region" data-va="region"></span></summary>
 
-  <details class="adv">
-    <summary>No balance on file? Estimate it</summary>
     <div class="three">
       <div class="row">
-        <label>P&amp;I payment</label>
-        <input type="text" data-solve="payment" placeholder="$0" inputmode="decimal" />
+        <label>Gross / mo</label>
+        <input type="text" data-va="income" placeholder="$0" inputmode="decimal" />
       </div>
       <div class="row">
-        <label>Rate</label>
-        <input type="text" data-solve="rate" placeholder="6.5%" inputmode="decimal" />
+        <label>Debts / mo</label>
+        <input type="text" data-va="debts" placeholder="$0" inputmode="decimal" />
       </div>
       <div class="row">
-        <label>Years left</label>
-        <input type="text" data-solve="years" placeholder="25" inputmode="decimal" />
+        <label>Family</label>
+        <select data-va="family">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7+</option>
+        </select>
       </div>
     </div>
-    <div class="hint" data-solve="out">Enter all three to estimate the remaining balance.</div>
-    <div class="foot"><button class="btn wide" data-act="use-solved">Use as balance</button></div>
+
+    <div class="three">
+      <div class="row">
+        <label>New payment</label>
+        <input type="text" data-va="payment" placeholder="PITI" inputmode="decimal" />
+      </div>
+      <div class="row">
+        <label>Tax rate</label>
+        <input type="text" data-va="taxRate" placeholder="22%" inputmode="decimal" />
+      </div>
+      <div class="row">
+        <label>Sq ft</label>
+        <input type="text" data-va="sqft" placeholder="—" inputmode="decimal" />
+      </div>
+    </div>
+
+    <div class="va-head">
+      <span class="cap">Take-home</span>
+      <span class="num none" data-va="takeHome">—</span>
+      <span class="pill idle" data-va="verdict">—</span>
+    </div>
+
+    <div class="grid">
+      <div class="cell"><div class="k">Left after housing &amp; debts</div><div class="v" data-va="residual">—</div></div>
+      <div class="cell"><div class="k" data-va="requiredLabel">VA minimum</div><div class="v sub" data-va="required">—</div></div>
+      <div class="cell"><div class="k">DTI</div><div class="v sub" data-va="dti">—</div></div>
+    </div>
+
+    <div class="msgs" data-va="msgs"></div>
   </details>
 
   <div class="foot">

@@ -540,9 +540,7 @@ const readPanel = () => {
     state: val('[data-in=state]'),
     value: val('[data-in=propertyValue]'),
     cash: text('[data-out=cash]'),
-    maxLoan: text('[data-out=maxLoan]'),
-    equity: text('[data-out=equity]'),
-    maxLtv: text('[data-out=maxLtv]'),
+    cap: text('[data-bar=right]'),
     who: text('.who'),
   };
 };
@@ -570,16 +568,16 @@ test('the content script boots, detects, and computes on the agent screen', { sk
       const text = (sel) => root.querySelector(sel)?.textContent?.trim() ?? null;
       return {
         cash: text('[data-out=cash]'),
-        maxLoan: text('[data-out=maxLoan]'),
-        equity: text('[data-out=equity]'),
-        maxLtv: text('[data-out=maxLtv]'),
+        cap: text('[data-bar=right]'),
+        now: text('[data-bar=left]'),
         verdict: text('[data-out=verdict]'),
       };
     });
 
-    assert.equal(after.maxLtv, '100%', 'VA outside Texas');
-    assert.equal(after.maxLoan, '$391,581');
-    assert.equal(after.equity, '$129,100');
+    // The panel shows the answer and the LTV meter; the supporting figures
+    // are asserted against the calculator itself in equity.test.mjs.
+    assert.equal(after.cap, 'Cap 100%', 'VA outside Texas');
+    assert.equal(after.now, 'Now 67.7%');
     assert.equal(after.cash, '$120,681');
     assert.match(after.verdict, /threshold/i);
   } finally {
@@ -814,6 +812,74 @@ test('collapsing leaves the title bar and nothing else', { skip }, async () => {
     assert.ok(out.restored.drawer.width > 100, 'expanding brings the application back');
     assert.ok(Math.abs(out.restored.wrap.width - out.open.wrap.width) < 2,
       'and restores the width it had');
+  } finally {
+    await page.close();
+  }
+});
+
+test('VA take-home calculates live as the figures go in', { skip }, async () => {
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');   // TN, VA loan, $270,900 balance
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const settle = () => new Promise((r) => setTimeout(r, 60));
+      const text = (sel) => root.querySelector(sel)?.textContent?.trim() ?? null;
+
+      const type = async (sel, value) => {
+        const el = root.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+        await settle();
+      };
+
+      const shot = () => ({
+        takeHome: text('[data-va=takeHome]'),
+        residual: text('[data-va=residual]'),
+        required: text('[data-va=required]'),
+        dti: text('[data-va=dti]'),
+        verdict: text('[data-va=verdict]'),
+        region: text('[data-va=region]'),
+      });
+
+      const empty = shot();
+
+      // Income alone must already say something.
+      await type('[data-va=income]', '8000');
+      const income = shot();
+
+      await type('[data-va=debts]', '650');
+      await type('[data-va=payment]', '2100');
+      await type('[data-va=sqft]', '1800');
+      await type('[data-va=family]', '3');
+      const full = shot();
+
+      // A payment this size puts DTI well past the benchmark and leaves
+      // $738 residual against a raised $1,067 requirement.
+      await type('[data-va=payment]', '4600');
+      const short = shot();
+
+      return { empty, income, full, short };
+    });
+
+    assert.equal(out.empty.takeHome, '—');
+    assert.match(out.empty.verdict, /income/i);
+
+    assert.equal(out.income.takeHome, '$6,240', '8000 less 22% withholding');
+    assert.match(out.income.verdict, /payment/i, 'no verdict without a payment');
+
+    assert.equal(out.full.residual, '$3,238', '6240 − 650 − 2100 − 252 maintenance');
+    assert.equal(out.full.required, '$889', 'South, family of three, loan over $80k');
+    assert.match(out.full.region, /South/);
+    assert.match(out.full.region, /family of 3/);
+    assert.equal(out.full.dti, '34.4%');
+    assert.match(out.full.verdict, /passes/i);
+
+    assert.equal(out.short.residual, '$738');
+    assert.equal(out.short.required, '$1,067', 'above 41% DTI the table figure gains 20%');
+    assert.match(out.short.verdict, /short \$329/i, 'the gap is named, not just failed');
   } finally {
     await page.close();
   }

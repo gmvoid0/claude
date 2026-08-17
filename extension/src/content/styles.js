@@ -877,6 +877,56 @@ details.adv .foot { margin-top: 10px; }
 details.adv > *:not(summary):last-child { padding-bottom: 12px; }
 details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margin-bottom: 11px; }
 
+/* ------------------------------------------------------------------ *
+ * VA take-home
+ * ------------------------------------------------------------------ */
+
+.va-region {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--label-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.va-region:empty { display: none; }
+
+/* Take-home is the number the borrower recognises, so it gets the weight
+   inside this section the way cash-out does in the panel overall. */
+.va-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--separator);
+}
+.va-head .cap {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--label-3);
+}
+.va-head .num {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.va-head .num.good { color: var(--green-deep); }
+.va-head .num.none { color: var(--label-3); }
+.va-head .pill { margin-top: 0; margin-left: auto; flex: none; }
+
+details.va .grid { margin-top: 9px; }
+details.va .cell .v.good { color: var(--green-deep); }
+details.va .cell .v.bad  { color: var(--red-deep); }
+details.va .msgs { margin-top: 9px; }
+details.va .msgs:empty { display: none; }
+
 /* --- iOS switch --- */
 .check {
   display: flex; align-items: center; gap: 10px;

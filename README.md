@@ -141,6 +141,45 @@ same number.
 Redfin works the same way. Turn the whole behaviour off in settings if you
 don't want it.
 
+## VA take-home
+
+The LTV maths says whether the equity is there. VA's residual income rule
+says whether the loan actually goes — and it is the one that kills files
+that look fine on paper. VA doesn't underwrite on debt-to-income alone; it
+requires a minimum amount left in the borrower's pocket every month after
+taxes, debts, the new payment, and the cost of running the house.
+
+The section calculates it live, in VA's own order:
+
+```
+take-home = gross monthly income − taxes
+residual  = take-home − debts − new payment − maintenance & utilities
+```
+
+Take-home appears the moment an income does — it fills itself from the
+annual figure on the application, so nobody types it twice — and each
+further figure sharpens the answer rather than gating it. The region comes
+from the lead's state, the family size is a dropdown, and the verdict is a
+green or red pill against the published minimum.
+
+| Setting | Where it comes from |
+| --- | --- |
+| Region | The lead's state — Northeast / Midwest / South / West |
+| Family size | Dropdown, 1 to 7+ |
+| Loan tier | The total loan this panel just calculated (under or over $80,000) |
+| Withholding | Settings, default 22%, overridable per borrower |
+| Maintenance | VA's own $0.14 per square foot, if you enter square footage |
+
+Above 41% DTI, VA wants residual **20% above** the table figure, and the
+panel raises the bar and says so. If square footage is blank the maintenance
+figure can't be included, and the panel says that too — leaving it out makes
+residual look better than it is, which is the direction this tool must never
+be quietly wrong in.
+
+The figures are the tables in **VA Pamphlet 26-7, Chapter 4, Topic 9**, held
+as constants in `lib/residual.js` so they can be checked against the
+handbook rather than reverse-engineered out of a spreadsheet.
+
 ### When Zillow asks you to prove you're human
 
 Call floors share one office IP, so "Press & Hold to confirm you are a
@@ -432,7 +471,8 @@ number is the wrong one.
 
 It models the LTV cap and the financed upfront fee. It does **not** model:
 
-- DTI, credit score, residual income, reserves
+- Credit score, reserves, or anything about the borrower's file beyond what
+  you type into the take-home section
 - Seasoning and payment-history requirements
 - VA entitlement, prior use, or county loan limits (you can enter a limit
   manually, but nothing is looked up)
