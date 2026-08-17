@@ -19,14 +19,11 @@ CRMs, LOS screens and listing pages.
 │  └────────────────────────────────────┘  │
 │  Balance  270,900     Loan type  VA      │
 ├──────────────────────────────────────────┤
-│                CASH OUT                  │
-│               $120,681                   │
+│    ADVERTISED    │      TAKE-HOME        │
+│     $129,100     │      $112,085         │
+│ before fees/costs│ less $8,419 + $8,596  │
 │         ABOVE $10,000 THRESHOLD          │
-│  Now 67.7%  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░│  Cap 100%│
-├──────────────────────────────────────────┤
-│  ASSUMPTIONS            applied to every │
-│  Fee  2.15% financed             $8,419  │
-│  Finance the upfront fee            [ON] │
+│  Now 67.7%  ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░│ Cap 100% │
 ╰──────────────────────────────────────────╯
 ```
 
@@ -184,6 +181,70 @@ security control belonging to someone else, and removing it to extract data
 is a different act from reading a page you have open. A popup window is the
 same navigation you make by hand today, with nothing bypassed, and it looks
 the same.
+
+## Two figures, not one
+
+The headline is a pair, because on a call they are two different sentences.
+
+**Advertised** is the raw number: the LTV ceiling against the payoff, before
+the upfront fee is carved out and before a single cost comes off. It is what
+gets said out loud, and it is blue.
+
+**Take-home** is what the borrower actually receives. It is green, and it is
+the one the verdict pill and the red zone are judged on.
+
+Showing only the first is how a floor over-promises. Showing only the second
+is how it under-quotes against everyone else. Both, side by side, with a line
+naming exactly what came out between them — and both turn red the moment the
+deal stops being worth having, because a big blue number next to a red one
+would read as "there's still something here" when there isn't.
+
+## Closing costs
+
+The gap between those two figures is a closing-cost estimate, itemised per
+program rather than rolled into one percentage. A flat "2% of the loan" is
+easy to write and wrong in both directions: most of these charges are flat,
+so one percentage overstates a $700,000 refinance and understates a
+$150,000 one.
+
+```
+Origination            $3,916    1% of the loan (VA cap)
+Appraisal                $800    VA-assigned appraiser
+Credit report             $75
+Flood certification       $20
+Lender's title policy  $1,566    0.4% of the loan
+Title search / exam      $325
+Settlement / closing     $650
+Recording                $175
+Prepaid interest       $1,068    15 days at 6.5%, rate assumed
+                       ──────
+                       $8,596    2.2% of the loan
+```
+
+Program differences that are actually knowable are modelled:
+
+- **VA** takes a flat 1% origination and no separate underwriting fee — the
+  veteran cannot be charged both — and its appraisal costs more because VA
+  assigns the appraiser.
+- **FHA and Conventional** charge underwriting separately at a lower
+  origination.
+- **Texas** §50(a)(6) caps chargeable fees at 2% of the loan. The appraisal,
+  the survey and the state base title premium sit outside the cap, so only
+  the rest is held to it.
+
+Hover the take-home figure for the full itemisation; it also lands in **Copy
+summary**.
+
+Every line is editable in Settings, and you should edit them. The defaults
+are national mid-range figures; title premiums and recording fees are set
+per state and no default can know yours.
+
+**Escrow and reserve deposits are deliberately excluded** — they depend on
+the tax bill, the insurance premium and the closing date, none of which are
+on a lead screen. The panel says so rather than leaving the omission silent,
+because a cost quietly left out flatters the take-home figure, and that is
+the one direction this tool must never be wrong in. Set a figure in Settings
+if your shop has a standard one.
 
 ## Assumptions
 

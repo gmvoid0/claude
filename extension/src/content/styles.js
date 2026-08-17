@@ -563,7 +563,18 @@ input.warnval {
   box-shadow: 0 1px 2px rgba(0,0,0,.04);
 }
 
-.headline .cap {
+/* Two figures of equal weight: what gets quoted, and what is received.
+   Neither is a footnote to the other. */
+.heads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.heads .head { min-width: 0; }
+.heads .head + .head { border-left: 0.5px solid var(--separator); padding-left: 10px; }
+
+.head .cap {
   display: block;
   font-size: 10px;
   font-weight: 600;
@@ -572,17 +583,31 @@ input.warnval {
   color: var(--label-3);
   margin-bottom: 1px;
 }
-.headline .num {
+.head .num {
   display: block;
-  font-size: 44px;
+  font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
-  line-height: 1.06;
+  line-height: 1.08;
 }
-.headline .num.good { color: var(--green-deep); }
-.headline .num.bad  { color: var(--red-deep); }
-.headline .num.none { color: var(--label-3); }
+.head .sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: var(--label-3);
+  line-height: 1.25;
+}
+
+/* Blue is the number said out loud, green is the number received, and red
+   overrides both the moment the deal stops being worth having. */
+.head .num.adv  { color: var(--blue); }
+.head .num.net  { color: var(--green-deep); }
+.head .num.good { color: var(--green-deep); }
+.head .num.bad  { color: var(--red-deep); }
+.head .num.none { color: var(--label-3); }
 
 .pill {
   display: inline-block;

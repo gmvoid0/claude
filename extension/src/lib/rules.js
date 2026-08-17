@@ -9,6 +9,8 @@
  * Last reviewed against published agency guidance: see README "Rule sources".
  */
 
+import { DEFAULT_CLOSING_RULES } from './closing.js';
+
 /** Canonical program identifiers. */
 export const PROGRAMS = ['VA', 'FHA', 'CONV', 'USDA'];
 
@@ -182,6 +184,13 @@ export const DEFAULT_RULES = {
 
   /** A lead is flagged as worth pursuing at or above this cash-out figure. */
   minCashOutThreshold: 10000,
+
+  /**
+   * Itemised closing-cost defaults. National mid-range figures for a
+   * cash-out refinance — replace them with your own, particularly the title
+   * premium and recording fees, which are set per state.
+   */
+  closing: DEFAULT_CLOSING_RULES,
 };
 
 /**

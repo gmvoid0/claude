@@ -144,6 +144,7 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
       unfinancedFee: 0,
       totalLoanAmount: null,
       resultingLtv: null,
+      advertisedCashOut: null,
       cashOutBeforeCosts: null,
       estimatedCashToBorrower: null,
       shortfall: null,
@@ -209,6 +210,18 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
   // closing rather than financed both reduce net proceeds.
   const cashOutBeforeCosts = round2(maxBaseLoan - totalLiens);
   const estimatedCashToBorrower = round2(cashOutBeforeCosts - closingCosts - unfinancedFee);
+
+  // The raw figure: the LTV ceiling against the payoff, before the upfront
+  // fee is carved out of it and before any cost comes off. This is the
+  // number that gets quoted on the phone, so it is shown as its own figure
+  // rather than left implicit — an agent who says it should be looking at
+  // it, next to what the borrower will actually receive.
+  //
+  // A hard loan limit still binds it. That is a ceiling on the loan, not a
+  // charge against it, and quoting past it would be quoting a loan that
+  // cannot be written.
+  const advertisedCeiling = limitApplied ? Math.min(ltvCapAmount, loanLimit) : ltvCapAmount;
+  const advertisedCashOut = round2(floorDollar(advertisedCeiling) - totalLiens);
 
   if (unfinancedFee > 0) {
     warnings.push({
@@ -332,6 +345,7 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
     resultingLtv,
 
     closingCosts,
+    advertisedCashOut,
     cashOutBeforeCosts,
     estimatedCashToBorrower,
     shortfall,

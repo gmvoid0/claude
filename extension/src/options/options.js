@@ -17,6 +17,7 @@ async function init() {
   prefs = await getPrefs();
 
   renderPrograms();
+  renderClosingPrograms();
   renderPrefs();
   await renderSites();
   await renderBindings();
@@ -52,6 +53,27 @@ function renderPrograms() {
   }
 }
 
+/** Per-program closing charges: origination, underwriting, appraisal. */
+function renderClosingPrograms() {
+  const tbody = $('closingPrograms').querySelector('tbody');
+  tbody.textContent = '';
+  const c = rules.closing ?? {};
+
+  for (const key of PROGRAMS) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${key}</td>
+      <td><input type="text" data-c="${key}" data-k="originationPct" /></td>
+      <td><input type="text" data-c="${key}" data-k="underwritingFee" /></td>
+      <td><input type="text" data-c="${key}" data-k="appraisal" /></td>
+    `;
+    tbody.appendChild(tr);
+    setVal(tr, 'originationPct', pctText(c.originationPct?.[key] ?? 0));
+    setVal(tr, 'underwritingFee', String(c.underwritingFee?.[key] ?? 0));
+    setVal(tr, 'appraisal', String(c.appraisal?.[key] ?? 0));
+  }
+}
+
 function setVal(scope, key, value) {
   const el = scope.querySelector(`[data-k="${key}"]`);
   if (el) el.value = value;
@@ -79,6 +101,19 @@ function renderPrefs() {
   $('ltvOverride').value = prefs.ltvOverride ?? '';
   $('loanLimit').value = prefs.loanLimit ?? '';
   $('startCollapsed').checked = !!prefs.startCollapsed;
+  $('estimateClosingCosts').checked = prefs.estimateClosingCosts !== false;
+
+  const c = rules.closing ?? {};
+  $('titlePolicyPct').value = pctText(c.titlePolicyPct ?? 0);
+  $('titleSearch').value = c.titleSearch ?? 0;
+  $('settlementFee').value = c.settlementFee ?? 0;
+  $('recordingFees').value = c.recordingFees ?? 0;
+  $('creditReport').value = c.creditReport ?? 0;
+  $('floodCert').value = c.floodCert ?? 0;
+  $('prepaidInterestDays').value = c.prepaidInterestDays ?? 0;
+  $('assumedRate').value = pctText(c.assumedRate ?? 0);
+  $('escrowReserves').value = c.escrowReserves ?? 0;
+  $('texasFeeCapPct').value = pctText(c.texasFeeCapPct ?? 0);
 }
 
 async function renderSites() {
@@ -163,6 +198,7 @@ async function save() {
 
   overrides.minCashOutThreshold = parseMoney($('threshold').value) ?? 0;
   overrides.avmHaircut = parsePercent($('avmHaircut').value) ?? 0;
+  overrides.closing = readClosingRules();
 
   await setRuleOverrides(overrides);
 
@@ -181,13 +217,54 @@ async function save() {
     ltvOverride: $('ltvOverride').value.trim(),
     loanLimit: $('loanLimit').value.trim(),
     startCollapsed: $('startCollapsed').checked,
+    estimateClosingCosts: $('estimateClosingCosts').checked,
   });
 
   rules = mergeRules(await getRuleOverrides());
   prefs = await getPrefs();
 
+  renderClosingPrograms();
   notifyContentScripts();
   flash('Saved');
+}
+
+/**
+ * Read the closing-cost table back out of the form.
+ *
+ * Written whole rather than merged: these are one coherent cost model, and
+ * half a saved model mixed with half a default is a figure nobody could
+ * account for.
+ */
+function readClosingRules() {
+  const base = DEFAULT_RULES.closing;
+  const out = {
+    ...base,
+    originationPct: {},
+    underwritingFee: {},
+    appraisal: {},
+    titlePolicyPct: parsePercent($('titlePolicyPct').value) ?? base.titlePolicyPct,
+    titleSearch: parseMoney($('titleSearch').value) ?? 0,
+    settlementFee: parseMoney($('settlementFee').value) ?? 0,
+    recordingFees: parseMoney($('recordingFees').value) ?? 0,
+    creditReport: parseMoney($('creditReport').value) ?? 0,
+    floodCert: parseMoney($('floodCert').value) ?? 0,
+    prepaidInterestDays: clampInt($('prepaidInterestDays').value, 0, 60, 15),
+    assumedRate: parsePercent($('assumedRate').value) ?? base.assumedRate,
+    escrowReserves: parseMoney($('escrowReserves').value) ?? 0,
+    texasFeeCapPct: parsePercent($('texasFeeCapPct').value) ?? base.texasFeeCapPct,
+  };
+
+  for (const key of PROGRAMS) {
+    const row = document.querySelector(`[data-c="${key}"]`)?.closest('tr');
+    if (!row) continue;
+    out.originationPct[key] =
+      parsePercent(row.querySelector('[data-k=originationPct]').value) ?? 0;
+    out.underwritingFee[key] =
+      parseMoney(row.querySelector('[data-k=underwritingFee]').value) ?? 0;
+    out.appraisal[key] =
+      parseMoney(row.querySelector('[data-k=appraisal]').value) ?? 0;
+  }
+  return out;
 }
 
 async function restoreDefaults() {
@@ -196,6 +273,7 @@ async function restoreDefaults() {
   rules = mergeRules(null);
   prefs = { ...DEFAULT_PREFS };
   renderPrograms();
+  renderClosingPrograms();
   renderPrefs();
   notifyContentScripts();
   flash('Defaults restored');

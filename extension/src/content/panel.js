@@ -92,6 +92,8 @@ export class Panel {
       stateSrc: q('[data-src=state]'),
 
       cash: q('[data-out=cash]'),
+      cashNote: q('[data-out=cashNote]'),
+      advertised: q('[data-out=advertised]'),
       verdict: q('[data-out=verdict]'),
 
       feeLine: q('[data-ovr=feeLine]'),
@@ -498,7 +500,10 @@ export class Panel {
 
     if (!hasValue) {
       els.cash.textContent = '—';
-      els.cash.className = 'num none';
+      els.cash.className = 'num none net';
+      els.advertised.textContent = '—';
+      els.advertised.className = 'num none adv';
+      els.cashNote.textContent = 'after fees & costs';
       els.verdict.textContent = 'Enter a home value';
       els.verdict.className = 'pill idle';
       els.valueHint.innerHTML = result?.totalLiens
@@ -506,8 +511,26 @@ export class Panel {
         : 'Not on the page — type it or bind a field.';
     } else {
       const cash = result.estimatedCashToBorrower;
+      // The red zone is one verdict on the deal, so both figures carry it.
+      // A big blue number beside a red one would read as "there is still
+      // something here", which is exactly what there is not.
+      const red = !result.meetsThreshold;
+
       els.cash.textContent = formatMoney(cash);
-      els.cash.className = `num ${cash > 0 ? 'good' : 'bad'}`;
+      els.cash.className = `num net ${red ? 'bad' : 'good'}`;
+
+      els.advertised.textContent = formatMoney(result.advertisedCashOut);
+      els.advertised.className = `num adv ${red ? 'bad' : ''}`.trim();
+
+      // Say what came out between the two figures, so the gap is never a
+      // mystery the agent has to take on trust.
+      const out = [];
+      if (result.financedFee || result.unfinancedFee) {
+        out.push(`${formatMoney(result.financedFee || result.unfinancedFee)} fee`);
+      }
+      if (result.closingCosts) out.push(`${formatMoney(result.closingCosts)} costs`);
+      els.cashNote.textContent = out.length ? `less ${out.join(' + ')}` : 'no fees or costs';
+      els.cashNote.title = closingBreakdown(result);
 
       if (result.meetsThreshold) {
         els.verdict.textContent = `Above ${formatMoney(result.threshold)} threshold`;
@@ -735,6 +758,16 @@ function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
 }
 
+/** The itemised costs, as hover text on the figure they came out of. */
+function closingBreakdown(result) {
+  const estimate = result?.closingEstimate;
+  if (!estimate?.items?.length) return '';
+  const lines = estimate.items.map((item) => `${item.label}  ${formatMoney(item.amount)}`);
+  lines.push(`Total  ${formatMoney(estimate.total)}`);
+  for (const warning of estimate.warnings ?? []) lines.push(`\n${warning.text}`);
+  return lines.join('\n');
+}
+
 const TEMPLATE = `
 <div class="hd">
   <span class="dot"></span>
@@ -788,11 +821,27 @@ const TEMPLATE = `
 
 <div class="body">
 
-  <!-- The answer, first and largest. Everything below it is supporting work. -->
+  <!--
+    The answer, first and largest — as two figures, because on a call they
+    are two different sentences. The blue one is what gets said out loud:
+    the raw LTV ceiling against the payoff, before any fee or cost. The
+    green one is what the borrower actually receives. Showing only the
+    first is how a floor over-promises; showing only the second is how it
+    under-quotes against everyone else. Both, side by side, is the honest
+    version of the same conversation.
+  -->
   <div class="result" data-tone="idle">
-    <div class="headline">
-      <span class="cap">Max cash out</span>
-      <span class="num none" data-out="cash">—</span>
+    <div class="heads">
+      <div class="head">
+        <span class="cap">Advertised</span>
+        <span class="num none adv" data-out="advertised">—</span>
+        <span class="sub">before fees &amp; costs</span>
+      </div>
+      <div class="head">
+        <span class="cap">Take-home</span>
+        <span class="num none net" data-out="cash">—</span>
+        <span class="sub" data-out="cashNote">after fees &amp; costs</span>
+      </div>
     </div>
     <span class="pill idle" data-out="verdict">—</span>
 

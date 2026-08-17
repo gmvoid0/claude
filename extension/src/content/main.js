@@ -17,6 +17,7 @@
 
 import { collectCandidates, assignFields, readValue, FIELDS, cleanLabel } from '../lib/detect.js';
 import { computeEquity } from '../lib/equity.js';
+import { estimateClosingCosts, closingCostText } from '../lib/closing.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
@@ -734,20 +735,30 @@ function recompute({ forceInputs = false } = {}) {
   });
   const feeExempt = !!state.overrides.feeExempt || impliesFeeExemption(preliminary);
 
-  const result = computeEquity({
+  const shared = {
     propertyValue: inputs.propertyValue.num,
     valueIsAvm: !!state.overrides.valueIsAvm,
     firstLien: inputs.firstLien.num,
     secondLien: inputs.secondLien.num,
     program: inputs.program.normalized,
     state: inputs.state.normalized,
-    closingCosts: parseMoney(state.overrides.closingCosts) ?? 0,
     ltvOverride: parseLtv(state.overrides.ltvOverride),
     loanLimit: parseMoney(state.overrides.loanLimit),
     feeExempt,
     subsequentUse: !!state.overrides.subsequentUse,
     financeFee: state.overrides.financeFee !== false,
-  }, state.rules);
+  };
+
+  // Two passes, because closing costs are charged on a loan amount and the
+  // loan amount does not depend on them. The first pass sizes the loan, the
+  // estimate is built against it, and the second pass takes the money out.
+  // Nothing oscillates: the LTV cap never moves between the two.
+  const sized = computeEquity({ ...shared, closingCosts: 0 }, state.rules);
+  const closing = estimateClosing(sized, inputs);
+
+  const result = computeEquity({ ...shared, closingCosts: closing.total }, state.rules);
+  result.closingEstimate = closing;
+  for (const warning of closing.warnings ?? []) result.warnings.push(warning);
 
   // Lead data routinely carries a loan type the matrix has no meaning for —
   // one of the source screens held an agent ID in that column. Say so rather
@@ -1080,6 +1091,38 @@ function truncate(text, max) {
 }
 
 
+/**
+ * Closing costs for this file.
+ *
+ * A figure the agent typed wins outright — they are looking at a Loan
+ * Estimate and this is not. Otherwise the costs are estimated from the loan
+ * that was just sized, per program, because a cash figure quoted with no
+ * costs taken out is the optimistic kind of wrong.
+ */
+function estimateClosing(sized, inputs) {
+  const typed = parseMoney(state.overrides.closingCosts);
+  if (typed != null) {
+    return { total: typed, items: [], warnings: [], typed: true };
+  }
+  if (state.prefs?.estimateClosingCosts === false) {
+    return { total: 0, items: [], warnings: [], typed: false };
+  }
+
+  return {
+    ...estimateClosingCosts({
+      program: sized.program,
+      state: sized.state,
+      baseLoan: sized.maxBaseLoan,
+      totalLoan: sized.totalLoanAmount,
+      // The rate on the screen belongs to the loan being paid off, not the
+      // new one, so it is a stand-in rather than a fact. Better than nothing
+      // for a fifteen-day interest accrual, and labelled as assumed.
+      rate: parsePercent(inputs.interestRate?.value ?? ''),
+    }, state.rules?.closing),
+    typed: false,
+  };
+}
+
 /** "80", "80%", ".8" all mean 80%. Blank means "use the program default". */
 function parseLtv(raw) {
   if (raw == null || String(raw).trim() === '') return null;
@@ -1189,11 +1232,19 @@ function summaryText(r, inputs, recordLabel) {
     `Max loan:       ${formatMoney(r.maxBaseLoan)}`,
   );
   if (r.financedFee) lines.push(`${(r.feeLabel ?? 'Fee').padEnd(15)} ${formatMoney(r.financedFee)}`);
+  if (r.unfinancedFee) {
+    lines.push(`${(r.feeLabel ?? 'Fee').padEnd(15)} ${formatMoney(r.unfinancedFee)}  (due at closing)`);
+  }
   lines.push(
     `Total loan:     ${formatMoney(r.totalLoanAmount)}`,
+    '',
+    `ADVERTISED:     ${formatMoney(r.advertisedCashOut)}   (before fees and costs)`,
     `Closing costs:  ${formatMoney(r.closingCosts)}`,
-    `CASH OUT:       ${formatMoney(r.estimatedCashToBorrower)}`,
+    `TAKE-HOME:      ${formatMoney(r.estimatedCashToBorrower)}`,
   );
+
+  const itemised = closingCostText(r.closingEstimate);
+  if (itemised) lines.push('', 'Closing costs, estimated:', itemised);
   for (const w of r.warnings ?? []) lines.push(`! ${w.text}`);
   lines.push('', 'Estimate only — not a quote or commitment to lend.');
   return lines.join('\n');

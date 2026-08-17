@@ -71,6 +71,13 @@ export const DEFAULT_PREFS = {
   transferAgent: '',
   loanOfficerAssistant: '',
 
+  /**
+   * Estimate closing costs per program instead of assuming zero. A cash
+   * figure quoted with no costs taken out is the optimistic kind of wrong,
+   * so this is on. Typing a figure into the panel overrides it either way.
+   */
+  estimateClosingCosts: true,
+
   ltvOverride: '',           // blank = use the program maximum
   loanLimit: '',             // blank = no county / investor ceiling
 };
