@@ -120,8 +120,9 @@ export function buildApplicationDocument({
     });
   }
 
-  if (result?.ok) blocks.push(...calculationBlocks(result));
-
+  // Flags sit with the figures they qualify rather than at the end. On a
+  // sheet that gets forwarded, a caveat two pages below the number it
+  // applies to is a caveat that does not travel with it.
   const warnings = (result?.warnings ?? []).filter((w) => w.level !== 'info');
   if (warnings.length) {
     blocks.push({ type: 'heading', text: 'Flags' });
@@ -129,6 +130,8 @@ export function buildApplicationDocument({
       blocks.push({ type: 'callout', text: warning.text, tone: 'amber' });
     }
   }
+
+  if (result?.ok) blocks.push(...calculationBlocks(result));
 
   return {
     title: 'Loan application',

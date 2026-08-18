@@ -54,10 +54,27 @@ function pageCount(bytes) {
  * matrix, and measure the string with the same metrics that laid it out.
  */
 function draws(bytes) {
-  const raw = Buffer.from(bytes).toString('latin1');
-  const out = [];
+  return pagesOf(bytes).flatMap((page) => page.draws);
+}
 
-  for (const stream of [...raw.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((m) => m[1])) {
+/** Filled rectangles, for the section bands and rules. */
+function rects(bytes) {
+  return pagesOf(bytes).flatMap((page) => page.rects);
+}
+
+/**
+ * The same, kept per page.
+ *
+ * Anything comparing a rule against the text it might cross has to stay
+ * within one page — a hairline near the foot of page one is not touching a
+ * heading near the top of page two, however close their coordinates look.
+ */
+function pagesOf(bytes) {
+  const raw = Buffer.from(bytes).toString('latin1');
+  const streams = [...raw.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((m) => m[1]);
+
+  return streams.map((stream) => {
+    const page = { draws: [], rects: [] };
     let bold = false;
     let size = 10;
     let x = 0;
@@ -73,19 +90,16 @@ function draws(bytes) {
         y = parseFloat(match[2]);
       } else if ((match = line.match(/^\((.*)\) Tj$/))) {
         const text = decode(match[1]);
-        out.push({ text, x, y, size, bold, right: x + textWidth(text, size, bold) });
+        page.draws.push({ text, x, y, size, bold, right: x + textWidth(text, size, bold) });
+      } else if ((match = line.match(/^([\d.-]+) ([\d.-]+) ([\d.-]+) ([\d.-]+) re f$/))) {
+        page.rects.push({
+          x: parseFloat(match[1]), y: parseFloat(match[2]),
+          w: parseFloat(match[3]), h: parseFloat(match[4]),
+        });
       }
     }
-  }
-  return out;
-}
-
-/** Filled rectangles, for the section bands and rules. */
-function rects(bytes) {
-  const raw = Buffer.from(bytes).toString('latin1');
-  return [...raw.matchAll(/^([\d.-]+) ([\d.-]+) ([\d.-]+) ([\d.-]+) re f$/gm)].map((m) => ({
-    x: parseFloat(m[1]), y: parseFloat(m[2]), w: parseFloat(m[3]), h: parseFloat(m[4]),
-  }));
+    return page;
+  });
 }
 
 /** The printable box: US Letter less the margins the layout declares. */
@@ -417,4 +431,84 @@ test('the application is the first thing on the sheet', () => {
   const name = shown.find((d) => d.text === 'RANDY D ROLLINS');
   assert.equal(name.bold, true);
   assert.ok(name.size >= 10.5);
+});
+
+test('no separator rule is drawn through the text', () => {
+  // The defect this exists for: rows were 13pt apart for 10.5pt type, so the
+  // hairline under each row landed inside the next row's capitals. It looked
+  // fine on a sample with short values, because the rule was tuned against
+  // that sample rather than measured against the glyphs.
+  const { application, result } = scenario({ coBorrower: true });
+  const bytes = renderDocument(buildApplicationDocument({
+    application, result, coBorrower: true, recordLabel: 'RANDY D ROLLINS — ROCKWOOD, TN',
+  }));
+
+  let hairlines = 0;
+
+  for (const page of pagesOf(bytes)) {
+    // Helvetica's cap height is 0.717 em and its descender 0.212. A glyph box
+    // a shade larger than that is the honest test of "does the line touch it".
+    const boxes = page.draws.map((d) => ({
+      ...d,
+      top: d.y + d.size * 0.73,
+      bottom: d.y - d.size * 0.22,
+    }));
+
+    for (const rule of page.rects.filter((r) => r.h <= 2)) {
+      hairlines += 1;
+      for (const box of boxes) {
+        const overlapsX = box.x < rule.x + rule.w && box.right > rule.x;
+        const overlapsY = rule.y < box.top && rule.y + rule.h > box.bottom;
+        assert.ok(!(overlapsX && overlapsY),
+          `a rule at y ${rule.y.toFixed(1)} crosses "${box.text}" `
+          + `(${box.bottom.toFixed(1)}–${box.top.toFixed(1)})`);
+      }
+    }
+  }
+
+  assert.ok(hairlines > 10, 'the sheet does have separator rules');
+});
+
+test('a section heading sits inside its band, not on top of it', () => {
+  const { application, result } = scenario();
+  const bytes = renderDocument(buildApplicationDocument({ application, result }));
+
+  const bands = rects(bytes).filter((r) => r.h > 10 && r.w > 400);
+  // Section headings only: the figures' captions are also bold and uppercase,
+  // and they sit on the page rather than in a band.
+  const headings = draws(bytes).filter((d) => d.bold && d.size === 8.5);
+
+  assert.ok(bands.length >= 3, 'the sheet has section bands');
+
+  for (const heading of headings) {
+    const band = bands.find((b) => heading.y > b.y && heading.y < b.y + b.h);
+    assert.ok(band, `"${heading.text}" is not inside any band`);
+    assert.ok(heading.y - heading.size * 0.22 >= band.y - 0.5, `"${heading.text}" hangs below its band`);
+    assert.ok(heading.y + heading.size * 0.73 <= band.y + band.h + 0.5,
+      `"${heading.text}" pokes out of the top of its band`);
+  }
+});
+
+test('rows do not overlap each other', () => {
+  // Every value on the sheet gets its own horizontal band of the page.
+  const bytes = renderDocument({
+    title: 'x',
+    blocks: [
+      { type: 'row', label: 'One', value: 'FIRST VALUE', strong: true },
+      { type: 'row', label: 'Two', value: 'SECOND VALUE', strong: true },
+      { type: 'row', label: 'Three', value: 'A value long enough to wrap onto a second line all by itself here', strong: true },
+      { type: 'row', label: 'Four', value: 'FOURTH VALUE', strong: true },
+    ],
+  });
+
+  const values = draws(bytes)
+    .filter((d) => d.bold && d.size > 10)
+    .sort((a, b) => b.y - a.y);
+
+  for (let i = 1; i < values.length; i++) {
+    const above = values[i - 1];
+    const below = values[i];
+    assert.ok(below.y + below.size * 0.73 < above.y - above.size * 0.22,
+      `"${below.text}" overlaps "${above.text}"`);
+  }
 });

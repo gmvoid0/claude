@@ -3,8 +3,16 @@
  *
  * A small vocabulary of blocks — headings, label/value rows, callouts — with
  * a cursor that flows down the page and starts a new one when it runs out of
- * room. Everything measures its own height first, so a row never lands half
- * on one page and half on the next.
+ * room.
+ *
+ * One convention holds the whole file together: **`this.y` is the top edge of
+ * the next block**, never a baseline. Every block asks for the height it
+ * needs, derives its baselines from that top, and moves the cursor by exactly
+ * that height. The first version mixed the two — some blocks positioned from
+ * a baseline, others from a top, with offsets tuned until a sample looked
+ * right — and the separator rules ended up drawn straight through the next
+ * row's capitals. Tuned offsets look correct for one set of values and are
+ * wrong for the next.
  *
  * Kept apart from the PDF writer so the layout can be reasoned about without
  * thinking about object offsets, and apart from the application so the same
@@ -15,28 +23,23 @@
 
 import { Page, assemble, textWidth, wrapText } from './pdf.js';
 
-/**
- * Cut a string to fit a width, with an ellipsis.
- *
- * Used where wrapping is not an option — a label in a fixed column, a
- * caption under a figure. Running past the edge is the one outcome that is
- * never acceptable: text that leaves the page is not shortened, it is gone.
- */
-function ellipsize(text, width, size, bold = false) {
-  const full = String(text ?? '');
-  if (textWidth(full, size, bold) <= width) return full;
-
-  let cut = full;
-  while (cut.length > 1 && textWidth(`${cut}…`, size, bold) > width) {
-    cut = cut.slice(0, -1);
-  }
-  return `${cut.trimEnd()}…`;
-}
-
 /** US Letter, in points. The floor prints on Letter, not A4. */
 export const LETTER = { width: 612, height: 792 };
 
 const MARGIN = { top: 54, bottom: 52, left: 50, right: 50 };
+
+/**
+ * A line box, as a share of the point size.
+ *
+ * Helvetica's cap height is 0.717 em and its descender 0.212. The box is
+ * deliberately larger than both: the difference is the leading that keeps a
+ * separator rule sitting on a box edge from touching the glyphs inside it.
+ * At 0.78 the clearance above the capitals was four tenths of a point, which
+ * a 0.4pt hairline consumed exactly.
+ */
+const ASCENT = 0.86;
+const DESCENT = 0.30;
+const LINE = ASCENT + DESCENT;
 
 const INK = {
   text: [0.09, 0.10, 0.12],
@@ -51,6 +54,24 @@ const INK = {
   tintBlue: [0.93, 0.96, 0.99],
   tintAmber: [0.99, 0.96, 0.90],
 };
+
+/**
+ * Cut a string to fit a width, with an ellipsis.
+ *
+ * Used where wrapping is not an option — a label in a fixed column, a caption
+ * under a figure. Running past the edge is the one outcome that is never
+ * acceptable: text that leaves the page is not shortened, it is gone.
+ */
+function ellipsize(text, width, size, bold = false) {
+  const full = String(text ?? '');
+  if (textWidth(full, size, bold) <= width) return full;
+
+  let cut = full;
+  while (cut.length > 1 && textWidth(`${cut}…`, size, bold) > width) {
+    cut = cut.slice(0, -1);
+  }
+  return `${cut.trimEnd()}…`;
+}
 
 /**
  * Render a document description to PDF bytes.
@@ -91,33 +112,37 @@ class Layout {
     if (this.y - height < MARGIN.bottom) this.newPage();
   }
 
+  /**
+   * Draw one line of text in a box whose top is `top`, and return the box's
+   * height. Nothing in this file positions text by baseline directly.
+   */
+  line(top, x, text, { size = 10, bold = false, colour = INK.text, lead = LINE } = {}) {
+    this.page.text(x, top - size * ASCENT, text, { size, bold, colour });
+    return size * lead;
+  }
+
   documentHeader(title, subtitle, meta) {
-    this.page.text(MARGIN.left, this.y - 18, title, { size: 19, bold: true, colour: INK.text });
-    this.y -= 26;
+    this.y -= this.line(this.y, MARGIN.left, title, { size: 19, bold: true, lead: 1.15 });
 
     if (subtitle) {
       // A borrower with three given names and a hyphenated surname is not an
       // edge case, and a name that runs off the sheet is worse than one that
       // takes two lines.
-      const lines = wrapText(subtitle, this.contentWidth, 11.5, true);
-      lines.forEach((line, index) => {
-        this.page.text(MARGIN.left, this.y - 11 - index * 14, line, {
-          size: 11.5, bold: true, colour: INK.blue,
-        });
-      });
-      this.y -= 3 + lines.length * 14;
+      this.y -= 3;
+      for (const text of wrapText(subtitle, this.contentWidth, 11.5, true)) {
+        this.y -= this.line(this.y, MARGIN.left, text, { size: 11.5, bold: true, colour: INK.blue });
+      }
     }
     if (meta) {
-      const lines = wrapText(meta, this.contentWidth, 8);
-      lines.forEach((line, index) => {
-        this.page.text(MARGIN.left, this.y - 8 - index * 10, line, { size: 8, colour: INK.faint });
-      });
-      this.y -= 3 + lines.length * 10;
+      this.y -= 2;
+      for (const text of wrapText(meta, this.contentWidth, 8)) {
+        this.y -= this.line(this.y, MARGIN.left, text, { size: 8, colour: INK.faint });
+      }
     }
 
     this.y -= 6;
-    this.page.rect(MARGIN.left, this.y, this.contentWidth, 1.2, INK.blue);
-    this.y -= 16;
+    this.page.rect(MARGIN.left, this.y - 1.2, this.contentWidth, 1.2, INK.blue);
+    this.y -= 11;
   }
 
   block(block) {
@@ -132,73 +157,85 @@ class Layout {
   }
 
   heading({ text }) {
-    this.need(28);
-    this.y -= 6;
-    this.page.rect(MARGIN.left, this.y - 4, this.contentWidth, 15, INK.band);
-    this.page.text(MARGIN.left + 6, this.y, text.toUpperCase(), {
-      size: 8.5, bold: true, colour: INK.muted,
+    const size = 8.5;
+    const band = 15;
+    const gapAbove = 7;
+    const gapBelow = 4;
+
+    this.need(gapAbove + band + gapBelow);
+    this.y -= gapAbove;
+
+    const top = this.y;
+    this.page.rect(MARGIN.left, top - band, this.contentWidth, band, INK.band);
+    // Centre the cap height in the band rather than sitting it on the floor.
+    this.page.text(MARGIN.left + 7, top - band + (band - size * 0.717) / 2, text.toUpperCase(), {
+      size, bold: true, colour: INK.muted,
     });
-    this.y -= 17;
+
+    this.y -= band + gapBelow;
   }
 
   /**
-   * A label/value row, with an optional grey note after the value.
+   * A label/value row, with an optional grey note.
    *
-   * The value column is fixed rather than measured so every row in the
-   * document lines up — a form that is being read across, not down.
+   * The value column is fixed rather than measured so every row lines up —
+   * this is a form read across, not down. The separator sits on the row's
+   * bottom edge, below the descenders of this row and clear of the next
+   * row's ascenders, which is the whole reason the box is measured first.
    */
   row({ label, value, note, tone, strong }) {
+    const size = strong ? 10.5 : 9.5;
+    const labelSize = 9;
+    const noteSize = 8;
+
     const labelWidth = 128;
     const valueX = MARGIN.left + labelWidth;
-    const colour = tone ? (INK[tone] ?? INK.text) : INK.text;
-    const size = strong ? 10.5 : 9.5;
+    const right = MARGIN.left + this.contentWidth;
 
-    const valueLines = wrapText(
-      value == null || value === '' ? '—' : String(value),
-      this.contentWidth - labelWidth - 4,
-      size,
-      !!strong,
+    const shown = value == null || value === '' ? '—' : String(value);
+    const valueLines = wrapText(shown, right - valueX, size, !!strong);
+
+    // Where the note goes is decided before anything is drawn, because it
+    // changes the height of the row.
+    const lastWidth = textWidth(valueLines[valueLines.length - 1], size, !!strong);
+    const inlineX = valueX + lastWidth + 8;
+    const inline = note && textWidth(note, noteSize) <= right - inlineX;
+    const noteLines = note && !inline ? wrapText(note, right - valueX, noteSize) : [];
+
+    const bodyHeight = valueLines.length * size * LINE + noteLines.length * noteSize * LINE;
+    const height = Math.max(bodyHeight, labelSize * LINE) + 1.5;
+
+    this.need(height);
+    const top = this.y;
+
+    this.page.text(
+      MARGIN.left,
+      top - labelSize * ASCENT,
+      ellipsize(label, labelWidth - 8, labelSize),
+      { size: labelSize, colour: INK.muted },
     );
 
-    // Reserve for the note as well, so a row never straddles a page break.
-    this.need((valueLines.length + (note ? 2 : 0)) * 12 + 3);
-
-    this.page.text(MARGIN.left, this.y, ellipsize(label, labelWidth - 6, 9), {
-      size: 9, colour: INK.muted,
-    });
-    valueLines.forEach((line, index) => {
-      this.page.text(valueX, this.y - index * 11, line, {
-        size, bold: !!strong, colour: value == null || value === '' ? INK.faint : colour,
+    let cursor = top;
+    for (const text of valueLines) {
+      cursor -= this.line(cursor, valueX, text, {
+        size,
+        bold: !!strong,
+        colour: value == null || value === '' ? INK.faint : (tone ? (INK[tone] ?? INK.text) : INK.text),
       });
-    });
+    }
 
-    let extraLines = 0;
-    if (note) {
-      // The note sits after the value when there is room for it, and drops to
-      // its own line when there is not. Drawing it at value-width + a gap and
-      // hoping was how notes ended up past the edge of the page.
-      const right = MARGIN.left + this.contentWidth;
-      const lastWidth = textWidth(valueLines[valueLines.length - 1], size, !!strong);
-      const inlineX = valueX + lastWidth + 8;
-      const inlineRoom = right - inlineX;
-
-      if (textWidth(note, 8) <= inlineRoom) {
-        this.page.text(inlineX, this.y - (valueLines.length - 1) * 11, note, {
-          size: 8, colour: INK.faint,
-        });
-      } else {
-        const noteLines = wrapText(note, right - valueX, 8);
-        noteLines.forEach((line, index) => {
-          this.page.text(valueX, this.y - (valueLines.length + index) * 11 + 1, line, {
-            size: 8, colour: INK.faint,
-          });
-        });
-        extraLines = noteLines.length;
+    if (inline) {
+      this.page.text(inlineX, top - (valueLines.length - 1) * size * LINE - size * ASCENT, note, {
+        size: noteSize, colour: INK.faint,
+      });
+    } else {
+      for (const text of noteLines) {
+        cursor -= this.line(cursor, valueX, text, { size: noteSize, colour: INK.faint });
       }
     }
 
-    this.y -= (valueLines.length + extraLines) * 11 + 2;
-    this.page.rect(MARGIN.left, this.y + 5, this.contentWidth, 0.4, INK.rule);
+    this.y = top - height;
+    this.page.rect(MARGIN.left, this.y, this.contentWidth, 0.4, INK.rule);
   }
 
   /**
@@ -207,56 +244,71 @@ class Layout {
    * have to be reconciled.
    */
   figures({ items = [] }) {
-    this.need(54);
+    const capSize = 8;
+    const valueSize = 22;
+    const subSize = 7.5;
+    const height = capSize * LINE + valueSize * LINE + subSize * LINE + 8;
+
+    this.need(height);
+    const top = this.y;
     const columnWidth = this.contentWidth / Math.max(items.length, 1);
 
     items.forEach((item, index) => {
       const x = MARGIN.left + index * columnWidth;
-      this.page.text(x, this.y, String(item.cap ?? '').toUpperCase(), {
-        size: 8, bold: true, colour: INK.muted,
+      let cursor = top;
+
+      cursor -= this.line(cursor, x, String(item.cap ?? '').toUpperCase(), {
+        size: capSize, bold: true, colour: INK.muted,
       });
-      this.page.text(x, this.y - 25, String(item.value ?? '—'), {
-        size: 22, bold: true, colour: INK[item.tone] ?? INK.text,
+      cursor -= this.line(cursor, x, String(item.value ?? '—'), {
+        size: valueSize, bold: true, colour: INK[item.tone] ?? INK.text,
       });
       if (item.sub) {
-        this.page.text(x, this.y - 37, ellipsize(item.sub, columnWidth - 8, 7.5), {
-          size: 7.5, colour: INK.faint,
+        this.line(cursor, x, ellipsize(item.sub, columnWidth - 10, subSize), {
+          size: subSize, colour: INK.faint,
         });
       }
     });
 
-    this.y -= 46;
+    this.y = top - height;
   }
 
   note({ text, tone }) {
-    const lines = wrapText(text, this.contentWidth, 8.5);
-    this.need(lines.length * 11 + 4);
-    lines.forEach((line, index) => {
-      this.page.text(MARGIN.left, this.y - index * 10.5, line, {
-        size: 8.5, colour: INK[tone] ?? INK.muted,
-      });
-    });
-    this.y -= lines.length * 10.5 + 4;
+    const size = 8.5;
+    const lines = wrapText(text, this.contentWidth, size);
+    const height = lines.length * size * LINE + 4;
+
+    this.need(height);
+    let cursor = this.y;
+    for (const line of lines) {
+      cursor -= this.line(cursor, MARGIN.left, line, { size, colour: INK[tone] ?? INK.muted });
+    }
+    this.y -= height;
   }
 
   callout({ text, tone = 'blue' }) {
-    const lines = wrapText(text, this.contentWidth - 20, 8.5);
-    const height = lines.length * 11 + 14;
-    this.need(height + 6);
+    const size = 8.5;
+    const pad = 7;
+    const lines = wrapText(text, this.contentWidth - 24, size);
+    const box = lines.length * size * LINE + pad * 2;
+    const height = box + 8;
+
+    this.need(height);
+    const top = this.y;
 
     const fill = tone === 'amber' ? INK.tintAmber : INK.tintBlue;
     const edge = tone === 'amber' ? INK.amber : INK.blue;
+    this.page.rect(MARGIN.left, top - box, this.contentWidth, box, fill);
+    this.page.rect(MARGIN.left, top - box, 2.5, box, edge);
 
-    this.page.rect(MARGIN.left, this.y - height + 10, this.contentWidth, height, fill);
-    this.page.rect(MARGIN.left, this.y - height + 10, 2.5, height, edge);
-
-    lines.forEach((line, index) => {
-      this.page.text(MARGIN.left + 12, this.y - index * 11, line, {
-        size: 8.5, colour: tone === 'amber' ? INK.amber : INK.text,
+    let cursor = top - pad;
+    for (const line of lines) {
+      cursor -= this.line(cursor, MARGIN.left + 13, line, {
+        size, colour: tone === 'amber' ? INK.amber : INK.text,
       });
-    });
+    }
 
-    this.y -= height + 6;
+    this.y = top - height;
   }
 
   spacer({ height = 8 }) {
@@ -266,23 +318,29 @@ class Layout {
   /** A rule and a line of small print on the foot of every page. */
   footers(text) {
     if (!text) return;
+    const size = 7.5;
+
     this.pages.forEach((page, index) => {
       const label = `Page ${index + 1} of ${this.pages.length}`;
-      const labelWidth = textWidth(label, 7.5);
-      const y = MARGIN.bottom - 18;
-
-      page.rect(MARGIN.left, y + 14, this.contentWidth, 0.4, INK.rule);
+      const labelWidth = textWidth(label, size);
 
       // The disclaimer shares the line with the page number, so it is wrapped
       // against what is actually left rather than the full width.
-      const lines = wrapText(text, this.contentWidth - labelWidth - 16, 7.5);
-      lines.forEach((line, row) => {
-        page.text(MARGIN.left, y - row * 9, line, { size: 7.5, colour: INK.faint });
-      });
+      const lines = wrapText(text, this.contentWidth - labelWidth - 16, size);
+      const top = MARGIN.bottom - 8;
 
-      page.text(this.size.width - MARGIN.right - labelWidth, y, label, {
-        size: 7.5, colour: INK.faint,
+      page.rect(MARGIN.left, top + 6, this.contentWidth, 0.4, INK.rule);
+      lines.forEach((line, row) => {
+        page.text(MARGIN.left, top - size * ASCENT - row * size * LINE, line, {
+          size, colour: INK.faint,
+        });
       });
+      page.text(
+        this.size.width - MARGIN.right - labelWidth,
+        top - size * ASCENT,
+        label,
+        { size, colour: INK.faint },
+      );
     });
   }
 }
