@@ -30,7 +30,15 @@ export const APPLICATION_FIELDS = [
   { key: 'value',      label: 'Value',           kind: 'money',   from: 'propertyValue' },
   { key: 'payment',    label: 'Monthly payment', kind: 'money',   from: 'payment' },
   { key: 'income',     label: 'Income',          kind: 'money' },
+  { key: 'monthlyDebt', label: 'Monthly debts',  kind: 'money' },
   { key: 'employment', label: 'W2 / 1099',       kind: 'choice',  options: ['W2', '1099', 'Both'] },
+  // Easy Qualifier requires both and neither is on a lead screen, so they
+  // are asked once on the call rather than picked again in EQ afterwards.
+  // The wording is EQ's own, so it can be read straight across.
+  { key: 'occupancy',  label: 'Occupancy',       kind: 'choice',
+    options: ['Primary Residence', 'Second Home', 'Investment'] },
+  { key: 'propertyType', label: 'Property type', kind: 'choice',
+    options: ['Single family residence', 'Condominium', 'Townhouse', '2-4 unit', 'Manufactured'] },
   { key: 'loanType',   label: 'Loan type',       kind: 'choice',  options: ['VA', 'FHA', 'CONV', 'USDA'], from: 'program' },
   { key: 'disability', label: 'Disability %',    kind: 'percent' },
   { key: 'address',    label: 'Address',         kind: 'text',    from: 'address' },

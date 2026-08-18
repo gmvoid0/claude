@@ -42,12 +42,16 @@ function scenario({ manual = {}, app = {} } = {}) {
 }
 
 test('the field list is exactly what was specified', () => {
+  // The last three are Easy Qualifier's doing: it requires occupancy and
+  // property type, neither is on a lead screen, and asking once on the call
+  // beats picking them again in EQ afterwards.
   assert.deepEqual(APPLICATION_KEYS, [
     'fullName',
     'rate', 'balance', 'fico', 'cashOut', 'value', 'payment',
-    'income', 'employment', 'loanType', 'disability', 'address', 'phone',
+    'income', 'monthlyDebt', 'employment', 'occupancy', 'propertyType',
+    'loanType', 'disability', 'address', 'phone',
   ]);
-  assert.equal(APPLICATION_FIELDS.length, 13);
+  assert.equal(APPLICATION_FIELDS.length, 16);
 });
 
 test('everything S.A.M already knows is filled in automatically', () => {

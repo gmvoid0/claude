@@ -148,6 +148,8 @@ export function extractValuation(doc = document, loc = location) {
   const address = extractAddress(doc, html);
   if (!address) return null;   // without an address it cannot be matched safely
 
+  const tax = extractTaxHistory(doc, html);
+
   return {
     value: value.amount,
     valueLabel: value.label,
@@ -157,7 +159,139 @@ export function extractValuation(doc = document, loc = location) {
     source: value.source,
     url: loc?.href ?? null,
     isAvm: true,
+
+    // The escrow estimate is six months of taxes and insurance, and this is
+    // where the taxes come from. Null when the page has no tax history —
+    // some do not — and the panel says so rather than inventing a figure.
+    annualPropertyTax: tax?.annualTax ?? null,
+    taxYear: tax?.year ?? null,
+    taxAssessment: tax?.assessment ?? null,
+    taxSource: tax?.source ?? null,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Public tax history
+ * ------------------------------------------------------------------ */
+
+/** A plausible annual property-tax bill. */
+const TAX_RANGE = [50, 250000];
+
+/**
+ * The most recent year's property tax, off the listing page.
+ *
+ * Zillow renders a "Public tax history" table — year, property taxes, tax
+ * assessment — and carries the same rows in its embedded payload. The
+ * payload is tried first because it survives a markup change, and the table
+ * is the fallback.
+ *
+ * Two rules, both learned from the shape of the failure rather than the
+ * shape of the page. Only a row that actually has a tax figure counts: the
+ * current year is often listed with the assessment filled in and the tax
+ * blank, and reading that as a zero bill would knock six hundred dollars off
+ * an escrow estimate. And the assessment is never accepted as the tax — the
+ * two sit in adjacent columns and differ by a factor of a hundred and fifty,
+ * which is the kind of mistake that looks fine until it closes.
+ *
+ * @returns {{ year: number, annualTax: number, assessment: number|null,
+ *             source: string }|null}
+ */
+export function extractTaxHistory(doc = document, html = null) {
+  const source = html ?? rawScripts(doc);
+  return fromTaxJson(source) ?? fromTaxTable(doc);
+}
+
+function fromTaxJson(html) {
+  if (!html) return null;
+
+  // Flat objects only, which is what these entries are: {"time":...,
+  // "taxPaid":1733.0,"value":264629,...}. Matching the object rather than
+  // the array keeps a nested payload from swallowing the whole page.
+  const rows = [];
+  for (const match of html.matchAll(/\{[^{}]{0,400}?"taxPaid"\s*:[^{}]{0,400}?\}/g)) {
+    let entry = null;
+    try {
+      entry = JSON.parse(match[0]);
+    } catch {
+      continue;
+    }
+    const annualTax = plausibleTax(entry.taxPaid);
+    const year = yearOf(entry.time) ?? plausibleYear(entry.year);
+    if (annualTax == null || year == null) continue;
+    rows.push({
+      year,
+      annualTax,
+      assessment: Number.isFinite(Number(entry.value)) ? Number(entry.value) : null,
+      source: 'embedded-json',
+    });
+  }
+
+  return newest(rows);
+}
+
+function fromTaxTable(doc) {
+  try {
+    for (const table of doc.querySelectorAll('table')) {
+      const headers = [...table.querySelectorAll('th')]
+        .map((cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase());
+
+      const yearAt = headers.findIndex((h) => /^year$/.test(h));
+      const taxAt = headers.findIndex((h) => /propert(y|ies) tax|^taxes?$|tax paid/.test(h));
+      // "Tax assessment" also contains the word tax, so the two columns are
+      // told apart by name rather than by being the first match.
+      const assessAt = headers.findIndex((h) => /assess/.test(h));
+      if (yearAt < 0 || taxAt < 0 || taxAt === assessAt) continue;
+
+      const rows = [];
+      for (const row of table.querySelectorAll('tbody tr')) {
+        const cells = [...row.children].map(
+          (cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        );
+        const year = plausibleYear(cells[yearAt]);
+        const annualTax = plausibleTax(firstMoney(cells[taxAt]));
+        if (year == null || annualTax == null) continue;
+        rows.push({
+          year,
+          annualTax,
+          assessment: assessAt >= 0 ? firstMoney(cells[assessAt]) : null,
+          source: 'dom',
+        });
+      }
+
+      const found = newest(rows);
+      if (found) return found;
+    }
+  } catch { /* markup changed under us */ }
+  return null;
+}
+
+const newest = (rows) => (rows.length
+  ? rows.reduce((best, row) => (row.year > best.year ? row : best))
+  : null);
+
+/** "$1,733 0%" is a tax bill of 1733, not of 17330. */
+function firstMoney(text) {
+  if (!text) return null;
+  const match = String(text).match(/\$?\s*(\d[\d,]*(?:\.\d+)?)/);
+  return match ? parseMoney(match[1]) : null;
+}
+
+function plausibleTax(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= TAX_RANGE[0] && n <= TAX_RANGE[1] ? n : null;
+}
+
+function plausibleYear(value) {
+  const n = Number(String(value ?? '').match(/\b(19|20)\d{2}\b/)?.[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Zillow stamps these in epoch milliseconds. */
+function yearOf(time) {
+  const n = Number(time);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const year = new Date(n > 1e12 ? n : n * 1000).getUTCFullYear();
+  return year > 1900 && year < 2200 ? year : null;
 }
 
 /**

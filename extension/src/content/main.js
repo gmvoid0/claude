@@ -18,6 +18,8 @@
 import { collectCandidates, assignFields, readValue, FIELDS, cleanLabel } from '../lib/detect.js';
 import { computeEquity } from '../lib/equity.js';
 import { estimateClosingCosts, closingCostText } from '../lib/closing.js';
+import { sizeLoan, sizingText } from '../lib/sizing.js';
+import { eqFields, eqFieldsText } from '../lib/eq-fields.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
@@ -71,7 +73,7 @@ const state = {
   detected: {},          // fieldKey -> { raw, label, source }
   manual: {},            // fieldKey -> raw string typed by the agent
   overrides: {
-    closingCosts: '', ltvOverride: '', loanLimit: '',
+    closingCosts: '', ltvOverride: '', loanLimit: '', annualPropertyTax: '',
     feeExempt: false, subsequentUse: false, financeFee: true,
     valueIsAvm: false,
   },
@@ -251,6 +253,9 @@ async function persistOverride(key, value) {
 function overridesFromPrefs(prefs = {}) {
   return {
     closingCosts: prefs.defaultClosingCosts ? String(prefs.defaultClosingCosts) : '',
+    // Not a standing assumption: it is this house's tax bill and it must not
+    // survive into the next call.
+    annualPropertyTax: '',
     ltvOverride: prefs.ltvOverride ?? '',
     loanLimit: prefs.loanLimit ?? '',
     financeFee: prefs.financeFee !== false,
@@ -367,7 +372,11 @@ async function activate() {
   if (IS_TOP) {
     state.panel = new Panel({
       onManualChange: (field, value) => {
-        state.manual[field] = value;
+        // The tax bill belongs to the property, not to the screen it was read
+        // off, so it lives with the per-call overrides rather than with the
+        // detected fields — and it clears with the record like they do.
+        if (field === 'annualPropertyTax') state.overrides.annualPropertyTax = value;
+        else state.manual[field] = value;
         recompute();
       },
       onOverrideChange: (key, value) => {
@@ -430,6 +439,7 @@ async function activate() {
         recompute();
       },
       onCopy: () => copySummary(),
+      onCopyEq: () => copyEqSizing(),
       onReset: () => {
         state.manual = {};
         state.app = {};
@@ -801,12 +811,32 @@ function recompute({ forceInputs = false } = {}) {
     coBorrower: state.coBorrower,
   });
 
+  // The figure the whole thing exists to produce: what goes in Easy
+  // Qualifier's Loan Amount box. Built from the application rather than from
+  // the LTV ceiling, because the borrower's ask is what is being priced.
+  const sizing = sizeLoan({
+    annualPropertyTax: annualPropertyTax(external),
+    payoff: parseMoney(application.balance?.value) ?? inputs.firstLien.num,
+    cashOut: parseMoney(application.cashOut?.value),
+    secondLien: inputs.secondLien.num,
+  }, state.rules?.sizing);
+
+  const tax = taxReading(external);
+  const fields = eqFields({
+    application, sizing, inputs, tax, rules: state.rules?.sizing ?? {},
+  });
+
   state.lastResult = result;
   state.lastInputs = inputs;
   state.lastApplication = application;
+  state.lastSizing = sizing;
+  state.lastEqFields = fields;
 
   state.panel.render({
     inputs,
+    sizing,
+    tax,
+    eqFields: fields,
     overrides: state.overrides,
     result,
     external,
@@ -825,6 +855,31 @@ function recompute({ forceInputs = false } = {}) {
   });
 }
 
+
+/**
+ * The property-tax bill behind the escrow line.
+ *
+ * A figure the agent typed wins: they may be looking at the county site,
+ * and this is a Zillow reading. Otherwise it comes off whichever listing
+ * page was open, and null means the escrow line — and with it the loan
+ * amount — has nothing to stand on and says so.
+ */
+function annualPropertyTax(external) {
+  return parseMoney(state.overrides.annualPropertyTax) ?? external?.annualPropertyTax ?? null;
+}
+
+/** Where that figure came from, so the panel can show its working. */
+function taxReading(external) {
+  const typed = parseMoney(state.overrides.annualPropertyTax);
+  if (typed != null) return { amount: typed, source: 'typed' };
+  if (external?.annualPropertyTax == null) return null;
+  return {
+    amount: external.annualPropertyTax,
+    year: external.taxYear ?? null,
+    source: external.siteLabel ?? 'Zillow',
+    assessment: external.taxAssessment ?? null,
+  };
+}
 
 function buildLookupUrls(inputs) {
   const address = leadAddress(inputs);
@@ -1245,6 +1300,32 @@ async function copyApplication() {
 async function copySummary() {
   const text = summaryText(state.lastResult, state.lastInputs, state.recordLabel);
   await writeClipboard(text, state.panel?.els?.btnCopy);
+}
+
+/**
+ * The loan amount on its own, with its working.
+ *
+ * The bare figure first, because nine times out of ten it is being pasted
+ * into Easy Qualifier's Loan Amount box and everything after it is noise at
+ * that moment. The itemisation follows for the tenth time, when someone asks
+ * where the number came from.
+ */
+async function copyEqSizing() {
+  const sizing = state.lastSizing;
+  if (!sizing?.items?.length) return;
+
+  const lines = [];
+  if (sizing.finalLoan == null) {
+    lines.push(`No loan amount yet — waiting on ${sizing.missing.join(', ')}.`);
+  } else {
+    lines.push(String(sizing.finalLoanRounded));
+    lines.push('');
+    lines.push(`Loan amount: ${formatMoney(sizing.finalLoanRounded)}`);
+  }
+  const fields = state.lastEqFields;
+  if (fields?.length) lines.push('', 'Easy Qualifier:', eqFieldsText(fields));
+  lines.push('', 'Loan amount, worked out:', sizingText(sizing));
+  await writeClipboard(lines.join('\n'), state.panel?.els?.btnCopyEq);
 }
 
 async function writeClipboard(text, button) {

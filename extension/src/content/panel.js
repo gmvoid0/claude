@@ -94,6 +94,13 @@ export class Panel {
       cash: q('[data-out=cash]'),
       cashNote: q('[data-out=cashNote]'),
       costLine: q('[data-out=costLine]'),
+
+      eqFinal: q('[data-eq=final]'),
+      eqNote: q('[data-eq=note]'),
+      eqRows: q('[data-eq=rows]'),
+      eqTaxSrc: q('[data-eq=taxsrc]'),
+      eqMap: q('[data-eq=map]'),
+      btnCopyEq: q('[data-act=copy-eq]'),
       advertised: q('[data-out=advertised]'),
       verdict: q('[data-out=verdict]'),
 
@@ -114,6 +121,9 @@ export class Panel {
       btnApp: q('[data-act=app]'),
       btnAppSave: q('[data-act=app-save]'),
       btnAppCopy: q('[data-act=app-copy]'),
+      // The Salesforce handoff button is gone from the drawer, but the code
+      // behind it is intact and tested — this shop went to UWM instead, and
+      // the next one may not have.
       btnAppSend: q('[data-act=app-send]'),
       handoff: q('[data-app=handoff]'),
       draft: q('[data-app=draft]'),
@@ -137,7 +147,8 @@ export class Panel {
     els.btnCollapse?.addEventListener('click', () => this.toggleCollapse());
     els.btnClose?.addEventListener('click', () => this.h.onClose?.());
 
-    for (const key of ['propertyValue', 'firstLien', 'secondLien', 'program', 'state']) {
+    for (const key of ['propertyValue', 'firstLien', 'secondLien', 'program', 'state',
+      'annualPropertyTax']) {
       const el = this.root.querySelector(`[data-in=${key}]`);
       if (!el) continue;
       const evt = el.tagName === 'SELECT' ? 'change' : 'input';
@@ -163,6 +174,7 @@ export class Panel {
     els.btnUseExt?.addEventListener('click', () => this.h.onUseExternal?.());
     els.btnMini?.addEventListener('click', () => this.h.onMiniBrowser?.());
     els.btnCopy?.addEventListener('click', () => this.h.onCopy?.());
+    els.btnCopyEq?.addEventListener('click', () => this.h.onCopyEq?.());
     els.btnReset?.addEventListener('click', () => this.h.onReset?.());
     els.btnPickValue?.addEventListener('click', () => this.h.onPick?.('propertyValue'));
     els.btnPickFirst?.addEventListener('click', () => this.h.onPick?.('firstLien'));
@@ -490,6 +502,12 @@ export class Panel {
     els.btnPickFirst.classList.toggle('picking', picking === 'firstLien');
     els.btnPickName?.classList.toggle('picking', picking === 'fullName');
 
+    // --- the Easy Qualifier loan amount
+    this.setInput(els.eqTax ?? this.root.querySelector('[data-in=annualPropertyTax]'),
+      state.tax?.source === 'typed' ? String(state.tax.amount) : '', force);
+    this.renderSizing(state.sizing, state.tax);
+    this.renderEqFields(state.eqFields);
+
     // --- value read from a Zillow / Redfin tab
     this.renderExternal(state.external);
 
@@ -629,6 +647,95 @@ export class Panel {
     line.textContent = `${result.feeLabel ?? 'Upfront fee'} `
       + `${formatPercent(result.upfrontFeeRate, 2)} — ${formatMoney(amount)} `
       + (result.unfinancedFee ? 'due at closing, out of the proceeds' : 'financed into the loan');
+  }
+
+  /**
+   * The loan amount, and the six lines it is made of.
+   *
+   * The itemisation is not decoration. An agent quoting a figure they cannot
+   * break down is an agent who backs off the moment a borrower pushes, and
+   * the escrow line in particular is the one that gets questioned — so it
+   * carries the tax year and the site it was read from.
+   */
+  renderSizing(sizing, tax) {
+    const { els } = this;
+    if (!els.eqFinal) return;
+
+    els.eqTaxSrc.textContent = tax?.source === 'typed' ? 'entered by hand'
+      : tax ? `${tax.year ?? ''} ${tax.source ?? ''}`.trim()
+        : 'not read yet';
+
+    if (!sizing?.items?.length) {
+      els.eqFinal.textContent = '—';
+      els.eqFinal.className = 'eq-final none';
+      els.eqNote.textContent = 'Needs the payoff, the cash-out and the tax bill.';
+      els.eqRows.textContent = '';
+      return;
+    }
+
+    const rows = sizing.items.map((item) => {
+      const amount = item.amount == null ? '—' : formatMoney(item.amount);
+      return `<div class="eq-row${item.missing ? ' gap' : ''}">`
+        + `<span>${escapeHtml(item.label)}</span>`
+        + `<b>${amount}</b></div>`
+        + (item.note ? `<div class="eq-why">${escapeHtml(item.note)}</div>` : '');
+    });
+
+    if (sizing.subtotal != null) {
+      // Three lines that add up down the column, because a row reading
+      // "x 1.035  $13,036" is a multiplication showing its remainder and
+      // reads as arithmetic that does not work.
+      rows.push(`<div class="eq-row sum"><span>Subtotal</span><b>${formatMoney(sizing.subtotal)}</b></div>`);
+      rows.push(`<div class="eq-row"><span>Gross-up &times; ${sizing.grossUp}</span>`
+        + `<b>+${formatMoney(sizing.financedCharge)}</b></div>`);
+      rows.push(`<div class="eq-row total"><span>Loan amount</span>`
+        + `<b>${formatMoney(sizing.finalLoanRounded)}</b></div>`);
+    }
+    els.eqRows.innerHTML = rows.join('');
+
+    if (sizing.finalLoan == null) {
+      els.eqFinal.textContent = '—';
+      els.eqFinal.className = 'eq-final none';
+      els.eqNote.textContent = `Waiting on ${sizing.missing.map(missingLabel).join(', ')}.`;
+      return;
+    }
+
+    els.eqFinal.textContent = formatMoney(sizing.finalLoanRounded);
+    els.eqFinal.className = 'eq-final';
+    els.eqNote.textContent = 'Type this into Loan Amount.';
+  }
+
+  /**
+   * The rest of the Easy Qualifier form.
+   *
+   * Where each value came from is marked, because the three kinds are not
+   * equally trustworthy and the agent is the one who has to defend them: a
+   * figure read off the record, a figure worked out here, and a standing
+   * assumption that is really a guess with a number on it.
+   */
+  renderEqFields(rows) {
+    const { els } = this;
+    if (!els.eqMap) return;
+    if (!rows?.length) { els.eqMap.textContent = ''; return; }
+
+    els.eqMap.innerHTML = rows.map((row) => {
+      const classes = ['eq-f'];
+      if (row.missing) classes.push('gap');
+      if (row.required && row.missing) classes.push('need');
+
+      const marks = [];
+      if (row.kind === 'computed') marks.push('<i class="k calc">calculated</i>');
+      if (row.kind === 'assumed') marks.push('<i class="k asm">assumed</i>');
+      if (row.checkList) marks.push('<i class="k chk" title="EQ\'s exact wording is not confirmed">check wording</i>');
+
+      return `<div class="${classes.join(' ')}">`
+        + `<span class="eq-fn">${escapeHtml(row.eq)}${row.required ? '<em>*</em>' : ''}</span>`
+        + `<b class="eq-fv">${row.value ? escapeHtml(row.value) : '&mdash;'}</b>`
+        + `</div>`
+        + (marks.length || row.note
+          ? `<div class="eq-fm">${marks.join('')}${row.note ? escapeHtml(row.note) : ''}</div>`
+          : '');
+    }).join('');
   }
 
   renderBar(result) {
@@ -773,6 +880,19 @@ function clamp(n, lo, hi) {
 }
 
 /** The itemised costs, as hover text on the figure they came out of. */
+/** What an agent would call the thing that is missing. */
+function missingLabel(key) {
+  return {
+    annualPropertyTax: 'the property tax',
+    payoff: 'the mortgage balance',
+    cashOut: 'the cash-out amount',
+  }[key] ?? key;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
 function closingBreakdown(result) {
   const estimate = result?.closingEstimate;
   if (!estimate?.items?.length) return '';
@@ -799,7 +919,6 @@ const TEMPLATE = `
   <div class="drawer-hd">
     <span class="drawer-title">Application</span>
     <span class="drawer-count" data-app="count"></span>
-    <button class="btn tiny" data-act="app-send">To Salesforce</button>
     <button class="btn tiny" data-act="app-copy">Copy</button>
     <button class="btn tiny" data-act="app-save" hidden>Save</button>
   </div>
@@ -876,6 +995,39 @@ const TEMPLATE = `
       <div class="lbl"><span data-bar="left"></span><span data-bar="right"></span></div>
     </div>
   </div>
+
+  <!--
+    What actually gets typed into Easy Qualifier.
+
+    The equity figures above answer "is there a deal here". This answers
+    "what do I put in the box", which is the question an agent has on the
+    call, and it is built the way the floor builds it: six months of escrow,
+    the flat charges, the payoff, the cash, grossed up. Every line is shown
+    because every line is arguable, and an agent who cannot see where the
+    escrow number came from will not trust the total.
+  -->
+  <section class="eq">
+    <div class="eq-hd">
+      <span class="eq-cap">Easy Qualifier &mdash; Loan Amount</span>
+      <button class="btn tiny" data-act="copy-eq">Copy</button>
+    </div>
+    <div class="eq-final" data-eq="final">&mdash;</div>
+    <div class="eq-note" data-eq="note">Needs the payoff, the cash-out and the tax bill.</div>
+    <div class="eq-rows" data-eq="rows"></div>
+
+    <!--
+      Everything else EQ asks for, in EQ's own words and EQ's own order, so
+      the agent reads down one screen and types into the other. Renaming a
+      field halfway through a phone call is how a payoff lands in a cash-out
+      box.
+    -->
+    <div class="eq-map" data-eq="map"></div>
+
+    <label class="eq-tax">
+      <span>Annual property tax <i data-eq="taxsrc"></i></span>
+      <input type="text" data-in="annualPropertyTax" placeholder="from Zillow" inputmode="decimal" />
+    </label>
+  </section>
 
   <!-- Value and equity side by side: the two numbers that move the answer. -->
   <div class="pair">

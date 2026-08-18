@@ -942,6 +942,92 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 }
 
 /* What the switches above actually charge. An output, not a control. */
+/* --- Easy Qualifier loan amount ------------------------------------- *
+   The output block. Given more visual weight than the inputs around it
+   because it is the thing being produced: an agent scanning this panel
+   mid-call should land on the loan amount without hunting for it. */
+.eq {
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: var(--r-field);
+  background: var(--fill);
+  border: 0.5px solid var(--separator);
+}
+.eq-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.eq-cap {
+  flex: 1; min-width: 0;
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--label-2);
+}
+.btn.tiny { padding: 4px 10px; font-size: 11px; width: auto; }
+
+.eq-final {
+  font-size: 30px; font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--green-deep);
+}
+.eq-final.none { color: var(--label-3); font-weight: 600; }
+.eq-note { font-size: 11.5px; color: var(--label-2); margin-top: 3px; }
+
+.eq-rows { margin-top: 10px; }
+.eq-row {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 12px;
+  padding: 3px 0;
+  color: var(--label);
+}
+.eq-row span { flex: 1; min-width: 0; }
+.eq-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.eq-row.gap { color: var(--orange-deep); }
+.eq-row.sum { border-top: 0.5px solid var(--separator); margin-top: 4px; padding-top: 6px; }
+.eq-row.total { font-weight: 600; color: var(--green-deep); }
+.eq-row.total b { font-weight: 700; }
+.eq-why { font-size: 10.5px; color: var(--label-3); margin: -2px 0 4px; }
+
+/* The rest of EQ's form. Denser than the loan-amount working above it:
+   this is a reference list to read down, not a calculation to follow. */
+.eq-map {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--separator);
+}
+.eq-f {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 12px; padding: 2px 0;
+}
+.eq-fn { flex: 1; min-width: 0; color: var(--label-2); }
+.eq-fn em { font-style: normal; color: var(--red); margin-left: 2px; }
+.eq-fv {
+  font-weight: 600; color: var(--label);
+  font-variant-numeric: tabular-nums;
+  text-align: right; max-width: 58%;
+  overflow-wrap: anywhere;
+}
+.eq-f.gap .eq-fv { color: var(--label-3); font-weight: 500; }
+.eq-f.need .eq-fv { color: var(--orange-deep); }
+.eq-fm { font-size: 10px; color: var(--label-3); margin: -1px 0 4px; }
+.eq-fm .k {
+  font-style: normal; font-weight: 600;
+  padding: 1px 5px; border-radius: 4px; margin-right: 5px;
+}
+.eq-fm .k.calc { background: rgba(48,209,88,.16); color: var(--green-deep); }
+.eq-fm .k.asm  { background: rgba(255,149,0,.14); color: var(--orange-deep); }
+.eq-fm .k.chk  { background: var(--fill-2, rgba(120,120,128,.14)); color: var(--label-2); }
+
+.eq-tax { display: block; margin-top: 10px; }
+.eq-tax span {
+  display: block;
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--label-2);
+  margin-bottom: 4px;
+}
+.eq-tax i { font-style: normal; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--label-3); }
+.eq-tax input { width: 100%; }
+
 /* The all-in cost of closing, under the two headline figures. Sized to be
    read at a glance without competing with them. */
 .costline {

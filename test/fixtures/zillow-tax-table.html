@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>503 Ginn St, Jacksonville, NC 28540 | Zillow</title>
+  <meta property="og:title" content="503 Ginn St, Jacksonville, NC 28540 | Zillow" />
+</head>
+<body>
+
+<!--
+  The tax history as it renders when nothing useful is in the payload — the
+  path that has to work when Zillow changes its bundle. Copied from the real
+  page this was built against, including two things that break a naive read:
+  the percentage badge sitting inside the tax cell, and a current year listed
+  with an assessment but no tax bill yet.
+
+  There is a "Price history" table directly above it whose columns are also
+  money, so the right table has to be chosen by its headers.
+-->
+
+<h1>503 Ginn St, Jacksonville, NC 28540</h1>
+
+<div class="summary">
+  <div>Estimated market value</div>
+  <div>$342,000</div>
+</div>
+
+<h2>Price history</h2>
+<table>
+  <thead>
+    <tr><th>Date</th><th>Event</th><th>Price</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>9/8/2021</td><td>Sold</td><td>$257,900 <span>+561.3%</span></td></tr>
+    <tr><td>4/1/2021</td><td>Sold</td><td>$39,000</td></tr>
+  </tbody>
+</table>
+
+<h2>Public tax history</h2>
+<table>
+  <thead>
+    <tr><th>Year</th><th>Property taxes</th><th>Tax assessment</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>2026</td><td>--</td><td>$264,629</td></tr>
+    <tr><td>2025</td><td>$1,733</td><td>$264,629</td></tr>
+    <tr><td>2024</td><td>$1,733</td><td>$264,629</td></tr>
+    <tr><td>2023</td><td>$1,733 <span>0%</span></td><td>$264,629</td></tr>
+  </tbody>
+</table>
+
+</body>
+</html>

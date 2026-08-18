@@ -342,6 +342,34 @@ test('extracts the Zestimate and address from a Zillow property page', { skip },
   }
 });
 
+test('reads the tax history off the rendered table when the payload has none', { skip }, async () => {
+  // The path that has to work when Zillow changes its bundle. The fixture is
+  // the real page: a percentage badge inside the tax cell, a current year
+  // with no bill yet, and a price-history table directly above with money in
+  // it that must not be mistaken for the tax.
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/zillow-tax-table.html`);
+
+    const found = await page.evaluate(async (origin) => {
+      const { extractTaxHistory } = await import(`${origin}/extension/src/lib/valuation.js`);
+      return extractTaxHistory(document, '');
+    }, `http://127.0.0.1:${port}`);
+
+    assert.ok(found, 'expected a tax history');
+    assert.equal(found.annualTax, 1733, 'the badge in the cell is not part of the figure');
+    assert.equal(found.year, 2025, 'the newest year that actually has a bill');
+    assert.equal(found.assessment, 264629);
+    assert.equal(found.source, 'dom');
+
+    assert.notEqual(found.annualTax, 257900, 'that is a sold price from the table above');
+    assert.notEqual(found.annualTax, 264629, 'and that is the assessment beside it');
+  } finally {
+    await page.close();
+  }
+});
+
 test('a bot check is recognised so it can be put in front of a human', { skip }, async () => {
   // The failure this covers was a silent one: a background lookup tab landed
   // on a "Press & Hold" page, found no value, and closed itself on the
@@ -1604,6 +1632,147 @@ test('an unconfigured lookup is not attempted at all', { skip }, async () => {
     const { results } = await runLookups(page, { defaults: {} });
     const keys = results.map((r) => r.key);
     assert.deepEqual(keys, ['lead'], 'only the Lead, which comes from the borrower');
+  } finally {
+    await page.close();
+  }
+});
+
+/* --- the figure that goes into Easy Qualifier --------------------------- */
+
+test('the loan amount is built from the application and the tax bill', { skip }, async () => {
+  // The method the floor runs, end to end on a real screen: six months of
+  // escrow off the Zillow tax bill, the flat charges, the payoff and the
+  // cash, grossed up. This is the number an agent types into EQ, so it is
+  // asserted to the dollar rather than to a range.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const type = (sel, value) => {
+        const el = root.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const settle = () => new Promise((r) => setTimeout(r, 60));
+
+      const read = () => ({
+        final: root.querySelector('[data-eq=final]').textContent.trim(),
+        note: root.querySelector('[data-eq=note]').textContent.trim(),
+        rows: [...root.querySelectorAll('.eq-row')]
+          .map((row) => row.textContent.replace(/\s+/g, ' ').trim()),
+        why: [...root.querySelectorAll('.eq-why')].map((el) => el.textContent.trim()),
+        src: root.querySelector('[data-eq=taxsrc]').textContent.trim(),
+      });
+
+      const before = read();
+
+      type('[data-app-field=balance]', '270900');
+      await settle();
+      type('[data-app-field=cashOut]', '96000');
+      await settle();
+      const noTax = read();
+
+      type('[data-in=annualPropertyTax]', '1733');
+      await settle();
+      return { before, noTax, after: read() };
+    });
+
+    // Nothing invented while a line is still missing.
+    assert.equal(out.noTax.final, '—', 'no loan amount without the tax bill');
+    assert.match(out.noTax.note, /property tax/i, 'and it says which line is holding it up');
+
+    // 1,366.50 escrow + 1,500 title + 270,900 payoff + 96,000 cash
+    // + 700 appraisal + 2,000 underwriting = 372,466.50, x 1.035.
+    assert.equal(out.after.final, '$385,503');
+    assert.match(out.after.note, /Loan Amount/i);
+
+    const rows = out.after.rows.join(' | ');
+    assert.match(rows, /Escrows, 6 months\$1,367/);
+    assert.match(rows, /Title fees\$1,500/);
+    assert.match(rows, /Mortgage payoff\$270,900/);
+    assert.match(rows, /Cash to borrower\$96,000/);
+    assert.match(rows, /Appraisal\$700/);
+    assert.match(rows, /Underwriting\$2,000/);
+    assert.match(rows, /Subtotal\$372,467/);
+    // The column has to add up on the page, not only in the model.
+    assert.match(rows, /Gross-up × 1\.035\+\$13,036/);
+    assert.match(rows, /Loan amount\$385,503/);
+
+    // The escrow line shows its working, because it is the one that gets
+    // argued with on the call.
+    assert.ok(out.after.why.some((w) => /\$1,733 tax \+ \$1,000 insurance, 6 of 12 months/.test(w)),
+      `escrow working not shown: ${JSON.stringify(out.after.why)}`);
+    assert.match(out.after.src, /entered by hand/);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the rest of the Easy Qualifier form is listed beside it', { skip }, async () => {
+  // The agent reads down the panel and types into EQ, so the panel has to
+  // show EQ's fields under EQ's names — including the ones nothing can fill,
+  // which are the ones worth seeing before the quote comes back wrong.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const type = (sel, value) => {
+        const el = root.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+      };
+      const settle = () => new Promise((r) => setTimeout(r, 60));
+
+      type('[data-in=propertyValue]', '400000');
+      await settle();
+      type('[data-in=annualPropertyTax]', '1733');
+      await settle();
+      type('[data-app-field=balance]', '270900');
+      await settle();
+      type('[data-app-field=cashOut]', '96000');
+      await settle();
+      type('[data-app-field=fico]', '712');
+      await settle();
+      type('[data-app-field=occupancy]', 'Primary Residence');
+      await settle();
+
+      const rows = {};
+      for (const row of root.querySelectorAll('.eq-f')) {
+        rows[row.querySelector('.eq-fn').textContent.replace('*', '').trim()] =
+          row.querySelector('.eq-fv').textContent.trim();
+      }
+      return {
+        rows,
+        marks: [...root.querySelectorAll('.eq-fm .k')].map((el) => el.textContent.trim()),
+        needs: [...root.querySelectorAll('.eq-f.need .eq-fn')].map((el) => el.textContent.trim()),
+      };
+    });
+
+    assert.equal(out.rows['Borrower Name'], 'RANDY D ROLLINS');
+    assert.equal(out.rows['Appraised Value'], '$400,000');
+    assert.equal(out.rows['Loan Type'], 'VA');
+    assert.equal(out.rows['Refinance Purpose'], 'Cash Out');
+    assert.equal(out.rows['Qualifying Credit Score'], '712');
+    assert.equal(out.rows['ZIP Code'], '37854');
+    assert.equal(out.rows['Taxes (annual)'], '$1,733');
+    assert.equal(out.rows['Homeowners Insurance (annual)'], '$1,000');
+    assert.equal(out.rows['Occupancy'], 'Primary Residence');
+    assert.equal(out.rows['Loan Amount'], '$385,503');
+
+    // The three kinds are told apart, because they are not equally
+    // trustworthy and the agent is the one who has to defend them.
+    assert.ok(out.marks.includes('calculated'), 'the loan amount is marked as worked out');
+    assert.ok(out.marks.includes('assumed'), 'and the standing figures as assumptions');
+
+    // Property type is required and nothing on this screen supplies it.
+    assert.ok(out.needs.some((n) => /Property Type/.test(n)),
+      `required gaps not flagged: ${JSON.stringify(out.needs)}`);
   } finally {
     await page.close();
   }
