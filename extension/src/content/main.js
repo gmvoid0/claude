@@ -33,6 +33,8 @@ import {
   buildApplication, filledCount, isWorthSaving, impliesFeeExemption, toText, toPlain,
 } from '../lib/application.js';
 import { saveApplication } from '../lib/settings.js';
+import { renderDocument } from '../lib/document.js';
+import { buildApplicationDocument, applicationFilename } from '../lib/application-pdf.js';
 import { Panel } from './panel.js';
 import { pickElement } from './picker.js';
 import { fillForm, fillLookups } from './fill.js';
@@ -392,7 +394,11 @@ async function activate() {
       onCopyApplication: () => copyApplication(),
       onSendToSalesforce: () => sendToSalesforce(),
       onSaveDraft: () => {
-        if (state.appDraft) persistApplication(state.appDraft.application, state.appDraft.label);
+        if (state.appDraft) {
+          persistApplication(state.appDraft.application, state.appDraft.label, {
+            result: state.appDraft.result,
+          });
+        }
         state.appDraft = null;
         recompute();
       },
@@ -577,6 +583,9 @@ function scan(force) {
           application: state.lastApplication,
           label: state.recordLabel,
           filled: filledCount(state.lastApplication),
+          // The previous caller's figures, so a draft saved later is not
+          // quietly costed against whoever is on the phone by then.
+          result: state.lastResult,
         };
       }
       state.app = {};
@@ -1167,15 +1176,62 @@ async function beginPick(fieldKey) {
 
 
 /** Store a completed application locally. */
-async function persistApplication(application, label) {
+async function persistApplication(application, label, { result = state.lastResult } = {}) {
   if (!application) return;
+
+  let stored = false;
   try {
     await saveApplication({ label: label || 'Unnamed', fields: toPlain(application) });
-    flash('Saved', state.panel?.els?.btnAppSave);
-  } catch {
-    flash('Save failed', state.panel?.els?.btnAppSave);
-  }
+    stored = true;
+  } catch { /* storage unavailable; the sheet is still worth producing */ }
+
+  // The sheet is the point of saving. Somebody has to be handed this file —
+  // a loan officer, a processor, an email — and neither the clipboard nor
+  // the Salesforce handoff survives that trip.
+  let downloaded = false;
+  try {
+    downloaded = downloadApplicationPdf(application, label, result);
+  } catch { /* reported below rather than thrown into a call */ }
+
+  flash(
+    downloaded ? 'Saved + PDF' : (stored ? 'Saved' : 'Save failed'),
+    state.panel?.els?.btnAppSave,
+  );
   recompute();
+}
+
+/**
+ * Write the application out as a PDF and hand it to the browser.
+ *
+ * A blob rather than a data URL: Chrome refuses large data: downloads, and a
+ * blob URL is the route that does not care how big the file gets. The anchor
+ * is created, clicked and removed within the same tick, and the object URL is
+ * released a moment later — leaving it alive pins the whole file in memory
+ * for the life of the tab, which on a dialer is the whole shift.
+ */
+function downloadApplicationPdf(application, label, result) {
+  const now = new Date();
+  const doc = buildApplicationDocument({
+    application,
+    result,
+    recordLabel: label || state.recordLabel,
+    coBorrower: state.coBorrower,
+    now,
+  });
+
+  const bytes = renderDocument(doc);
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = applicationFilename({ recordLabel: label || state.recordLabel, application, now });
+  link.style.cssText = 'position:fixed;left:-9999px;opacity:0;';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  return true;
 }
 
 async function copyApplication() {

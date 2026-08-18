@@ -1212,6 +1212,61 @@ test('a name field bound by hand fills the application', { skip }, async () => {
   }
 });
 
+test('Save downloads the application as a PDF', { skip }, async () => {
+  // The point of saving is that somebody gets handed the file. A save that
+  // only writes to extension storage is a save nobody can act on.
+  const { browser } = await setup();
+  const page = await browser.newPage({ acceptDownloads: true });
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const type = (sel, text) => {
+        const el = root.querySelector(sel);
+        el.focus();
+        el.value = text;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      type('[data-in=propertyValue]', '400000');
+      type('[data-app-field=income]', '96000');
+      await new Promise((r) => setTimeout(r, 200));
+    });
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 8000 }),
+      page.evaluate(() => document.getElementById('__sam_panel_host__')
+        .shadowRoot.querySelector('[data-act=app-save]').click()),
+    ]);
+
+    assert.match(download.suggestedFilename(), /^SAM-RANDY-D-ROLLINS-\d{8}-\d{4}\.pdf$/);
+
+    const file = await download.path();
+    const bytes = await fs.readFile(file);
+    const raw = bytes.toString('latin1');
+
+    assert.ok(raw.startsWith('%PDF-1.4'), 'a real PDF, not an empty blob');
+    assert.ok(bytes.length > 2000, `expected a populated document, got ${bytes.length} bytes`);
+
+    const shown = [...raw.matchAll(/\((.*?)\) Tj/g)]
+      .map((m) => m[1].replace(/\\([()\\])/g, '$1'))
+      .join('\n');
+
+    assert.match(shown, /RANDY D ROLLINS/);
+    assert.match(shown, /\$129,100/, 'the advertised figure');
+    assert.match(shown, /\$112,085/, 'the take-home figure');
+    assert.match(shown, /\$96,000/, 'what the agent entered');
+    assert.match(shown, /not a quote/i, 'and the disclaimer');
+
+    // The button says what happened.
+    const label = await page.evaluate(() => document.getElementById('__sam_panel_host__')
+      .shadowRoot.querySelector('[data-act=app-save]').textContent);
+    assert.match(label, /PDF/);
+  } finally {
+    await page.close();
+  }
+});
+
 test('a new call clears the application but keeps unsaved work as a draft', { skip }, async () => {
   const { browser } = await setup();
   const page = await browser.newPage();

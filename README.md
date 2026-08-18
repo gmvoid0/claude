@@ -269,6 +269,29 @@ are typed once for a shop rather than adjusted per borrower, and nothing
 appears in both places: two copies of one switch is two places to disagree
 about which one is live.
 
+## Saving an application
+
+**Save** does two things: it keeps the application in the browser, and it
+downloads it as a one-page PDF.
+
+The sheet carries the same two figures as the panel in the same order, the
+borrower, the property and existing loan, the full calculation, and the
+itemised closing costs — with the flags and the disclaimer attached, so a
+number never travels without the caveat that produced it. It is named
+`SAM-RANDY-D-ROLLINS-20260817-1654.pdf`, which sorts by date and says whose
+it is.
+
+The PDF is written by the extension itself, in about four hundred lines,
+rather than by pulling a PDF library into every tab. It uses the two built-in
+Helvetica faces every reader has had since 1993, so nothing is embedded and
+the file lands around 8 KB. Text is measured with the real font metrics, so
+wrapping and alignment are exact rather than approximate, and the content
+streams are left uncompressed so the file can be read with `strings` when
+somebody asks what is in it.
+
+Save the draft from a previous call and it is costed against *that* record's
+figures, not whoever is on the phone by the time you press the button.
+
 ## Interface
 
 The panel is styled in an iOS idiom — translucent materials over a backdrop
