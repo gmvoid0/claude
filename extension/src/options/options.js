@@ -112,6 +112,12 @@ function renderPrefs() {
   $('floodCert').value = c.floodCert ?? 0;
   $('prepaidInterestDays').value = c.prepaidInterestDays ?? 0;
   $('assumedRate').value = pctText(c.assumedRate ?? 0);
+  $('discountPointsPct').value = pctText(c.discountPointsPct ?? 0);
+  $('transferTaxPct').value = pctText(c.transferTaxPct ?? 0);
+  $('propertyTaxRate').value = pctText(c.propertyTaxRate ?? 0);
+  $('insuranceRate').value = pctText(c.insuranceRate ?? 0);
+  $('escrowMonthsTaxes').value = c.escrowMonthsTaxes ?? 0;
+  $('escrowMonthsInsurance').value = c.escrowMonthsInsurance ?? 0;
   $('escrowReserves').value = c.escrowReserves ?? 0;
   $('texasFeeCapPct').value = pctText(c.texasFeeCapPct ?? 0);
 }
@@ -250,6 +256,12 @@ function readClosingRules() {
     floodCert: parseMoney($('floodCert').value) ?? 0,
     prepaidInterestDays: clampInt($('prepaidInterestDays').value, 0, 60, 15),
     assumedRate: parsePercent($('assumedRate').value) ?? base.assumedRate,
+    discountPointsPct: parsePercent($('discountPointsPct').value) ?? 0,
+    transferTaxPct: parsePercent($('transferTaxPct').value) ?? 0,
+    propertyTaxRate: parsePercent($('propertyTaxRate').value) ?? 0,
+    insuranceRate: parsePercent($('insuranceRate').value) ?? 0,
+    escrowMonthsTaxes: clampInt($('escrowMonthsTaxes').value, 0, 24, 6),
+    escrowMonthsInsurance: clampInt($('escrowMonthsInsurance').value, 0, 24, 3),
     escrowReserves: parseMoney($('escrowReserves').value) ?? 0,
     texasFeeCapPct: parsePercent($('texasFeeCapPct').value) ?? base.texasFeeCapPct,
   };

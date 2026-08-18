@@ -81,11 +81,16 @@
     </p>
     <p class="help">
       The defaults are national mid-range figures for a cash-out refinance.
-      <b>Replace them with your own.</b> Title premiums and recording fees in
-      particular are set per state, and no default can know yours. Escrow and
-      reserve deposits are <b>not</b> included by default — they depend on the
-      tax bill, the insurance premium and the closing date — so real cash to
-      the borrower is lower than shown unless you set a figure below.
+      <b>Replace them with your own.</b> Title premiums, recording fees and
+      transfer taxes are set per state, and no default can know yours.
+    </p>
+    <p class="help">
+      <b>These fees are only part of what the file costs to close.</b> The
+      upfront fee — the VA funding fee, FHA's UFMIP — is charged on top and is
+      usually the largest line of the lot. The panel shows both: the closing
+      costs from this table, and a <b>cost to close</b> figure that adds the
+      upfront fee to them. That second number is the one to compare against
+      what your manager quotes.
     </p>
 
     <label class="check"><input type="checkbox" id="estimateClosingCosts" />
@@ -150,9 +155,56 @@
         <span class="help">Used only when no rate has been read off the screen.</span>
       </div>
       <div class="field">
-        <label for="escrowReserves">Escrow / reserve deposits</label>
+        <label for="discountPointsPct">Discount points</label>
+        <input type="text" id="discountPointsPct" inputmode="decimal" />
+        <span class="help">
+          Share of the loan. 0 by default because it is a pricing choice, not
+          a cost of the file — but if your floor buys the rate down as a
+          matter of course, one point on a $400,000 loan is $4,000 and
+          leaving it at 0 understates every quote by that much.
+        </span>
+      </div>
+      <div class="field">
+        <label for="transferTaxPct">State transfer / mortgage tax</label>
+        <input type="text" id="transferTaxPct" inputmode="decimal" />
+        <span class="help">
+          Share of the loan. <b>Set this for your state.</b> Several states
+          charge nothing on a refinance and several charge a great deal — New
+          York's mortgage recording tax runs to about 2%, Florida stacks
+          documentary stamps on an intangible tax. On a $400,000 loan the
+          difference is eight thousand dollars.
+        </span>
+      </div>
+      <div class="field">
+        <label for="propertyTaxRate">Property tax rate</label>
+        <input type="text" id="propertyTaxRate" inputmode="decimal" />
+        <span class="help">
+          Share of the home's value a year, used to estimate the tax escrow.
+          Effective rates run from about 0.3% in Hawaii to 2.2% in New Jersey.
+        </span>
+      </div>
+      <div class="field">
+        <label for="insuranceRate">Homeowner's insurance rate</label>
+        <input type="text" id="insuranceRate" inputmode="decimal" />
+        <span class="help">Share of the home's value a year, for the insurance escrow.</span>
+      </div>
+      <div class="field">
+        <label for="escrowMonthsTaxes">Tax reserve, months</label>
+        <input type="text" id="escrowMonthsTaxes" inputmode="decimal" />
+        <span class="help">How many months of taxes are collected at closing. Commonly 3–8.</span>
+      </div>
+      <div class="field">
+        <label for="escrowMonthsInsurance">Insurance reserve, months</label>
+        <input type="text" id="escrowMonthsInsurance" inputmode="decimal" />
+        <span class="help">Commonly 2–3, on top of the year's premium paid in advance.</span>
+      </div>
+      <div class="field">
+        <label for="escrowReserves">Flat escrow figure</label>
         <input type="text" id="escrowReserves" inputmode="decimal" />
-        <span class="help">0 leaves them out and says so on the panel.</span>
+        <span class="help">
+          Overrides the two estimates above when set. Use it when you know
+          the real bill; leave it at 0 to have them estimated from the value.
+        </span>
       </div>
       <div class="field">
         <label for="texasFeeCapPct">Texas fee cap</label>

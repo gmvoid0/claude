@@ -1130,6 +1130,9 @@ function estimateClosing(sized, inputs) {
       state: sized.state,
       baseLoan: sized.maxBaseLoan,
       totalLoan: sized.totalLoanAmount,
+      // Escrows are estimated off the value, which is the only thing on the
+      // screen that has any bearing on a tax bill.
+      propertyValue: sized.propertyValue,
       // The rate on the screen belongs to the loan being paid off, not the
       // new one, so it is a stand-in rather than a fact. Better than nothing
       // for a fifteen-day interest accrual, and labelled as assumed.
@@ -1303,6 +1306,7 @@ function summaryText(r, inputs, recordLabel) {
     '',
     `ADVERTISED:     ${formatMoney(r.advertisedCashOut)}   (before fees and costs)`,
     `Closing costs:  ${formatMoney(r.closingCosts)}`,
+    `Cost to close:  ${formatMoney(r.totalCostToClose)}   (costs plus the upfront fee)`,
     `TAKE-HOME:      ${formatMoney(r.estimatedCashToBorrower)}`,
   );
 

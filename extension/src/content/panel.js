@@ -93,6 +93,7 @@ export class Panel {
 
       cash: q('[data-out=cash]'),
       cashNote: q('[data-out=cashNote]'),
+      costLine: q('[data-out=costLine]'),
       advertised: q('[data-out=advertised]'),
       verdict: q('[data-out=verdict]'),
 
@@ -504,6 +505,7 @@ export class Panel {
       els.advertised.textContent = '—';
       els.advertised.className = 'num none adv';
       els.cashNote.textContent = 'after fees & costs';
+      els.costLine.textContent = '';
       els.verdict.textContent = 'Enter a home value';
       els.verdict.className = 'pill idle';
       els.valueHint.innerHTML = result?.totalLiens
@@ -524,13 +526,25 @@ export class Panel {
 
       // Say what came out between the two figures, so the gap is never a
       // mystery the agent has to take on trust.
-      const out = [];
-      if (result.financedFee || result.unfinancedFee) {
-        out.push(`${formatMoney(result.financedFee || result.unfinancedFee)} fee`);
-      }
-      if (result.closingCosts) out.push(`${formatMoney(result.closingCosts)} costs`);
-      els.cashNote.textContent = out.length ? `less ${out.join(' + ')}` : 'no fees or costs';
+      const fee = result.financedFee || result.unfinancedFee || 0;
+      const allIn = result.totalCostToClose || 0;
+      els.cashNote.textContent = allIn
+        ? `after ${formatMoney(allIn)} in fees & costs`
+        : 'no fees or costs';
       els.cashNote.title = closingBreakdown(result);
+
+      // The financed fee never comes out of cash-out — it is added to the
+      // loan — so saying so here stops the split from reading as arithmetic
+      // that does not add up against the take-home figure.
+      const split = [];
+      if (fee) split.push(`${formatMoney(fee)} ${(result.feeLabel ?? 'fee').toLowerCase()}`);
+      if (result.closingCosts) split.push(`${formatMoney(result.closingCosts)} closing costs`);
+      els.costLine.textContent = allIn
+        ? `Cost to close ${formatMoney(allIn)}`
+          + (split.length > 1 ? ` — ${split.join(' + ')}` : '')
+          + (result.financedFee ? ', fee financed into the loan' : '')
+        : '';
+      els.costLine.title = closingBreakdown(result);
 
       if (result.meetsThreshold) {
         els.verdict.textContent = `Above ${formatMoney(result.threshold)} threshold`;
@@ -843,6 +857,15 @@ const TEMPLATE = `
         <span class="sub" data-out="cashNote">after fees &amp; costs</span>
       </div>
     </div>
+
+    <!--
+      The gap between the two figures, stated once and out loud. A manager
+      asked what closing runs on these files answers with one all-in number
+      including the funding fee, so that is the number shown first, with the
+      split behind it. Hidden when there is nothing to explain.
+    -->
+    <div class="costline" data-out="costLine"></div>
+
     <span class="pill idle" data-out="verdict">—</span>
 
     <div class="ltvbar">

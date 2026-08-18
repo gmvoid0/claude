@@ -165,6 +165,13 @@ function calculationBlocks(result) {
   }
   rows.push(['Total loan', formatMoney(result.totalLoanAmount)]);
   rows.push(['Closing costs', formatMoney(result.closingCosts), costsNote(result)]);
+  if (result.totalCostToClose) {
+    // The all-in figure, because that is what "what are closing costs on
+    // this" means to anyone who has sat at a closing table. Financing the
+    // upfront fee moves who fronts it, not whether it is charged.
+    rows.push(['Cost to close, all in', formatMoney(result.totalCostToClose),
+      result.financedFee ? 'closing costs plus the financed fee' : 'closing costs plus the upfront fee']);
+  }
 
   for (const [label, value, note] of rows) {
     blocks.push({ type: 'row', label, value, note });

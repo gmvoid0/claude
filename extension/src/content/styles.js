@@ -942,6 +942,18 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 }
 
 /* What the switches above actually charge. An output, not a control. */
+/* The all-in cost of closing, under the two headline figures. Sized to be
+   read at a glance without competing with them. */
+.costline {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  color: var(--label-2);
+  text-align: center;
+}
+.costline:empty { display: none; }
+
 .asm-fee {
   margin-top: 9px;
   padding: 8px 10px;

@@ -4,8 +4,12 @@ import assert from 'node:assert/strict';
 import { estimateClosingCosts, closingCostText, DEFAULT_CLOSING_RULES }
   from '../extension/src/lib/closing.js';
 import { computeEquity } from '../extension/src/lib/equity.js';
+import { round2 } from '../extension/src/lib/money.js';
 
-const VA = { program: 'VA', state: 'TN', baseLoan: 391581, totalLoan: 400000, rate: 0.065 };
+const VA = {
+  program: 'VA', state: 'TN', baseLoan: 391581, totalLoan: 400000,
+  propertyValue: 400000, rate: 0.065,
+};
 
 const item = (estimate, id) => estimate.items.find((i) => i.id === id);
 
@@ -67,17 +71,68 @@ test('prepaid interest follows the rate, and says when it was assumed', () => {
   assert.ok(item(unknown, 'prepaidInterest').amount > 0);
 });
 
-test('escrow reserves are excluded, and their absence is stated', () => {
-  // Silently leaving a cost out flatters the take-home figure, which is the
-  // one direction this tool must never be wrong in.
+test('escrows are estimated from the value, not left out', () => {
+  // They were left out of the first version of this model, because the tax
+  // bill is not on a lead screen. That silently flattered every quote by a
+  // couple of thousand dollars, which is the one direction this tool must
+  // never be wrong in. A named estimate an agent can argue with beats it.
   const e = estimateClosingCosts(VA);
-  assert.equal(item(e, 'escrowReserves'), undefined);
-  assert.ok(e.warnings.some((w) => /escrow/i.test(w.text) && /lower/i.test(w.text)));
 
-  const withReserves = estimateClosingCosts(VA, { ...DEFAULT_CLOSING_RULES, escrowReserves: 2400 });
-  assert.equal(item(withReserves, 'escrowReserves').amount, 2400);
-  assert.ok(!withReserves.warnings.some((w) => /escrow/i.test(w.text)));
+  assert.equal(item(e, 'taxReserve').amount, 2200);        // 400,000 x 1.1% / 12 x 6
+  assert.equal(item(e, 'insuranceReserve').amount, 350);   // 400,000 x 0.35% / 12 x 3
+  assert.match(item(e, 'taxReserve').note, /6 months/);
+  assert.ok(e.warnings.some((w) => /estimated from the property value/i.test(w.text)),
+    'and the estimate says it is one');
 });
+
+test('a flat escrow figure replaces the estimate', () => {
+  const e = estimateClosingCosts(VA, { ...DEFAULT_CLOSING_RULES, escrowReserves: 2400 });
+  assert.equal(item(e, 'escrowReserves').amount, 2400);
+  assert.equal(item(e, 'taxReserve'), undefined, 'not both');
+  assert.equal(item(e, 'insuranceReserve'), undefined);
+});
+
+test('with no home value there are no escrows, and the panel is told', () => {
+  const e = estimateClosingCosts({ ...VA, propertyValue: null });
+  assert.equal(item(e, 'taxReserve'), undefined);
+  assert.ok(e.warnings.some((w) => /escrow/i.test(w.text) && /lower/i.test(w.text)));
+});
+
+test('discount points and transfer tax are off by default and land when set', () => {
+  // Both are zero by default because neither can be guessed — but a floor
+  // that buys the rate down, or a state that taxes the recording, is off by
+  // thousands if they stay at zero unnoticed.
+  const off = estimateClosingCosts(VA);
+  assert.equal(item(off, 'discountPoints'), undefined);
+  assert.equal(item(off, 'transferTax'), undefined);
+  assert.ok(off.warnings.some((w) => /transfer or mortgage tax/i.test(w.text)),
+    'the missing transfer tax is called out rather than assumed to be nil');
+
+  const on = estimateClosingCosts(VA, {
+    ...DEFAULT_CLOSING_RULES, discountPointsPct: 0.01, transferTaxPct: 0.0115,
+  });
+  assert.equal(item(on, 'discountPoints').amount, 3915.81);
+  assert.equal(item(on, 'transferTax').amount, 4503.18);
+  assert.ok(!on.warnings.some((w) => /transfer or mortgage tax/i.test(w.text)));
+  assert.equal(round(on.total - off.total), 8419);
+});
+
+test('the transfer tax and the points sit outside the Texas fee cap', () => {
+  // §50(a)(6)(E) excludes bona fide discount points and government charges,
+  // so scaling them down with the cap would understate a Texas file.
+  const rules = { ...DEFAULT_CLOSING_RULES, discountPointsPct: 0.01, transferTaxPct: 0.005 };
+  const small = {
+    program: 'CONV', baseLoan: 150000, totalLoan: 150000, propertyValue: 200000, rate: 0.065,
+  };
+  const texas = estimateClosingCosts({ ...small, state: 'TX' }, rules);
+  const outside = estimateClosingCosts({ ...small, state: 'TN' }, rules);
+
+  assert.equal(texas.texasCapApplied, true);
+  assert.equal(item(texas, 'discountPoints').amount, item(outside, 'discountPoints').amount);
+  assert.equal(item(texas, 'transferTax').amount, item(outside, 'transferTax').amount);
+});
+
+const round = (n) => Math.round(n);
 
 test('Texas holds chargeable fees to 2% of the loan', () => {
   // §50(a)(6)(E). The cap bites on a smaller loan, where the flat fees are a
@@ -125,21 +180,64 @@ test('an unknown program falls back to conventional rather than charging nothing
 });
 
 test('the estimate lands in a defensible band for a cash-out refinance', () => {
-  // Industry surveys put refinance closing costs around 2-3% of the loan.
-  // This is a sanity rail, not a target: if a settings change ever pushes
-  // the default model far outside it, that is worth knowing.
+  // Industry surveys put refinance closing costs around 2-5% of the loan
+  // once escrows and prepaids are counted. This is a sanity rail, not a
+  // target: if a settings change ever pushes the default model far outside
+  // it, that is worth knowing.
   for (const baseLoan of [150000, 300000, 500000, 900000]) {
-    const e = estimateClosingCosts({ ...VA, program: 'CONV', baseLoan, totalLoan: baseLoan });
+    const e = estimateClosingCosts({
+      ...VA, program: 'CONV', baseLoan, totalLoan: baseLoan, propertyValue: baseLoan / 0.8,
+    });
     const pct = e.total / baseLoan;
-    assert.ok(pct > 0.012 && pct < 0.035,
+    assert.ok(pct > 0.02 && pct < 0.05,
       `${baseLoan}: ${(pct * 100).toFixed(2)}% is outside the plausible band`);
   }
+});
+
+test('the all-in cost of closing reaches the figure a manager would quote', () => {
+  // The complaint this test exists for: a manager says closing runs ten to
+  // thirty thousand, and an earlier version of this model said $8,596. It
+  // was wrong twice over — escrows were missing, and the funding fee was
+  // shown on its own line as though it were not a cost of closing.
+  const sized = computeEquity({
+    propertyValue: 400000, firstLien: 270900, program: 'VA', state: 'TN',
+    financeFee: true, closingCosts: 0,
+  });
+  const estimate = estimateClosingCosts({
+    program: 'VA', state: 'TN', baseLoan: sized.maxBaseLoan,
+    totalLoan: sized.totalLoanAmount, propertyValue: 400000, rate: null,
+  });
+  const r = computeEquity({
+    propertyValue: 400000, firstLien: 270900, program: 'VA', state: 'TN',
+    financeFee: true, closingCosts: estimate.total,
+  });
+
+  assert.equal(r.closingCosts, 11145.62, 'the settlement-sheet subtotal');
+  assert.equal(r.financedFee, 8418.99, 'plus the funding fee, financed but still charged');
+  assert.equal(r.totalCostToClose, 19564.61);
+  assert.ok(r.totalCostToClose > 10000 && r.totalCostToClose < 30000,
+    'which is the ten-to-thirty a manager quotes from memory');
+
+  // Paying the fee at closing instead of financing it does not remove it
+  // from the all-in figure — it lets the base loan run to the full ceiling,
+  // so the fee is charged on a slightly larger loan and costs slightly more.
+  const paid = computeEquity({
+    propertyValue: 400000, firstLien: 270900, program: 'VA', state: 'TN',
+    financeFee: false, closingCosts: estimate.total,
+  });
+  assert.equal(paid.financedFee, 0);
+  assert.equal(paid.unfinancedFee, 8600);
+  assert.equal(paid.totalCostToClose, round2(estimate.total + 8600),
+    'counted either way, financed or not');
+  assert.ok(paid.estimatedCashToBorrower < r.estimatedCashToBorrower,
+    'and it is the borrower who feels the difference');
 });
 
 test('the itemisation is legible when copied', () => {
   const text = closingCostText(estimateClosingCosts(VA));
   assert.match(text, /Origination:\s+\$3,916/);
-  assert.match(text, /Total:\s+\$8,596/);
+  assert.match(text, /Property tax reserve:\s+\$2,200/);
+  assert.match(text, /Total:\s+\$11,146/);
 });
 
 /* --- how it lands on the two figures ------------------------------------ */
@@ -148,12 +246,12 @@ test('the advertised figure is the raw one, before fee and costs', () => {
   // "Everything shows pre-fees — that's the advertised number, raw."
   const r = computeEquity({
     propertyValue: 400000, firstLien: 270900, program: 'VA', state: 'TN',
-    financeFee: true, closingCosts: 8595.62,
+    financeFee: true, closingCosts: 11145.62,
   });
 
   assert.equal(r.advertisedCashOut, 129100, '100% of value less the payoff');
   assert.equal(r.cashOutBeforeCosts, 120681, 'after the fee is carved out');
-  assert.equal(r.estimatedCashToBorrower, 112085.38, 'after the costs as well');
+  assert.equal(r.estimatedCashToBorrower, 109535.38, 'after the costs as well');
   assert.ok(r.advertisedCashOut > r.estimatedCashToBorrower);
 });
 

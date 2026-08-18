@@ -570,6 +570,7 @@ test('the content script boots, detects, and computes on the agent screen', { sk
         cash: text('[data-out=cash]'),
         advertised: text('[data-out=advertised]'),
         cashNote: text('[data-out=cashNote]'),
+        costLine: text('[data-out=costLine]'),
         cap: text('[data-bar=right]'),
         now: text('[data-bar=left]'),
         verdict: text('[data-out=verdict]'),
@@ -581,8 +582,10 @@ test('the content script boots, detects, and computes on the agent screen', { sk
     assert.equal(after.cap, 'Cap 100%', 'VA outside Texas');
     assert.equal(after.now, 'Now 67.7%');
     assert.equal(after.advertised, '$129,100', 'the raw figure, before fee and costs');
-    assert.equal(after.cash, '$112,085', 'what the borrower actually receives');
-    assert.match(after.cashNote, /less .*fee/i, 'and the gap between them is named');
+    assert.equal(after.cash, '$109,535', 'what the borrower actually receives');
+    assert.match(after.cashNote, /after \$19,565/, 'and the gap between them is named');
+    assert.match(after.costLine, /Cost to close \$19,565/, 'all in, fee included');
+    assert.match(after.costLine, /funding fee/i, 'and split into its two halves');
     assert.match(after.verdict, /threshold/i);
   } finally {
     await page.close();
@@ -864,9 +867,9 @@ test('the assumptions on the panel move the figure and stick', { skip }, async (
       };
     });
 
-    assert.equal(out.financed, '$112,085', 'fee financed inside the 100% cap');
-    assert.equal(out.atClosing, '$111,787', 'an unfinanced fee comes out of the proceeds');
-    assert.equal(out.waived, '$120,387', 'no fee leaves only the closing costs');
+    assert.equal(out.financed, '$109,535', 'fee financed inside the 100% cap');
+    assert.equal(out.atClosing, '$109,237', 'an unfinanced fee comes out of the proceeds');
+    assert.equal(out.waived, '$117,837', 'no fee leaves only the closing costs');
     assert.match(out.feeShown, /no upfront fee/i, 'and the fee line says so');
 
     assert.equal(out.prefs.financeFee, false, 'the switch is a standing assumption');
@@ -1039,7 +1042,7 @@ test('the application fills from the record and offers to save once worked on', 
     // The ceiling is offered as guidance; the borrower's actual request is
     // the agent's to enter.
     assert.equal(state.before.cashOut, '');
-    assert.equal(state.before.cashOutHint, 'up to $112,085');
+    assert.equal(state.before.cashOutHint, 'up to $109,535');
     assert.equal(state.before.phone, '3024239504');
 
     assert.equal(state.before.saveHidden, true, 'auto-fill alone must not offer a save');
@@ -1091,14 +1094,14 @@ test('correcting the application moves the cash-out figure with it', { skip }, a
     });
 
     assert.equal(out.afterValue.value, '400000', 'the estimator takes the value from the form');
-    assert.equal(out.afterValue.cash, '$112,085');
+    assert.equal(out.afterValue.cash, '$109,535');
 
     assert.equal(out.afterBalance.balance, '250000');
-    assert.equal(out.afterBalance.cash, '$132,985', 'a lower payoff frees more cash');
+    assert.equal(out.afterBalance.cash, '$130,435', 'a lower payoff frees more cash');
 
     assert.equal(out.afterProgram.program, 'CONV');
     // 80% of $400,000 less the $250,000 payoff entered a moment ago, less costs.
-    assert.equal(out.afterProgram.cash, '$62,475', 'conventional caps at 80% of value');
+    assert.equal(out.afterProgram.cash, '$59,925', 'conventional caps at 80% of value');
   } finally {
     await page.close();
   }
@@ -1254,7 +1257,7 @@ test('Save downloads the application as a PDF', { skip }, async () => {
 
     assert.match(shown, /RANDY D ROLLINS/);
     assert.match(shown, /\$129,100/, 'the advertised figure');
-    assert.match(shown, /\$112,085/, 'the take-home figure');
+    assert.match(shown, /\$109,535/, 'the take-home figure');
     assert.match(shown, /\$96,000/, 'what the agent entered');
     assert.match(shown, /not a quote/i, 'and the disclaimer');
 

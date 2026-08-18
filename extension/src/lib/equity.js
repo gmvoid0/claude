@@ -142,6 +142,7 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
       maxBaseLoan: null,
       financedFee: null,
       unfinancedFee: 0,
+      totalCostToClose: null,
       totalLoanAmount: null,
       resultingLtv: null,
       advertisedCashOut: null,
@@ -210,6 +211,13 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
   // closing rather than financed both reduce net proceeds.
   const cashOutBeforeCosts = round2(maxBaseLoan - totalLiens);
   const estimatedCashToBorrower = round2(cashOutBeforeCosts - closingCosts - unfinancedFee);
+
+  // What the file costs to close, all in. Financing the upfront fee changes
+  // who fronts it, not whether it is charged, so it belongs here either way:
+  // a manager asked what closing costs run on these loans means this figure,
+  // and quoting them the settlement-sheet subtotal without the funding fee
+  // is how the tool ends up looking wrong to someone who does this daily.
+  const totalCostToClose = round2(closingCosts + financedFee + unfinancedFee);
 
   // The raw figure: the LTV ceiling against the payoff, before the upfront
   // fee is carved out of it and before any cost comes off. This is the
@@ -345,6 +353,7 @@ export function computeEquity(input = {}, rules = DEFAULT_RULES) {
     resultingLtv,
 
     closingCosts,
+    totalCostToClose,
     advertisedCashOut,
     cashOutBeforeCosts,
     estimatedCashToBorrower,

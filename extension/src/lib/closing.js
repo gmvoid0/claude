@@ -17,13 +17,17 @@
  * and recording fees in particular are set per state, and no default can
  * know yours. Every one of them is editable in Settings.
  *
- * What is deliberately NOT included: escrow reserves and property-tax
- * impounds. They depend on the tax bill, the insurance premium and the
- * closing date, none of which are on a lead screen, and inventing them
- * would move the take-home figure by thousands on a guess. They are called
- * out in the itemisation instead, so their absence is visible rather than
- * silent — an estimate that is quietly missing a cost errs in the
- * optimistic direction, which is the one direction this tool must not.
+ * One thing this model gets asked about more than anything else: why the
+ * total looks smaller than the ten-to-thirty thousand a manager will quote
+ * from memory. Two reasons, both now fixed. The upfront fee — VA funding
+ * fee, FHA UFMIP — is a cost of closing even when it is financed, and it is
+ * the largest single line on most of these files; it is computed in
+ * equity.js and added back here by the caller, not lost. And escrows,
+ * prepaid taxes and insurance, were left out of the first version of this
+ * model on the grounds that the tax bill is not on a lead screen. That was
+ * the wrong trade: a cost that always exists, silently omitted, makes every
+ * quote flatter than the file. It is estimated from the property value now,
+ * named on its own line, and marked as an estimate.
  *
  * Pure and DOM-free.
  */
@@ -64,6 +68,28 @@ export const DEFAULT_CLOSING_RULES = {
   recordingFees: 175,
 
   /**
+   * Discount points, as a share of the loan. Zero by default because it is a
+   * pricing choice rather than a cost of the file — but on a floor that buys
+   * the rate down as a matter of course, one point on a $400,000 loan is
+   * $4,000 and leaving it out understates the deal by that much.
+   */
+  discountPointsPct: 0,
+
+  /**
+   * State and local transfer, mortgage recording or intangible tax, as a
+   * share of the loan.
+   *
+   * Zero by default because it cannot be guessed: several states charge
+   * nothing on a refinance and several charge a great deal. New York's
+   * mortgage recording tax runs to about 2% of the loan; Florida charges
+   * documentary stamps plus an intangible tax; Virginia, Maryland, Delaware
+   * and Tennessee all levy something. On a $400,000 loan the difference
+   * between 0% and 2% is eight thousand dollars, so this is the first
+   * setting to fill in for your state.
+   */
+  transferTaxPct: 0,
+
+  /**
    * Prepaid interest: days of interest collected at closing. Fifteen is a
    * mid-month closing, which is the honest average when the date is unknown.
    */
@@ -72,9 +98,25 @@ export const DEFAULT_CLOSING_RULES = {
   assumedRate: 0.065,
 
   /**
-   * Escrow and reserve deposits. Zero by default and deliberately so — see
-   * the note at the top of this file.
+   * Escrow reserves.
+   *
+   * These were excluded in the first version of this model, on the grounds
+   * that the tax bill and the closing date are not on a lead screen. That was
+   * the wrong call: leaving out a cost that always exists made every quote
+   * flatter than the file, which is the one direction this tool must not be
+   * wrong in. A named estimate an agent can correct beats a silent zero.
+   *
+   * Estimated from the property value, because that is what is on screen.
+   * Both rates are national averages and both are meant to be replaced with
+   * your state's: effective property tax runs from roughly 0.3% in Hawaii to
+   * 2.2% in New Jersey, so a single default cannot be right everywhere.
    */
+  propertyTaxRate: 0.011,
+  insuranceRate: 0.0035,
+  escrowMonthsTaxes: 6,
+  escrowMonthsInsurance: 3,
+
+  /** A flat figure that replaces the estimate above when set. */
   escrowReserves: 0,
 
   /** Texas §50(a)(6) fee cap, as a share of the loan. */
@@ -86,6 +128,8 @@ const TEXAS_CAPPED = new Set([
   'origination', 'underwriting', 'creditReport', 'floodCert',
   'titleSearch', 'settlementFee', 'recordingFees',
 ]);
+// Bona fide discount points, the appraisal, the survey, the state base title
+// premium and government taxes are all outside the 2% cap.
 
 /**
  * Estimate the closing costs on a cash-out refinance.
@@ -95,6 +139,7 @@ const TEXAS_CAPPED = new Set([
  * @param {string} input.state          Two-letter code, for the Texas cap
  * @param {number} input.baseLoan       Base loan amount
  * @param {number} input.totalLoan      Base plus any financed upfront fee
+ * @param {number|null} input.propertyValue  For the escrow estimate
  * @param {number|null} input.rate      Note rate, as a decimal
  * @param {object} rules
  * @returns {{ total: number, items: Array, warnings: Array, texasCapApplied: boolean }}
@@ -104,6 +149,7 @@ export function estimateClosingCosts({
   state = null,
   baseLoan = null,
   totalLoan = null,
+  propertyValue = null,
   rate = null,
 } = {}, rules = DEFAULT_CLOSING_RULES) {
   const r = { ...DEFAULT_CLOSING_RULES, ...(rules ?? {}) };
@@ -133,11 +179,19 @@ export function estimateClosingCosts({
   add('creditReport', 'Credit report', r.creditReport);
   add('floodCert', 'Flood certification', r.floodCert);
 
+  const points = r.discountPointsPct ?? 0;
+  add('discountPoints', 'Discount points', base * points,
+    points ? `${(points * 100).toFixed(3).replace(/\.?0+$/, '')}% of the loan` : undefined);
+
   add('titlePolicy', "Lender's title policy", base * (r.titlePolicyPct ?? 0),
     'varies by state — set yours in Settings');
   add('titleSearch', 'Title search / exam', r.titleSearch);
   add('settlementFee', 'Settlement / closing fee', r.settlementFee);
   add('recordingFees', 'Recording', r.recordingFees);
+
+  const transfer = r.transferTaxPct ?? 0;
+  add('transferTax', 'Transfer / mortgage tax', base * transfer,
+    transfer ? `${(transfer * 100).toFixed(3).replace(/\.?0+$/, '')}% of the loan` : undefined);
 
   // Prepaid interest, on the loan the borrower is actually taking.
   const usedRate = positive(rate) ?? r.assumedRate;
@@ -148,14 +202,43 @@ export function estimateClosingCosts({
         + (positive(rate) == null ? ', rate assumed' : ''));
   }
 
-  add('escrowReserves', 'Escrow reserves', r.escrowReserves);
+  // Escrows: a flat figure if one is configured, otherwise estimated from the
+  // property value. Named separately so an agent who knows the real tax bill
+  // can see exactly which line to argue with.
+  const flatEscrow = positive(r.escrowReserves);
+  const value = positive(propertyValue);
 
-  if (!positive(r.escrowReserves)) {
+  if (flatEscrow) {
+    add('escrowReserves', 'Escrow reserves', flatEscrow, 'flat figure from Settings');
+  } else if (value) {
+    const taxMonths = r.escrowMonthsTaxes ?? 0;
+    const insMonths = r.escrowMonthsInsurance ?? 0;
+
+    add('taxReserve', 'Property tax reserve', (value * (r.propertyTaxRate ?? 0) / 12) * taxMonths,
+      `${taxMonths} months at ${(((r.propertyTaxRate ?? 0) * 100)).toFixed(2)}% of value a year`);
+    add('insuranceReserve', 'Insurance reserve', (value * (r.insuranceRate ?? 0) / 12) * insMonths,
+      `${insMonths} months at ${(((r.insuranceRate ?? 0) * 100)).toFixed(2)}% of value a year`);
+
     warnings.push({
       level: 'info',
-      text: 'Escrow and reserve deposits are not included — they depend on the '
-        + 'tax bill, the insurance premium and the closing date. Real cash to '
-        + 'the borrower will be lower.',
+      text: 'Escrow reserves are estimated from the property value, not from the '
+        + 'actual tax bill or insurance premium. Set your state\'s rates in '
+        + 'Settings, or enter the real figures once you have them.',
+    });
+  } else {
+    warnings.push({
+      level: 'warn',
+      text: 'No property value, so escrow reserves are not included. Real cash '
+        + 'to the borrower will be lower than shown.',
+    });
+  }
+
+  if (!(r.transferTaxPct > 0)) {
+    warnings.push({
+      level: 'info',
+      text: 'No state transfer or mortgage tax is set. Several states charge one '
+        + 'on a refinance — New York\'s runs to about 2% of the loan — so check '
+        + 'yours and set it in Settings.',
     });
   }
 
