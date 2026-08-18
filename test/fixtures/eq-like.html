@@ -50,6 +50,7 @@
       <label><input type="radio" name="occupancy" value="INV" /> Investment</label>
     </fieldset>
     <button data-next="2">Next</button>
+    <button data-next="3">Results</button>
   </div>
 
   <div class="step" data-step="2">
@@ -92,6 +93,53 @@
     </div>
     <button data-open="cty-list">Open county list</button>
     <button data-next="1">Back</button>
+
+    <!--
+      Easy Qualifier's actual shape, reproduced after seeing it: a div with
+      role=combobox whose accessible name is built from a label AND the value
+      currently chosen, paired with an <input name> of the same id holding
+      that value. Two things fall out of it. The value leaks into the label
+      unless it is stripped ("Loan Officer *Joe ShenaLoan Officer"), and the
+      options do not exist in the document until the thing is clicked.
+    -->
+    <div class="fld combo" id="occ-wrap">
+      <span id="occ-lbl">Occupancy</span>
+      <div id="OccupancyTypeId" role="combobox"
+           aria-labelledby="occ-lbl occ-val occ-lbl2" tabindex="0">
+        <span id="occ-val">Primary Residence</span>
+      </div>
+      <span id="occ-lbl2" hidden>Occupancy</span>
+      <input name="OccupancyTypeId" value="Primary Residence" readonly />
+    </div>
+
+    <div class="fld combo" id="lo-wrap">
+      <span id="lo-lbl">Loan Officer *</span>
+      <div id="ObfuscatedLoanOfficerContactId" role="combobox"
+           aria-labelledby="lo-lbl lo-val" tabindex="0">
+        <span id="lo-val">Joe Shena</span>
+      </div>
+      <input name="ObfuscatedLoanOfficerContactId" value="Joe Shena" readonly />
+    </div>
+
+    <div id="occ-list" role="listbox" hidden>
+      <div role="option" data-value="1">Primary Residence</div>
+      <div role="option" data-value="2">Second Home</div>
+      <div role="option" data-value="3">Investment</div>
+    </div>
+  </div>
+
+  <div class="step" data-step="3">
+    <h2>Results</h2>
+    <table class="results-grid">
+      <thead>
+        <tr><th>Product</th><th>Rate</th><th>Price</th><th>Payment</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>30 Year Fixed</td><td>6.375%</td><td>100.482</td><td>$2,417.19</td></tr>
+        <tr><td>25 Year Fixed</td><td>6.250%</td><td>100.911</td><td>$2,640.03</td></tr>
+      </tbody>
+    </table>
+    <button data-next="2">Back</button>
   </div>
 
   <script>
@@ -105,6 +153,18 @@
         document.getElementById(open).hidden = false;
         document.getElementById('cty').setAttribute('aria-expanded', 'true');
       }
+
+      // The EQ-shaped comboboxes open on click and close on Escape, and
+      // neither ever changes the value on its own.
+      const combo = e.target.closest('#OccupancyTypeId, #ObfuscatedLoanOfficerContactId');
+      if (combo) {
+        const list = document.getElementById('occ-list');
+        list.hidden = combo.id !== 'OccupancyTypeId' ? true : !list.hidden;
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') document.getElementById('occ-list').hidden = true;
     });
   </script>
 </body>

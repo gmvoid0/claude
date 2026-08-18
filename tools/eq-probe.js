@@ -25,7 +25,13 @@
  *   - send anything anywhere. There is no network call in this file at all.
  *     What it collects sits in this one browser tab until you press Copy,
  *     and dies when you close the tab.
- *   - change any field, click anything, or submit anything.
+ *   - fill in a field, choose an option, or submit anything.
+ *
+ * One button does touch the page, and it says so: "Read all dropdown lists"
+ * clicks each dropdown open, reads what is inside, and presses Escape. It
+ * selects nothing, and it checks the field before and after to prove the
+ * selection did not move — if one ever does, it says so on the box rather
+ * than carrying on quietly. Everything else only looks.
  *
  * You can read every line of it before you run it. That is the idea.
  */
@@ -33,7 +39,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const MAX_SCREENS = 40;
   const MAX_OPTIONS = 80;
 
@@ -86,14 +92,60 @@
   }
 
   /**
+   * A dropdown's partner input.
+   *
+   * Easy Qualifier builds every dropdown as a <div role=combobox id="X"> with
+   * an <input name="X"> beside it holding the chosen text. Finding that
+   * partner is how the fill engine will read a dropdown back — and how the
+   * label below gets cleaned.
+   */
+  function mirrorFor(el) {
+    const id = el.getAttribute('id');
+    if (!id || el.tagName === 'INPUT') return null;
+    return document.querySelector(`input[name="${esc(id)}"]`);
+  }
+
+  /** The other direction: the dropdown a mirror input belongs to. */
+  function comboFor(el) {
+    if (el.tagName !== 'INPUT') return null;
+    const name = el.getAttribute('name');
+    const combo = name ? document.getElementById(name) : null;
+    return combo && combo.getAttribute('role') === 'combobox' ? combo : null;
+  }
+
+  /**
+   * Strip a field's own contents out of its label.
+   *
+   * EQ renders the selected value *into* the combobox's accessible name, so
+   * the first run of this probe brought back labels reading "Loan Officer
+   * *Joe ShenaLoan Officer". That is someone's name arriving through the one
+   * channel this thing promised not to use. Whatever the field holds is
+   * removed from every label before anything is recorded.
+   */
+  function tidyLabel(value, hidden) {
+    let out = String(value ?? '');
+    for (const secret of hidden) {
+      // Three characters is the floor. Stripping a short code out as a plain
+      // substring turns a radio button's value of "PRIM" into a label
+      // reading "ary Residence".
+      if (secret && secret.length >= 3) out = out.split(secret).join(' ');
+    }
+    out = out.replace(/\s+/g, ' ').replace(/\s*\*\s*/g, ' ').trim()
+      .replace(/[:\u00a0]+$/, '').trim();
+    // "Loan Purpose Loan Purpose" is one label read twice, not two labels.
+    const doubled = out.match(/^(.+?)\s*\1$/);
+    return doubled ? doubled[1].trim() : out;
+  }
+
+  /**
    * The label a person would say out loud for this box. Several sources are
    * tried in the order they are trustworthy; every one that hit is kept, so
    * a bad first guess is recoverable without asking you to run this again.
    */
-  function labelsFor(el) {
+  function labelsFor(el, hidden = []) {
     const found = [];
     const push = (source, value) => {
-      const clean = (value ?? '').replace(/\s+/g, ' ').trim().replace(/[:*\u00a0]+$/, '').trim();
+      const clean = tidyLabel(value, hidden);
       if (clean && clean.length < 120) found.push({ source, text: clean });
     };
 
@@ -138,6 +190,19 @@
       if (head && index >= 0 && head.children[index]) push('column', text(head.children[index]));
     }
 
+    // Trust order decides, with one exception. EQ glues its labels together
+    // out of several nodes, so the most trusted source can come back reading
+    // "Property CountyProperty CountyAnnual AMI = $144,000" while a plain
+    // sibling says "Property County". When the winner swallows a shorter
+    // candidate whole and is half again as long, the shorter one is the
+    // label and the rest is furniture.
+    const top = found[0];
+    if (top) {
+      const tighter = found.slice(1).find((l) => l.text.length >= 4
+        && top.text.length > l.text.length * 1.5
+        && top.text.includes(l.text));
+      if (tighter) return [tighter, ...found.filter((l) => l !== tighter)];
+    }
     return found;
   }
 
@@ -241,9 +306,21 @@
     const type = (el.getAttribute('type') || '').toLowerCase();
     if (SKIP_TYPES.has(type)) return null;
 
-    const labels = labelsFor(el);
-    const options = optionsFor(el);
     const value = typeof el.value === 'string' ? el.value : '';
+    const mirror = mirrorFor(el);
+    const combo = comboFor(el);
+
+    // A tick box's value is a code, not the words beside it, so nothing is
+    // stripped from those labels; everywhere else the value is what EQ
+    // renders into the label, and has to come out of it.
+    const hidden = type === 'radio' || type === 'checkbox'
+      ? []
+      : [value, mirror?.value, combo && el.value, el.textContent?.trim()];
+
+    // A mirror input is nameless on its own — it takes its meaning from the
+    // dropdown that writes into it.
+    const labels = labelsFor(combo ?? el, hidden);
+    const options = optionsFor(el);
 
     const record = {
       label: labels[0]?.text ?? null,
@@ -269,6 +346,11 @@
       min: el.getAttribute('min'),
       max: el.getAttribute('max'),
       step: el.getAttribute('step'),
+
+      // The input this dropdown writes into, which is where its value is read
+      // back from. EQ names it after the combobox's own id.
+      mirror: mirror ? `input[name="${mirror.getAttribute('name')}"]` : null,
+      mirrorOf: combo ? `#${combo.getAttribute('id')}` : null,
 
       required: el.required || el.getAttribute('aria-required') === 'true' || null,
       disabled: el.disabled || el.getAttribute('aria-disabled') === 'true' || null,
@@ -445,6 +527,151 @@
   }
 
   /* ================================================================== *
+   * Opening the dropdowns
+   *
+   * This is the one part of the probe that touches the page, and it is on a
+   * button of its own for that reason. The first run brought back every
+   * field on Easy Qualifier and almost none of the option lists, because a
+   * React dropdown does not put its options in the document until it is
+   * opened — and opening one does not change the set of fields, so nothing
+   * triggered a capture. Asking someone to hand-open twenty dropdowns at
+   * exactly the right moment is not a plan.
+   *
+   * So: click each one open, read the list, press Escape. It never picks an
+   * option, and it reads the paired input before and after to prove the
+   * selection did not move. Anything that did move is reported rather than
+   * quietly swallowed.
+   * ================================================================== */
+
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function openLists() {
+    return new Set([...document.querySelectorAll('[role=listbox],[role=menu]')].filter(visible));
+  }
+
+  function close(combo) {
+    for (const type of ['keydown', 'keyup']) {
+      combo.dispatchEvent(new KeyboardEvent(type, {
+        key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+        bubbles: true, cancelable: true, composed: true,
+      }));
+    }
+  }
+
+  async function readDropdowns() {
+    const combos = [...document.querySelectorAll('[role=combobox]')].filter(visible);
+    const found = [];
+    let moved = 0;
+
+    for (let i = 0; i < combos.length; i += 1) {
+      const combo = combos[i];
+      const id = combo.getAttribute('id') ?? null;
+      const mirror = mirrorFor(combo);
+      const before = mirror ? mirror.value : null;
+      const label = labelsFor(combo, [before, combo.textContent?.trim()])[0]?.text ?? id;
+
+      say(`Reading ${i + 1} of ${combos.length}: ${label ?? 'dropdown'}`, true);
+
+      if (combo.getAttribute('aria-disabled') === 'true' || combo.hasAttribute('disabled')) {
+        found.push({ id, label, disabled: true });
+        continue;
+      }
+
+      const already = openLists();
+      combo.click();
+      await wait(320);
+
+      // Whichever listbox this click brought into the document.
+      const owned = combo.getAttribute('aria-controls') || combo.getAttribute('aria-owns');
+      const box = (owned && document.getElementById(owned))
+        ?? [...openLists()].find((el) => !already.has(el))
+        ?? null;
+
+      const nodes = box ? [...box.querySelectorAll('[role=option],[role=menuitem]')] : [];
+      const list = nodes.slice(0, MAX_OPTIONS).map((node) => {
+        const value = node.getAttribute('data-value') ?? node.getAttribute('value')
+          ?? node.getAttribute('id') ?? null;
+        const t = text(node);
+        return value == null || value === t ? t : { value, text: t };
+      }).filter((o) => o && (typeof o !== 'object' || o.text));
+
+      close(combo);
+      await wait(140);
+      if ([...openLists()].some((el) => !already.has(el))) {
+        combo.click();          // toggle it shut if Escape was not enough
+        await wait(140);
+      }
+
+      const after = mirror ? mirror.value : null;
+      if (before !== after) moved += 1;
+
+      found.push(compact({
+        id,
+        label,
+        mirror: mirror ? `input[name="${mirror.getAttribute('name')}"]` : null,
+        total: nodes.length,
+        options: list,
+        // Loud, not silent: a probe that moved someone's scenario has to say so.
+        selectionChanged: before !== after ? true : undefined,
+        empty: nodes.length ? undefined : true,
+      }));
+    }
+
+    store.dropdowns = found;
+    const withOptions = found.filter((f) => f.options?.length).length;
+    render();
+    say(moved
+      ? `${withOptions} lists read — ${moved} selection(s) moved, check the form`
+      : `${withOptions} of ${combos.length} lists read, nothing was changed`);
+    return found;
+  }
+
+  /* ================================================================== *
+   * The results, as a shape rather than a price
+   *
+   * Where the rate and the payment come out matters; what they say today
+   * does not, and the rule this was built to is that pricing is never
+   * cached or carried anywhere. So the labels come back verbatim and every
+   * digit in a result is replaced with a hash before it is recorded.
+   * ================================================================== */
+
+  const shapeOf = (value) => trim(String(value ?? '').replace(/\d/g, '#'), 60);
+
+  function readResults() {
+    const blocks = [];
+
+    for (const table of document.querySelectorAll('table,[role=table],[role=grid]')) {
+      if (!visible(table)) continue;
+      const headers = [...table.querySelectorAll('thead th,[role=columnheader]')]
+        .map((cell) => text(cell)).filter(Boolean);
+      const rows = [...table.querySelectorAll('tbody tr,[role=row]')].slice(0, 4)
+        .map((row) => [...row.children].map((cell) => shapeOf(text(cell))))
+        .filter((row) => row.length);
+      if (!headers.length && !rows.length) continue;
+      blocks.push(compact({
+        kind: 'table', selector: selectorsFor(table)[0], heading: headingFor(),
+        headers, shapes: rows,
+      }));
+    }
+
+    const panels = document.querySelectorAll(
+      '[class*="result" i],[id*="result" i],[class*="pricing" i],[class*="quote" i]',
+    );
+    for (const panel of [...panels].slice(0, 12)) {
+      if (!visible(panel) || panel.querySelector('table')) continue;
+      const body = shapeOf((panel.innerText ?? '').replace(/\s+/g, ' ').trim());
+      if (!body || body.length < 12) continue;
+      blocks.push({ kind: 'panel', selector: selectorsFor(panel)[0], shape: trim(body, 600) });
+    }
+
+    store.results = blocks;
+    render();
+    say(blocks.length ? `${blocks.length} result blocks read (numbers masked)`
+      : 'No results on screen yet — press Quote first.');
+    return blocks;
+  }
+
+  /* ================================================================== *
    * The little box in the corner
    * ================================================================== */
 
@@ -486,6 +713,8 @@
       <div class="s">Reads field names only. Nothing you typed, nothing sent anywhere.</div>
       <div class="n" data-n>0 <small>screens</small></div>
       <div class="list" data-list></div>
+      <button class="p" data-a="lists">Read all dropdown lists</button>
+      <button data-a="results">Read the results</button>
       <button class="p" data-a="copy">Copy all &amp; finish</button>
       <button data-a="capture">Capture this screen</button>
       <button data-a="download">Save as a file</button>
@@ -500,18 +729,25 @@
     const n = store.screens.length;
     const fields = store.screens.reduce((sum, s) => sum + (s.fieldCount ?? 0), 0);
     $('[data-n]').innerHTML = `${n} <small>screen${n === 1 ? '' : 's'}, ${fields} fields</small>`;
-    $('[data-list]').innerHTML = store.screens
-      .map((s) => `<div>${s.screen}. ${escapeHtml(s.heading ?? s.path)} — ${s.fieldCount}</div>`)
-      .join('');
+    const rows = store.screens
+      .map((s) => `<div>${s.screen}. ${escapeHtml(s.heading ?? s.path)} — ${s.fieldCount}</div>`);
+
+    const lists = (store.dropdowns ?? []).filter((d) => d.options?.length).length;
+    if (lists) rows.push(`<div>${lists} dropdown lists read</div>`);
+    if (store.results?.length) rows.push(`<div>${store.results.length} result blocks read</div>`);
+    $('[data-list]').innerHTML = rows.join('');
   }
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   }
 
-  function say(message) {
+  function say(message, sticky = false) {
     $('[data-ok]').textContent = message;
-    setTimeout(() => { if ($('[data-ok]').textContent === message) $('[data-ok]').textContent = ''; }, 4000);
+    if (sticky) return;
+    setTimeout(() => {
+      if ($('[data-ok]').textContent === message) $('[data-ok]').textContent = '';
+    }, 5000);
   }
 
   const json = () => JSON.stringify(store, null, 1);
@@ -547,9 +783,19 @@
     say('Saved to your Downloads folder.');
   }
 
+  let busy = false;
+
   shadow.addEventListener('click', (event) => {
     const action = event.target?.dataset?.a;
     if (!action) return;
+    if (action === 'lists') {
+      // One at a time: two passes racing each other would leave a dropdown
+      // hanging open on someone's live scenario.
+      if (busy) return;
+      busy = true;
+      readDropdowns().finally(() => { busy = false; });
+    }
+    if (action === 'results') readResults();
     if (action === 'copy') copyAll();
     if (action === 'download') download();
     if (action === 'capture') {
@@ -595,6 +841,8 @@
   window.__samEqProbe = {
     store,
     capture: () => capture(true),
+    dropdowns: readDropdowns,
+    results: readResults,
     copy: copyAll,
     json,
     stop,
@@ -607,5 +855,9 @@
     '%cS.A.M probe running.%c Click through Easy Qualifier as normal — every screen '
     + 'is captured automatically. Press "Copy all & finish" when you are done.',
     'color:#0a84ff;font-weight:700', 'color:inherit',
+  );
+  console.log(
+    'Then press "Read all dropdown lists" — it opens each one, reads it, and '
+    + 'presses Escape without choosing anything.',
   );
 })();

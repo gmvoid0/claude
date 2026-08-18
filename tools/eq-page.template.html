@@ -447,6 +447,11 @@
       <em>names</em> of the boxes on screen and hands them back to me. Then S.A.M
       can drop a finished application straight into EQ.
     </p>
+    <p class="lede">
+      Your first run brought back all seventy fields. What it missed was what's
+      <em>inside</em> the dropdowns, because a dropdown holds nothing until it's
+      opened — so there's a button for that now, and the run takes half as long.
+    </p>
     <div class="facts">
       <span>~5 minutes</span>
       <span>no code knowledge</span>
@@ -520,29 +525,43 @@
       </li>
 
       <li>
-        <h3>Click through EQ like you normally would</h3>
+        <h3>Click through the form once</h3>
         <p>
-          Fill in your fake scenario and move through every screen. The counter in
-          the black box climbs on its own. Three things worth doing while you're
-          in there:
+          Fill in your scenario and let every field appear. Some of EQ's boxes
+          only exist once a program is chosen — the VA Use Type box shows up
+          when VA is selected, and the funding-fee box with it — so a form
+          that has been filled in shows more than an empty one.
         </p>
-        <ul>
-          <li>
-            <strong>Open every dropdown once</strong> — loan type, loan purpose,
-            occupancy, property type, county. Just clicking one open is enough;
-            you don't have to pick anything. These lists are the single most
-            valuable thing you can get me, and some of them don't exist in the
-            page until they're opened.
-          </li>
-          <li>
-            <strong>Go all the way to the results screen</strong> if you can, so
-            I can see where the rate and payment come out.
-          </li>
-          <li>
-            If a screen doesn't get counted, click <strong>Capture this
-            screen</strong> in the black box.
-          </li>
-        </ul>
+      </li>
+
+      <li>
+        <h3>Press "Read all dropdown lists"</h3>
+        <p>
+          This is the important one. It opens each dropdown, reads what's
+          inside, and presses Escape — about fifteen seconds, and you'll see
+          them blink open and shut. It <strong>picks nothing</strong>, and it
+          checks each field before and after to prove your selection didn't
+          move. If one ever did, the box says so instead of carrying on.
+        </p>
+        <div class="gotcha">
+          <span class="mark">!</span>
+          <span>
+            This is the only part of the script that touches the page at all.
+            Everything else just looks. If you'd rather not have it clicking
+            around a real scenario, put a made-up one in first.
+          </span>
+        </div>
+      </li>
+
+      <li>
+        <h3>Get a quote, then press "Read the results"</h3>
+        <p>
+          Press whatever button EQ uses to price it, and once the rates are on
+          screen press <strong>Read the results</strong>. It records the column
+          headings and replaces every digit with a <code>#</code> — so I learn
+          where the rate and payment come out without carrying your pricing
+          anywhere.
+        </p>
       </li>
 
       <li>
@@ -553,9 +572,9 @@
       <li>
         <h3>Paste it back to me</h3>
         <p>
-          Straight into our chat. It'll be a wall of text — that's exactly what it
-          should look like. If it's too big to paste, press <strong>Save as a
-          file</strong> instead and send me the <code>.json</code>.
+          Straight into our chat. It'll be a wall of text — that's exactly what
+          it should look like. If it's too big to paste, press <strong>Save as
+          a file</strong> instead and send me the <code>.json</code>.
         </p>
       </li>
 
@@ -588,7 +607,7 @@
           <li><span class="m">&minus;</span><span>Anything you typed. Not a borrower name, not an income figure, not a rate.</span></li>
           <li><span class="m">&minus;</span><span>Passwords. Those boxes are skipped outright.</span></li>
           <li><span class="m">&minus;</span><span>Cookies, tokens, or anything else that stands in for your login</span></li>
-          <li><span class="m">&minus;</span><span>Rates, fees or results. No pricing is captured or kept.</span></li>
+          <li><span class="m">&minus;</span><span>Rates, fees or prices. Result figures have every digit replaced with a <code>#</code>.</span></li>
         </ul>
       </div>
     </div>
@@ -598,7 +617,15 @@
       and dies when you close the tab. That isn't a promise: the test suite
       plants a fake session cookie and access token, drives the whole flow, and
       fails if either reaches the output or if any request leaves the page. It
-      never changes a field, clicks anything, or submits anything either.
+      never fills in a field, chooses an option, or submits anything.
+    </p>
+    <p class="assur">
+      One button is the exception, and it says so on its face. <b>Read all
+      dropdown lists</b> clicks each dropdown open, reads it, and presses
+      Escape. That is the only way to see inside them — a React dropdown holds
+      nothing at all until it is opened. It selects nothing, and it reads each
+      field before and after to prove the selection did not move; a test drives
+      the whole pass and fails if any value on the form changes.
     </p>
   </section>
 

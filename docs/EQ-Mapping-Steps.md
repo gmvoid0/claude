@@ -67,30 +67,34 @@ S.A.M — mapping Easy Qualifier
 
 That means it's working. **Leave it there.**
 
-### 5. Click through Easy Qualifier like you normally would
-Fill in your fake scenario and move through every screen. The counter in the
-black box goes up on its own as you go.
+### 5. Click through the form once
+Fill in your scenario and let every field appear. Some of EQ's boxes only exist
+once a program is chosen — VA Use Type shows up when VA is selected, and the
+funding-fee box with it.
 
-Three things worth doing while you're in there:
+### 6. Press "Read all dropdown lists"
+This is the important one. It opens each dropdown, reads what's inside, and
+presses Escape — about fifteen seconds, and you'll watch them blink open and
+shut. It **picks nothing**, and it checks each field before and after to prove
+your selection didn't move.
 
-- **Open every dropdown** — loan type, loan purpose, occupancy, property type,
-  county. Just clicking one open is enough; you don't have to pick anything.
-  Dropdown contents are the most valuable thing here, and some of them don't
-  exist in the page until they're opened.
-- **Go all the way to the results screen** if you can, so I can see where the
-  rate and payment come out.
-- If a screen doesn't get counted, click **Capture this screen** in the black
-  box.
+> This is the only part of the script that touches the page. Everything else
+> just looks. If you'd rather it didn't click around a real scenario, put a
+> made-up one in first.
 
-### 6. Press "Copy all & finish"
+### 7. Get a quote, then press "Read the results"
+Press whatever button EQ uses to price it. Once the rates are on screen, press
+**Read the results**. It records the column headings and replaces every digit
+with a `#`, so the structure comes back without the pricing.
+
+### 8. Press "Copy all & finish"
 It'll say something like `Copied 61KB`.
 
-### 7. Paste it back to me
-Paste it straight into our chat. It's a wall of text — that's what it should
-look like. If it's too big to paste, press **Save as a file** instead and send
-me `eq-map-<date>.json`.
+### 9. Paste it back to me
+Straight into the chat. If it's too big, press **Save as a file** and send me
+`eq-map-<date>.json`.
 
-### 8. Close the box
+### 10. Close the box
 Click **close** at the bottom of the black box, then press F12 again to shut the
 console. Nothing is left behind.
 

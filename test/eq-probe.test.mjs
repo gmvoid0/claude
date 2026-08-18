@@ -77,7 +77,7 @@ runTest('it captures the first screen the moment it is pasted in', async () => {
   const page = await open();
   try {
     const store = await dump(page);
-    assert.equal(store.version, 1);
+    assert.equal(store.version, 2);
     assert.equal(store.screens.length, 1);
     assert.ok(store.screens[0].fieldCount > 0);
     assert.match(store.site, /eq-like\.html$/);
@@ -383,5 +383,88 @@ runTest('the page reads in both themes and never scrolls sideways', async () => 
     } finally {
       await page.close();
     }
+  }
+});
+
+/* --- the second round, built after seeing the real Easy Qualifier -------- */
+
+runTest('a value rendered into a label does not come back as one', async () => {
+  // The first live run brought back "Loan Officer *Joe ShenaLoan Officer".
+  // EQ builds a combobox's accessible name out of the label AND the chosen
+  // value, so someone's name arrived through the one channel this thing
+  // promised not to use. Whatever the field holds is stripped from its label.
+  const page = await open();
+  try {
+    await page.click('[data-next="2"]');
+    await page.waitForTimeout(1400);
+
+    const json = await page.evaluate(() => window.__samEqProbe.json());
+    assert.ok(!json.includes('Joe Shena'), 'the loan officer name leaked into a label');
+
+    const store = JSON.parse(json);
+    const lo = fieldsOf(store).find((f) => f.id === 'ObfuscatedLoanOfficerContactId');
+    assert.equal(lo.label, 'Loan Officer', 'and what is left is the label itself');
+
+    const occ = fieldsOf(store).find((f) => f.id === 'OccupancyTypeId');
+    assert.equal(occ.label, 'Occupancy', 'not "OccupancyPrimary ResidenceOccupancy"');
+    assert.equal(occ.mirror, 'input[name="OccupancyTypeId"]', 'and its partner input is named');
+  } finally {
+    await page.close();
+  }
+});
+
+runTest('reading the dropdowns opens every one of them and picks nothing', async () => {
+  // The live run came back with one option list out of twenty, because a
+  // React dropdown holds nothing in the document until it is opened and
+  // opening one changes no fields, so nothing triggered a capture.
+  const page = await open();
+  try {
+    await page.click('[data-next="2"]');
+    await page.waitForTimeout(1400);
+
+    const before = await page.evaluate(() => [...document.querySelectorAll('input')].map((el) => el.value));
+    const found = await page.evaluate(() => window.__samEqProbe.dropdowns());
+    const after = await page.evaluate(() => [...document.querySelectorAll('input')].map((el) => el.value));
+
+    const occupancy = found.find((d) => d.id === 'OccupancyTypeId');
+    assert.deepEqual(occupancy.options, [
+      { value: '1', text: 'Primary Residence' },
+      { value: '2', text: 'Second Home' },
+      { value: '3', text: 'Investment' },
+    ]);
+    assert.equal(occupancy.mirror, 'input[name="OccupancyTypeId"]');
+    assert.equal(occupancy.selectionChanged, undefined, 'the selection did not move');
+
+    assert.deepEqual(after, before, 'reading the lists changed a field');
+    assert.equal(await page.evaluate(
+      () => [...document.querySelectorAll('[role=listbox]')].every((el) => el.hidden),
+    ), true, 'a dropdown was left hanging open');
+  } finally {
+    await page.close();
+  }
+});
+
+runTest('the results come back as a shape, never as a price', async () => {
+  // The rule the user set: pricing is not cached or carried anywhere. Where
+  // the rate and payment appear is structure and worth knowing; what they
+  // say today is not ours to keep.
+  const page = await open();
+  try {
+    await page.click('[data-next="3"]');
+    await page.waitForTimeout(1400);
+    const blocks = await page.evaluate(() => window.__samEqProbe.results());
+
+    const table = blocks.find((b) => b.kind === 'table');
+    assert.deepEqual(table.headers, ['Product', 'Rate', 'Price', 'Payment'],
+      'the column names are the map');
+    assert.deepEqual(table.shapes[0], ['## Year Fixed', '#.###%', '###.###', '$#,###.##'],
+      'and every digit is masked');
+
+    const json = JSON.stringify(blocks);
+    for (const price of ['6.375', '100.482', '2,417', '6.250']) {
+      assert.ok(!json.includes(price), `${price} was carried out of the page`);
+    }
+  } finally {
+    await page.close();
   }
 });
