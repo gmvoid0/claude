@@ -15,6 +15,24 @@
 
 import { Page, assemble, textWidth, wrapText } from './pdf.js';
 
+/**
+ * Cut a string to fit a width, with an ellipsis.
+ *
+ * Used where wrapping is not an option — a label in a fixed column, a
+ * caption under a figure. Running past the edge is the one outcome that is
+ * never acceptable: text that leaves the page is not shortened, it is gone.
+ */
+function ellipsize(text, width, size, bold = false) {
+  const full = String(text ?? '');
+  if (textWidth(full, size, bold) <= width) return full;
+
+  let cut = full;
+  while (cut.length > 1 && textWidth(`${cut}…`, size, bold) > width) {
+    cut = cut.slice(0, -1);
+  }
+  return `${cut.trimEnd()}…`;
+}
+
 /** US Letter, in points. The floor prints on Letter, not A4. */
 export const LETTER = { width: 612, height: 792 };
 
@@ -78,12 +96,23 @@ class Layout {
     this.y -= 26;
 
     if (subtitle) {
-      this.page.text(MARGIN.left, this.y - 11, subtitle, { size: 11.5, bold: true, colour: INK.blue });
-      this.y -= 17;
+      // A borrower with three given names and a hyphenated surname is not an
+      // edge case, and a name that runs off the sheet is worse than one that
+      // takes two lines.
+      const lines = wrapText(subtitle, this.contentWidth, 11.5, true);
+      lines.forEach((line, index) => {
+        this.page.text(MARGIN.left, this.y - 11 - index * 14, line, {
+          size: 11.5, bold: true, colour: INK.blue,
+        });
+      });
+      this.y -= 3 + lines.length * 14;
     }
     if (meta) {
-      this.page.text(MARGIN.left, this.y - 8, meta, { size: 8, colour: INK.faint });
-      this.y -= 13;
+      const lines = wrapText(meta, this.contentWidth, 8);
+      lines.forEach((line, index) => {
+        this.page.text(MARGIN.left, this.y - 8 - index * 10, line, { size: 8, colour: INK.faint });
+      });
+      this.y -= 3 + lines.length * 10;
     }
 
     this.y -= 6;
@@ -131,23 +160,44 @@ class Layout {
       !!strong,
     );
 
-    this.need(valueLines.length * 12 + 3);
+    // Reserve for the note as well, so a row never straddles a page break.
+    this.need((valueLines.length + (note ? 2 : 0)) * 12 + 3);
 
-    this.page.text(MARGIN.left, this.y, label, { size: 9, colour: INK.muted });
+    this.page.text(MARGIN.left, this.y, ellipsize(label, labelWidth - 6, 9), {
+      size: 9, colour: INK.muted,
+    });
     valueLines.forEach((line, index) => {
       this.page.text(valueX, this.y - index * 11, line, {
         size, bold: !!strong, colour: value == null || value === '' ? INK.faint : colour,
       });
     });
 
+    let extraLines = 0;
     if (note) {
+      // The note sits after the value when there is room for it, and drops to
+      // its own line when there is not. Drawing it at value-width + a gap and
+      // hoping was how notes ended up past the edge of the page.
+      const right = MARGIN.left + this.contentWidth;
       const lastWidth = textWidth(valueLines[valueLines.length - 1], size, !!strong);
-      this.page.text(valueX + lastWidth + 8, this.y - (valueLines.length - 1) * 11, note, {
-        size: 8, colour: INK.faint,
-      });
+      const inlineX = valueX + lastWidth + 8;
+      const inlineRoom = right - inlineX;
+
+      if (textWidth(note, 8) <= inlineRoom) {
+        this.page.text(inlineX, this.y - (valueLines.length - 1) * 11, note, {
+          size: 8, colour: INK.faint,
+        });
+      } else {
+        const noteLines = wrapText(note, right - valueX, 8);
+        noteLines.forEach((line, index) => {
+          this.page.text(valueX, this.y - (valueLines.length + index) * 11 + 1, line, {
+            size: 8, colour: INK.faint,
+          });
+        });
+        extraLines = noteLines.length;
+      }
     }
 
-    this.y -= valueLines.length * 11 + 2;
+    this.y -= (valueLines.length + extraLines) * 11 + 2;
     this.page.rect(MARGIN.left, this.y + 5, this.contentWidth, 0.4, INK.rule);
   }
 
@@ -169,7 +219,9 @@ class Layout {
         size: 22, bold: true, colour: INK[item.tone] ?? INK.text,
       });
       if (item.sub) {
-        this.page.text(x, this.y - 37, item.sub, { size: 7.5, colour: INK.faint });
+        this.page.text(x, this.y - 37, ellipsize(item.sub, columnWidth - 8, 7.5), {
+          size: 7.5, colour: INK.faint,
+        });
       }
     });
 
@@ -215,17 +267,22 @@ class Layout {
   footers(text) {
     if (!text) return;
     this.pages.forEach((page, index) => {
-      const y = MARGIN.bottom - 18;
-      page.rect(MARGIN.left, y + 14, this.contentWidth, 0.4, INK.rule);
-      page.text(MARGIN.left, y, text, { size: 7.5, colour: INK.faint });
-
       const label = `Page ${index + 1} of ${this.pages.length}`;
-      page.text(
-        this.size.width - MARGIN.right - textWidth(label, 7.5),
-        y,
-        label,
-        { size: 7.5, colour: INK.faint },
-      );
+      const labelWidth = textWidth(label, 7.5);
+      const y = MARGIN.bottom - 18;
+
+      page.rect(MARGIN.left, y + 14, this.contentWidth, 0.4, INK.rule);
+
+      // The disclaimer shares the line with the page number, so it is wrapped
+      // against what is actually left rather than the full width.
+      const lines = wrapText(text, this.contentWidth - labelWidth - 16, 7.5);
+      lines.forEach((line, row) => {
+        page.text(MARGIN.left, y - row * 9, line, { size: 7.5, colour: INK.faint });
+      });
+
+      page.text(this.size.width - MARGIN.right - labelWidth, y, label, {
+        size: 7.5, colour: INK.faint,
+      });
     });
   }
 }

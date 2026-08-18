@@ -57,10 +57,11 @@ const WIN_ANSI = {
   '·': [183, 278, 278],   // middle dot
   '§': [167, 556, 556],   // section
   '°': [176, 400, 400],   // degree
+  '…': [133, 1000, 1000], // ellipsis
   ' ': [32, 278, 278],    // non-breaking space
 };
 
-const FALLBACK = { '…': '...', '−': '-', '×': 'x' };
+const FALLBACK = { '−': '-', '×': 'x' };
 
 /** One character's width in 1/1000 em, for the given face. */
 function charWidth(ch, bold) {

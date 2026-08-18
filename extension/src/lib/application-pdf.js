@@ -17,11 +17,6 @@
 import { APPLICATION_FIELDS, CO_BORROWER_FIELDS } from './application.js';
 import { formatMoney, formatPercent, parseMoney, parsePercent } from './money.js';
 
-/** Fields that belong to the borrower rather than the deal. */
-const BORROWER_KEYS = ['fullName', 'phone', 'address', 'fico', 'income', 'employment', 'disability'];
-
-/** Fields describing the property and the existing loan. */
-const LOAN_KEYS = ['value', 'balance', 'loanType', 'rate', 'payment', 'cashOut'];
 
 const FIELDS = Object.fromEntries(
   [...APPLICATION_FIELDS, ...CO_BORROWER_FIELDS].map((f) => [f.key, f]),
@@ -74,9 +69,38 @@ export function buildApplicationDocument({
   const value = (key) => present(key, application?.[key]?.value);
   const blocks = [];
 
-  // The two headline figures, in the order the panel shows them.
+  // The application comes first and carries the most weight on the page.
+  // Whoever this sheet is handed to opens it to find out who the borrower is
+  // and what they have — the cash-out figures are the reason the file exists,
+  // but they are not the thing being read first.
+  blocks.push({ type: 'heading', text: 'Application' });
+  for (const field of APPLICATION_FIELDS) {
+    const entry = application?.[field.key];
+    blocks.push({
+      type: 'row',
+      label: field.label,
+      value: value(field.key),
+      strong: true,
+      // Cash-out is the borrower's request and is often left blank on
+      // purpose. Carrying the ceiling across as a note keeps the sheet
+      // honest about which of the two it is.
+      note: field.key === 'cashOut' && !value(field.key) && entry?.placeholder
+        ? entry.placeholder
+        : undefined,
+    });
+  }
+
+  if (coBorrower && CO_BORROWER_FIELDS.some((f) => value(f.key))) {
+    blocks.push({ type: 'heading', text: 'Co-borrower' });
+    for (const field of CO_BORROWER_FIELDS) {
+      blocks.push({ type: 'row', label: field.label, value: value(field.key), strong: true });
+    }
+  }
+
+  // Then the two figures, in the order and the colours the panel shows them.
   if (result?.advertisedCashOut != null || result?.estimatedCashToBorrower != null) {
     const red = result?.meetsThreshold === false;
+    blocks.push({ type: 'heading', text: 'Cash out' });
     blocks.push({
       type: 'figures',
       items: [
@@ -93,37 +117,6 @@ export function buildApplicationDocument({
           tone: red ? 'red' : 'green',
         },
       ],
-    });
-  }
-
-  blocks.push({ type: 'heading', text: 'Borrower' });
-  for (const key of BORROWER_KEYS) {
-    blocks.push({
-      type: 'row',
-      label: LABELS[key] ?? key,
-      value: value(key),
-      strong: key === 'fullName',
-    });
-  }
-
-  if (coBorrower && CO_BORROWER_FIELDS.some((f) => value(f.key))) {
-    blocks.push({ type: 'heading', text: 'Co-borrower' });
-    for (const field of CO_BORROWER_FIELDS) {
-      blocks.push({ type: 'row', label: field.label, value: value(field.key) });
-    }
-  }
-
-  blocks.push({ type: 'heading', text: 'Property & existing loan' });
-  for (const key of LOAN_KEYS) {
-    const entry = application?.[key];
-    blocks.push({
-      type: 'row',
-      label: LABELS[key] ?? key,
-      value: value(key),
-      // Cash-out is the borrower's request, and it is often left blank on
-      // purpose. Carrying the ceiling across as a note keeps the sheet
-      // honest about which is which.
-      note: key === 'cashOut' && !value(key) && entry?.placeholder ? entry.placeholder : undefined,
     });
   }
 

@@ -274,10 +274,12 @@ about which one is live.
 **Save** does two things: it keeps the application in the browser, and it
 downloads it as a one-page PDF.
 
-The sheet carries the same two figures as the panel in the same order, the
-borrower, the property and existing loan, the full calculation, and the
-itemised closing costs — with the flags and the disclaimer attached, so a
-number never travels without the caveat that produced it. It is named
+The application comes first and carries the most weight on the page —
+whoever this is handed to opens it to find out who the borrower is, not to
+read the sales figures. Below it: the two cash-out figures as the panel
+shows them, the full calculation, and the itemised closing costs, with the
+flags and the disclaimer attached so a number never travels without the
+caveat that produced it. It is named
 `SAM-RANDY-D-ROLLINS-20260817-1654.pdf`, which sorts by date and says whose
 it is.
 

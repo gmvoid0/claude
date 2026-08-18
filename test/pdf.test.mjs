@@ -17,15 +17,25 @@ import { mergeInputs } from '../extension/src/lib/merge.js';
  * PDF library, which is the point — a test that cannot open the file it
  * produced is not testing much.
  */
+/** WinAnsi bytes the writer emits, back to the characters they stand for. */
+const FROM_WIN_ANSI = {
+  133: '…', 145: '‘', 146: '’', 147: '“', 148: '”', 149: '•',
+  150: '–', 151: '—', 167: '§', 176: '°', 183: '·',
+};
+
+const decode = (text) => text
+  .replace(/\\([()\\])/g, '$1')
+  .replace(/\\(\d{3})/g, (_, octal) => {
+    const code = parseInt(octal, 8);
+    return FROM_WIN_ANSI[code] ?? String.fromCharCode(code);
+  });
+
 function textOf(bytes) {
   const raw = Buffer.from(bytes).toString('latin1');
   const streams = [...raw.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((m) => m[1]);
   const shown = [];
   for (const stream of streams) {
-    for (const match of stream.matchAll(/\((.*?)\) Tj/g)) {
-      shown.push(match[1].replace(/\\([()\\])/g, '$1').replace(/\\(\d{3})/g, (_, o) =>
-        String.fromCharCode(parseInt(o, 8))));
-    }
+    for (const match of stream.matchAll(/\((.*?)\) Tj/g)) shown.push(decode(match[1]));
   }
   return shown;
 }
@@ -33,6 +43,67 @@ function textOf(bytes) {
 function pageCount(bytes) {
   const raw = Buffer.from(bytes).toString('latin1');
   return (raw.match(/\/Type \/Page[^s]/g) ?? []).length;
+}
+
+
+/**
+ * Every string drawn in the file, with the box it occupies.
+ *
+ * The content streams are uncompressed, so this reads them the way a renderer
+ * does: track the current font and size, take the position off each text
+ * matrix, and measure the string with the same metrics that laid it out.
+ */
+function draws(bytes) {
+  const raw = Buffer.from(bytes).toString('latin1');
+  const out = [];
+
+  for (const stream of [...raw.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((m) => m[1])) {
+    let bold = false;
+    let size = 10;
+    let x = 0;
+    let y = 0;
+
+    for (const line of stream.split('\n')) {
+      let match;
+      if ((match = line.match(/^\/(F1|F2) ([\d.]+) Tf$/))) {
+        bold = match[1] === 'F2';
+        size = parseFloat(match[2]);
+      } else if ((match = line.match(/^1 0 0 1 ([\d.-]+) ([\d.-]+) Tm$/))) {
+        x = parseFloat(match[1]);
+        y = parseFloat(match[2]);
+      } else if ((match = line.match(/^\((.*)\) Tj$/))) {
+        const text = decode(match[1]);
+        out.push({ text, x, y, size, bold, right: x + textWidth(text, size, bold) });
+      }
+    }
+  }
+  return out;
+}
+
+/** Filled rectangles, for the section bands and rules. */
+function rects(bytes) {
+  const raw = Buffer.from(bytes).toString('latin1');
+  return [...raw.matchAll(/^([\d.-]+) ([\d.-]+) ([\d.-]+) ([\d.-]+) re f$/gm)].map((m) => ({
+    x: parseFloat(m[1]), y: parseFloat(m[2]), w: parseFloat(m[3]), h: parseFloat(m[4]),
+  }));
+}
+
+/** The printable box: US Letter less the margins the layout declares. */
+const BOX = { left: 50, right: 562, top: 792, bottom: 0 };
+
+function assertInsideBox(bytes, what) {
+  for (const draw of draws(bytes)) {
+    assert.ok(draw.right <= BOX.right + 0.5,
+      `${what}: "${draw.text}" ends at ${draw.right.toFixed(1)}, past the ${BOX.right} margin`);
+    assert.ok(draw.x >= BOX.left - 0.5,
+      `${what}: "${draw.text}" starts at ${draw.x}, left of the ${BOX.left} margin`);
+    assert.ok(draw.y >= 0 && draw.y <= BOX.top,
+      `${what}: "${draw.text}" sits at y ${draw.y}, off the page`);
+  }
+  for (const rect of rects(bytes)) {
+    assert.ok(rect.x + rect.w <= BOX.right + 0.5,
+      `${what}: a filled box ends at ${rect.x + rect.w}, past the ${BOX.right} margin`);
+  }
 }
 
 /* --- the writer --------------------------------------------------------- */
@@ -99,7 +170,7 @@ test('characters outside ASCII survive as WinAnsi rather than breaking the file'
   page.text(50, 700, 'Cash — $120,681 · 67.7%');
   const bytes = assemble([page], { title: 'x', width: 612, height: 792 });
 
-  assert.deepEqual(textOf(bytes), ['Cash \x97 $120,681 \xB7 67.7%']);
+  assert.deepEqual(textOf(bytes), ['Cash — $120,681 · 67.7%']);
 });
 
 test('parentheses and backslashes are escaped, not left to end the string', () => {
@@ -199,7 +270,7 @@ test('the sheet carries the borrower, the property and the calculation', () => {
   assert.match(text, /VA funding fee/);
   assert.match(text, /\$8,419/);
   assert.match(text, /Origination/);       // itemised costs
-  assert.match(text, /BORROWER/);
+  assert.match(text, /APPLICATION/);
   assert.match(text, /CALCULATION/);
 });
 
@@ -225,7 +296,7 @@ test('a co-borrower gets a section only when there is one', () => {
 test('an empty field prints a dash rather than a blank gap', () => {
   const { application, result } = scenario();
   const text = textOf(renderDocument(buildApplicationDocument({ application, result })));
-  assert.ok(text.includes('\x97'), 'em dash used for what was not captured');
+  assert.ok(text.includes('—'), 'em dash used for what was not captured');
 });
 
 test('flags travel with the sheet', () => {
@@ -255,4 +326,95 @@ test('the filename says who it is and when, and is safe on any filesystem', () =
 test('an unnamed record still produces a filename', () => {
   const name = applicationFilename({ now: new Date(2026, 0, 2, 3, 4) });
   assert.equal(name, 'SAM-application-20260102-0304.pdf');
+});
+
+/* --- nothing leaves the page -------------------------------------------- */
+
+test('nothing on the application sheet is drawn past the margins', () => {
+  const { application, result } = scenario();
+  const bytes = renderDocument(buildApplicationDocument({
+    application, result, recordLabel: 'RANDY D ROLLINS — ROCKWOOD, TN',
+  }));
+  assertInsideBox(bytes, 'application sheet');
+});
+
+test('long names, long addresses and long notes still stay on the page', () => {
+  // The real complaint: figures running off the right-hand edge. Every one of
+  // these is a value a live screen can produce, and each used to be drawn
+  // wherever the previous value happened to end.
+  const bytes = renderDocument({
+    title: 'Loan application',
+    subtitle: 'CHRISTOPHER ALEXANDER MONTGOMERY-WHITFIELD III — SIMPSONVILLE, SOUTH CAROLINA',
+    meta: 'Prepared 18 Aug 2026 13:31 · S.A.M — Sales Assistance in Mortgages',
+    footer: 'Estimate only — not a quote, an offer, or a commitment to lend. '
+      + 'Figures are screening estimates and the appraisal governs value.',
+    blocks: [
+      { type: 'heading', text: 'Application' },
+      { type: 'row', label: 'Full name', value: 'CHRISTOPHER ALEXANDER MONTGOMERY-WHITFIELD III', strong: true },
+      { type: 'row', label: 'Address', value: '14829 NORTHWEST GRANDVIEW TERRACE APARTMENT 2214, SIMPSONVILLE, SC 29681', strong: true },
+      { type: 'row', label: 'A label far longer than its column', value: '$1,284,100', strong: true },
+      { type: 'row', label: 'Closing costs', value: '$1,234,567', note: 'estimated, itemised below and subject to the Texas fee cap' },
+      { type: 'row', label: "Lender's title policy", value: '$1,566', note: 'varies by state — set yours in Settings' },
+      { type: 'figures', items: [
+        { cap: 'Advertised', value: '$1,284,100', sub: 'before fees and costs, at the full LTV ceiling', tone: 'blue' },
+        { cap: 'Take-home', value: '$1,212,085', sub: 'after fees and costs', tone: 'green' },
+      ] },
+      { type: 'note', text: 'Escrow and reserve deposits are not included — they depend on the tax bill, the insurance premium and the closing date. Real cash to the borrower will be lower.' },
+      { type: 'callout', text: 'Loan type not confirmed — assuming Conventional at 80%. Ask the borrower; VA would open up materially more.', tone: 'amber' },
+    ],
+  });
+
+  assertInsideBox(bytes, 'stress sheet');
+});
+
+test('a note that will not fit beside its value drops to its own line', () => {
+  const long = 'estimated and itemised below, reduced by the Texas fee cap, '
+    + 'and excluding escrow reserves which depend on the closing date';
+  const bytes = renderDocument({
+    title: 'x',
+    blocks: [{ type: 'row', label: 'Closing costs', value: '$1,234,567', note: long }],
+  });
+
+  const shown = draws(bytes);
+  const valueDraw = shown.find((d) => d.text === '$1,234,567');
+  const noteDraw = shown.find((d) => d.text.startsWith('estimated'));
+
+  assert.ok(noteDraw, 'the note is still on the sheet');
+  assert.ok(noteDraw.y < valueDraw.y, 'and sits below the value rather than beside it');
+  assert.ok(noteDraw.right <= BOX.right + 0.5);
+});
+
+test('a label longer than its column is cut rather than run into the value', () => {
+  const bytes = renderDocument({
+    title: 'x',
+    blocks: [{ type: 'row', label: 'A label far longer than the column it lives in', value: '$100' }],
+  });
+
+  const shown = draws(bytes);
+  const label = shown.find((d) => d.text.startsWith('A label'));
+  const value = shown.find((d) => d.text === '$100');
+
+  assert.ok(label.text.endsWith('…'), 'it is visibly truncated');
+  assert.ok(label.right <= value.x, 'and cannot collide with the value column');
+});
+
+test('the application is the first thing on the sheet', () => {
+  // What this file is for: somebody opens it to find out who the borrower is.
+  // The cash-out figures are why the file exists, not what is read first.
+  const { application, result } = scenario();
+  const bytes = renderDocument(buildApplicationDocument({ application, result }));
+  const shown = draws(bytes);
+
+  const application_ = shown.findIndex((d) => d.text === 'APPLICATION');
+  const cashOut = shown.findIndex((d) => d.text === 'CASH OUT');
+  const calculation = shown.findIndex((d) => d.text === 'CALCULATION');
+
+  assert.ok(application_ >= 0 && cashOut >= 0 && calculation >= 0, 'all three sections present');
+  assert.ok(application_ < cashOut, 'the application comes before the figures');
+  assert.ok(cashOut < calculation, 'and the figures before the workings');
+
+  // And it carries the weight: the application rows are set in the bold face.
+  const name = shown.find((d) => d.text === 'RANDY D ROLLINS');
+  assert.equal(name.bold, true);
+  assert.ok(name.size >= 10.5);
 });
