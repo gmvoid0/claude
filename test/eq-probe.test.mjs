@@ -317,3 +317,71 @@ runTest('pasting it in twice does not start a second one', async () => {
     await page.close();
   }
 });
+
+/* --- the page the agent copies it from ---------------------------------- */
+
+runTest('the page hands over the probe byte for byte', async () => {
+  // The page carries the script inside it, and the agent pastes what the
+  // Copy button gives them straight into a live broker portal. A single
+  // mangled character there is a broken tool and a wasted afternoon, so the
+  // round trip through HTML escaping is checked rather than assumed.
+  const built = path.join(ROOT, 'docs/eq-probe-page.html');
+  const page = await browser.newPage();
+  try {
+    await page.setContent(
+      `<!doctype html><html><head><meta charset="utf-8"></head><body>${
+        await fs.readFile(built, 'utf8')}</body></html>`,
+    );
+    const copied = await page.$eval('#script', (el) => el.value);
+    assert.equal(copied, PROBE, 'what the Copy button holds is not the probe');
+    assert.equal(await page.evaluate((src) => {
+      try { new Function(src); return 'parses'; } catch (e) { return String(e); }
+    }, copied), 'parses');
+  } finally {
+    await page.close();
+  }
+});
+
+runTest('the page is rebuilt whenever the probe changes', async () => {
+  // Generated, not kept beside it — a stale copy is the failure this guards.
+  const { execFile } = await import('node:child_process');
+  const built = path.join(ROOT, 'docs/eq-probe-page.html');
+  const before = await fs.readFile(built, 'utf8');
+  await new Promise((resolve, reject) => {
+    execFile('node', ['tools/build-eq-page.mjs'], { cwd: ROOT },
+      (err) => (err ? reject(err) : resolve()));
+  });
+  assert.equal(await fs.readFile(built, 'utf8'), before,
+    'docs/eq-probe-page.html is out of date — run node tools/build-eq-page.mjs');
+});
+
+runTest('the page reads in both themes and never scrolls sideways', async () => {
+  const built = await fs.readFile(path.join(ROOT, 'docs/eq-probe-page.html'), 'utf8');
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body>${built}</body></html>`;
+
+  for (const [colorScheme, width] of [['light', 900], ['dark', 900], ['light', 380]]) {
+    const page = await browser.newPage({ colorScheme, viewport: { width, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    try {
+      await page.setContent(html);
+      const seen = await page.evaluate(() => {
+        const body = getComputedStyle(document.body);
+        return {
+          bg: body.backgroundColor,
+          wide: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+          // A step whose text landed in the 34px number gutter is the layout
+          // bug this page shipped with once already.
+          narrowest: Math.min(...[...document.querySelectorAll('.steps p')]
+            .map((p) => p.getBoundingClientRect().width)),
+        };
+      });
+      assert.deepEqual(errors, [], `${colorScheme} ${width}`);
+      assert.notEqual(seen.bg, 'rgba(0, 0, 0, 0)', 'a transparent body borrows the host theme');
+      assert.equal(seen.wide, false, `${colorScheme} ${width} scrolls sideways`);
+      assert.ok(seen.narrowest > 180, `step text is ${seen.narrowest}px wide`);
+    } finally {
+      await page.close();
+    }
+  }
+});

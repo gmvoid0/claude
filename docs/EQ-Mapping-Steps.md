@@ -47,9 +47,8 @@ A panel opens, usually on the right or the bottom. Click the tab that says
 **Console**.
 
 ### 3. Click into the console and paste the script
-The script is the file **`tools/eq-probe.js`**, sent to you alongside these
-steps. Open it, select all of it (**Ctrl + A**, or **Cmd + A** on a Mac) and
-copy it (**Ctrl + C** / **Cmd + C**).
+Open the page S.A.M sent you and press **Copy script**. (Or open
+`tools/eq-probe.js`, select all with **Ctrl + A** / **Cmd + A**, and copy.)
 
 Then click the empty space next to the `>` symbol in the console, paste, and
 press **Enter**.
