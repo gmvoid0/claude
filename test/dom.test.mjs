@@ -18,12 +18,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-let chromium;
-try {
-  ({ chromium } = await import('playwright'));
-} catch {
-  chromium = null;
-}
+import { loadChromium, launch } from './helpers/chromium.mjs';
+
+const chromium = await loadChromium();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -51,48 +48,12 @@ async function startServer() {
   return { server, port: server.address().port };
 }
 
-/**
- * Find a Chromium to drive.
- *
- * The npm `playwright` package pins a browser build number that often does
- * not match whatever is already installed on a CI image, so prefer an
- * existing binary over Playwright's own resolution.
- */
-async function findChromium() {
-  if (process.env.PW_CHROMIUM) return process.env.PW_CHROMIUM;
-
-  const base = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
-  let entries = [];
-  try {
-    entries = await fs.readdir(base);
-  } catch {
-    return undefined;   // let Playwright try its bundled path
-  }
-
-  const candidates = entries
-    .filter((name) => name.startsWith('chromium-'))
-    .sort()
-    .reverse()
-    .map((name) => path.join(base, name, 'chrome-linux', 'chrome'));
-
-  for (const candidate of candidates) {
-    try {
-      await fs.access(candidate);
-      return candidate;
-    } catch { /* try the next one */ }
-  }
-  return undefined;
-}
-
 let ctx = null;
 
 async function setup() {
   if (ctx) return ctx;
   const { server, port } = await startServer();
-  const browser = await chromium.launch({
-    executablePath: await findChromium(),
-    args: ['--no-sandbox', '--disable-dev-shm-usage'],
-  });
+  const browser = await launch(chromium);
   ctx = { server, port, browser };
   return ctx;
 }

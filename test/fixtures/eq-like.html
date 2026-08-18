@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Quick Qualifier</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 24px; max-width: 720px; }
+    .step { display: none; }
+    .step.on { display: block; }
+    .fld { margin: 12px 0; }
+    label { display: block; font-size: 12px; color: #444; margin-bottom: 4px; }
+    input, select { padding: 6px; width: 260px; }
+    .combo { position: relative; }
+    [role=listbox] { border: 1px solid #ccc; padding: 4px; }
+    [role=listbox][hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <!--
+    Not UWM's page. A stand-in with the shapes the probe has to survive: a
+    wizard that swaps steps without navigating, native selects, a custom
+    combobox whose options only exist while it is open, a radio group, a
+    currency box that formats what you type, and a label that lives in a
+    sibling div rather than a <label for>.
+  -->
+  <h1 data-h>Loan scenario</h1>
+
+  <div class="step on" data-step="1">
+    <h2>Borrower</h2>
+    <div class="fld">
+      <label for="fName">Borrower First Name</label>
+      <input id="fName" name="borrowerFirstName" type="text" />
+    </div>
+    <div class="fld">
+      <label for="lName">Borrower Last Name</label>
+      <input id="lName" name="borrowerLastName" type="text" />
+    </div>
+    <div class="fld">
+      <div>FICO Score</div>
+      <input name="creditScore" type="text" inputmode="numeric" maxlength="3" data-testid="fico-input" />
+    </div>
+    <div class="fld">
+      <label for="pw">Password</label>
+      <input id="pw" name="password" type="password" />
+    </div>
+    <fieldset>
+      <legend>Occupancy</legend>
+      <label><input type="radio" name="occupancy" value="PRIM" /> Primary Residence</label>
+      <label><input type="radio" name="occupancy" value="SEC" /> Second Home</label>
+      <label><input type="radio" name="occupancy" value="INV" /> Investment</label>
+    </fieldset>
+    <button data-next="2">Next</button>
+  </div>
+
+  <div class="step" data-step="2">
+    <h2>Property &amp; loan</h2>
+    <div class="fld">
+      <label for="prog">Loan Product</label>
+      <select id="prog" name="loanProduct">
+        <option value="">Select…</option>
+        <option value="CONV">Conventional</option>
+        <option value="FHA">FHA</option>
+        <option value="VA">VA</option>
+        <option value="USDA">USDA</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label for="purpose">Loan Purpose</label>
+      <select id="purpose" name="loanPurpose">
+        <option value="1">Purchase</option>
+        <option value="2">Rate/Term Refinance</option>
+        <option value="3">Cash-Out Refinance</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label for="value">Estimated Property Value</label>
+      <input id="value" name="propertyValue" type="text" inputmode="decimal" data-mask="currency" />
+    </div>
+    <div class="fld">
+      <label for="payoff">Existing Loan Balance</label>
+      <input id="payoff" name="firstMortgageBalance" type="text" inputmode="decimal" />
+    </div>
+    <div class="fld combo">
+      <span id="cty-lbl">County</span>
+      <div id="cty" role="combobox" aria-labelledby="cty-lbl" aria-controls="cty-list"
+           aria-expanded="false" tabindex="0">Choose a county</div>
+      <div id="cty-list" role="listbox" hidden>
+        <div role="option" data-value="47145">Roane</div>
+        <div role="option" data-value="47001">Anderson</div>
+        <div role="option" data-value="47093">Knox</div>
+      </div>
+    </div>
+    <button data-open="cty-list">Open county list</button>
+    <button data-next="1">Back</button>
+  </div>
+
+  <script>
+    document.addEventListener('click', (e) => {
+      const next = e.target.dataset.next;
+      if (next) {
+        for (const s of document.querySelectorAll('.step')) s.classList.toggle('on', s.dataset.step === next);
+      }
+      const open = e.target.dataset.open;
+      if (open) {
+        document.getElementById(open).hidden = false;
+        document.getElementById('cty').setAttribute('aria-expanded', 'true');
+      }
+    });
+  </script>
+</body>
+</html>
