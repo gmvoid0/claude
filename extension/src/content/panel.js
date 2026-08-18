@@ -1013,6 +1013,18 @@ const TEMPLATE = `
     </div>
     <div class="eq-final" data-eq="final">&mdash;</div>
     <div class="eq-note" data-eq="note">Needs the payoff, the cash-out and the tax bill.</div>
+
+    <!--
+      The tax bill sits directly above the working it feeds rather than at
+      the foot of the panel. It is the one input to this calculation that is
+      not on the record, and an agent correcting it should be watching the
+      escrow line move as they type.
+    -->
+    <label class="eq-tax">
+      <span>Annual property tax <i data-eq="taxsrc"></i></span>
+      <input type="text" data-in="annualPropertyTax" placeholder="from Zillow" inputmode="decimal" />
+    </label>
+
     <div class="eq-rows" data-eq="rows"></div>
 
     <!--
@@ -1022,11 +1034,6 @@ const TEMPLATE = `
       box.
     -->
     <div class="eq-map" data-eq="map"></div>
-
-    <label class="eq-tax">
-      <span>Annual property tax <i data-eq="taxsrc"></i></span>
-      <input type="text" data-in="annualPropertyTax" placeholder="from Zillow" inputmode="decimal" />
-    </label>
   </section>
 
   <!-- Value and equity side by side: the two numbers that move the answer. -->

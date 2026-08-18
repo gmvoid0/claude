@@ -11,10 +11,11 @@
  *
  *   read      taken from the application or the lead screen
  *   computed  worked out here — the loan amount, and only the loan amount
- *   assumed   a standing figure this method uses, stated so it can be argued
- *             with. The $1,000 insurance premium is the clearest case: it is
- *             a guess, it is inside the escrow line, and an agent should see
- *             it sitting there rather than discover it later.
+ *   assumed   a standing choice this method makes, stated so it can be
+ *             argued with rather than discovered later. The refinance
+ *             purpose is the clearest case: it is filled in from the fact
+ *             that this is a cash-out floor writing VA paper, not from
+ *             anything on the record.
  *
  * A field EQ marks required that nothing can fill is still listed, empty, so
  * the gap is visible before the quote comes back wrong rather than after.
@@ -43,13 +44,9 @@ const LOAN_TYPE = {
  * @param {object} source.application  from buildApplication()
  * @param {object} source.sizing       from sizeLoan()
  * @param {object} source.inputs       detected fields
- * @param {object|null} source.tax     { amount, year, source }
- * @param {object} source.rules        the sizing constants
  * @returns {Array<{key,eq,value,kind,note,required,missing,checkList}>}
  */
-export function eqFields({
-  application = {}, sizing = null, inputs = {}, tax = null, rules = {},
-} = {}) {
+export function eqFields({ application = {}, sizing = null, inputs = {} } = {}) {
   const app = (key) => {
     const raw = application?.[key]?.value;
     return raw == null || String(raw).trim() === '' ? null : String(raw).trim();
@@ -82,9 +79,10 @@ export function eqFields({
   add('loanPurpose', 'Loan Purpose', 'Refinance 1st mortgage', {
     kind: 'assumed', required: true, checkList: true,
   });
-  add('refinancePurpose', 'Refinance Purpose',
-    cashOut != null && cashOut > 0 ? 'Cash Out' : 'Rate/Term',
-    { kind: 'assumed', checkList: true });
+  add('refinancePurpose', 'Refinance Purpose', refinancePurpose(program, cashOut), {
+    kind: 'assumed', checkList: true,
+    note: program === 'VA' ? 'VA has its own two, and this is which' : undefined,
+  });
   add('appraisedValue', 'Appraised Value', money(app('value') ?? inputs.propertyValue?.num), {
     required: true,
   });
@@ -105,15 +103,12 @@ export function eqFields({
   add('creditScore', 'Qualifying Credit Score', app('fico'), { required: true });
   add('income', 'Borrower Income', money(app('income')));
 
-  // --- third column
-  add('monthlyDebt', 'Monthly Debt', money(app('monthlyDebt')));
-  add('annualTaxes', 'Taxes (annual)', money(tax?.amount), {
-    note: taxNote(tax),
-  });
-  add('annualInsurance', 'Homeowners Insurance (annual)',
-    money(rules.insuranceAllowance ?? 1000),
-    { kind: 'assumed', note: 'the flat allowance inside the escrow line' });
-  add('employment', 'Employment Options', app('employment'), { checkList: true });
+  // The list stops here on purpose. Monthly debt, the annual taxes and
+  // insurance, and the employment dropdown all sit at zero or at their
+  // default in Easy Qualifier and do not move the quote, so listing them
+  // put four rows of noise between the agent and the ones that do. The tax
+  // bill still matters — it is the escrow line — but it belongs beside that
+  // line rather than posing as a field waiting to be typed.
 
   return rows;
 }
@@ -127,11 +122,18 @@ export function eqFieldsText(rows) {
     .join('\n');
 }
 
-/** Where the tax bill came from, in the words an agent would use. */
-function taxNote(tax) {
-  if (tax?.source === 'typed') return 'entered by hand';
-  if (tax?.amount == null) return 'not read yet';
-  return [tax.year, `from ${tax.source ?? 'Zillow'}`].filter(Boolean).join(', ');
+/**
+ * Which refinance this is, in Easy Qualifier's words.
+ *
+ * VA does not use the generic pair. A VA refinance that takes cash is a
+ * cash-out Type II — Type I only covers a VA-to-VA loan that does not exceed
+ * the payoff, which is not what a cash-out floor writes. A VA refinance that
+ * takes no cash is an IRRRL, the streamline.
+ */
+function refinancePurpose(program, cashOut) {
+  const takesCash = cashOut != null && cashOut > 0;
+  if (program === 'VA') return takesCash ? 'VA cash-out - type II' : 'VA IRRRL';
+  return takesCash ? 'Cash Out' : 'Rate/Term';
 }
 
 function money(value) {

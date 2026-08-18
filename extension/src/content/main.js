@@ -822,9 +822,7 @@ function recompute({ forceInputs = false } = {}) {
   }, state.rules?.sizing);
 
   const tax = taxReading(external);
-  const fields = eqFields({
-    application, sizing, inputs, tax, rules: state.rules?.sizing ?? {},
-  });
+  const fields = eqFields({ application, sizing, inputs });
 
   state.lastResult = result;
   state.lastInputs = inputs;

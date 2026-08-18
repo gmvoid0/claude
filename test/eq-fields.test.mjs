@@ -57,11 +57,38 @@ test('the fields carry Easy Qualifier names, in Easy Qualifier order', () => {
     'ZIP Code',
     'Qualifying Credit Score',
     'Borrower Income',
-    'Monthly Debt',
-    'Taxes (annual)',
-    'Homeowners Insurance (annual)',
-    'Employment Options',
   ]);
+});
+
+test('the list stops at Borrower Income', () => {
+  // Monthly debt, the annual taxes and insurance, and the employment
+  // dropdown all sit at zero or at their default in EQ and do not move the
+  // quote. Four rows of noise between the agent and the ones that do.
+  const names = scenario().map((r) => r.eq);
+  for (const dropped of ['Monthly Debt', 'Taxes (annual)',
+    'Homeowners Insurance (annual)', 'Employment Options', 'Finance Charges']) {
+    assert.ok(!names.includes(dropped), `${dropped} should not be listed`);
+  }
+  assert.equal(names.at(-1), 'Borrower Income');
+});
+
+test('a VA refinance uses VA words, not the generic pair', () => {
+  // Type I only covers a VA-to-VA loan that does not exceed the payoff,
+  // which is not what a cash-out floor writes. No cash means an IRRRL.
+  const va = (cashOut) => scenario({
+    application: { loanType: { value: 'VA' }, cashOut: { value: cashOut } },
+  }).find((r) => r.key === 'refinancePurpose');
+
+  assert.equal(va('96000').value, 'VA cash-out - type II');
+  assert.equal(va('0').value, 'VA IRRRL');
+  assert.equal(va(null).value, 'VA IRRRL');
+  assert.match(va('96000').note, /VA has its own two/);
+
+  // Everything else keeps the generic pair.
+  for (const program of ['CONV', 'FHA', 'USDA']) {
+    const rows = scenario({ application: { loanType: { value: program } } });
+    assert.equal(rows.find((r) => r.key === 'refinancePurpose').value, 'Cash Out', program);
+  }
 });
 
 test('what the application knows comes across as typed', () => {
@@ -70,7 +97,6 @@ test('what the application knows comes across as typed', () => {
   assert.equal(field(rows, 'appraisedValue').value, '$400,000');
   assert.equal(field(rows, 'creditScore').value, '712');
   assert.equal(field(rows, 'income').value, '$7,400');
-  assert.equal(field(rows, 'monthlyDebt').value, '$950');
   assert.equal(field(rows, 'zip').value, '37854');
   assert.equal(field(rows, 'occupancy').value, 'Primary Residence');
 });
@@ -106,18 +132,15 @@ test('cash-out decides the refinance purpose', () => {
   assert.equal(field(rateTerm, 'refinancePurpose').value, 'Rate/Term');
 });
 
-test('the assumed figures are marked as assumptions, not readings', () => {
-  // The $1,000 insurance premium is a guess with a number on it, and it is
-  // already inside the escrow line of the loan amount. An agent should see
-  // it sitting there rather than find out later.
+test('a standing choice is marked as one, not passed off as a reading', () => {
+  // The purpose is filled in from the fact that this is a cash-out floor,
+  // not from anything on the record, and an agent should see the difference
+  // at a glance.
   const rows = scenario();
-  const insurance = field(rows, 'annualInsurance');
-  assert.equal(insurance.value, '$1,000');
-  assert.equal(insurance.kind, 'assumed');
-  assert.match(insurance.note, /escrow line/);
-
   assert.equal(field(rows, 'loanPurpose').kind, 'assumed');
+  assert.equal(field(rows, 'refinancePurpose').kind, 'assumed');
   assert.equal(field(rows, 'borrowerName').kind, 'read');
+  assert.equal(field(rows, 'loanAmount').kind, 'computed');
 });
 
 test('a dropdown whose wording is not confirmed is flagged rather than asserted', () => {
@@ -126,7 +149,7 @@ test('a dropdown whose wording is not confirmed is flagged rather than asserted'
   // nothing, which is worse than leaving it to the agent.
   const rows = scenario();
   assert.equal(field(rows, 'loanType').checkList, false, 'this one is confirmed');
-  for (const key of ['loanPurpose', 'refinancePurpose', 'occupancy', 'propertyType', 'employment']) {
+  for (const key of ['loanPurpose', 'refinancePurpose', 'occupancy', 'propertyType']) {
     assert.equal(field(rows, key).checkList, true, key);
   }
 });
@@ -142,21 +165,6 @@ test('a required field nothing can fill is still listed, empty', () => {
   const loan = rows.find((r) => r.key === 'loanAmount');
   assert.equal(loan.value, null);
   assert.match(loan.note, /waiting on/);
-});
-
-test('the tax line names the year and where it was read', () => {
-  const rows = scenario();
-  assert.equal(field(rows, 'annualTaxes').value, '$1,733');
-  assert.match(field(rows, 'annualTaxes').note, /2025, from Zillow/);
-
-  const none = eqFields({ application: {}, sizing: null, inputs: {}, tax: null });
-  assert.match(none.find((r) => r.key === 'annualTaxes').note, /not read yet/);
-
-  // A figure the agent typed says so, rather than claiming Zillow said it.
-  const typed = eqFields({
-    application: {}, sizing: null, inputs: {}, tax: { amount: 1733, source: 'typed' },
-  });
-  assert.match(typed.find((r) => r.key === 'annualTaxes').note, /entered by hand/);
 });
 
 test('the list copies as one field per line', () => {

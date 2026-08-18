@@ -1757,18 +1757,25 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
     assert.equal(out.rows['Borrower Name'], 'RANDY D ROLLINS');
     assert.equal(out.rows['Appraised Value'], '$400,000');
     assert.equal(out.rows['Loan Type'], 'VA');
-    assert.equal(out.rows['Refinance Purpose'], 'Cash Out');
     assert.equal(out.rows['Qualifying Credit Score'], '712');
     assert.equal(out.rows['ZIP Code'], '37854');
-    assert.equal(out.rows['Taxes (annual)'], '$1,733');
-    assert.equal(out.rows['Homeowners Insurance (annual)'], '$1,000');
     assert.equal(out.rows['Occupancy'], 'Primary Residence');
     assert.equal(out.rows['Loan Amount'], '$385,503');
+
+    // A VA file gets VA's own words for the refinance, not the generic pair.
+    assert.equal(out.rows['Refinance Purpose'], 'VA cash-out - type II');
+
+    // The list ends at Borrower Income: everything past it sits at zero in
+    // EQ and does not move the quote.
+    for (const dropped of ['Monthly Debt', 'Taxes (annual)',
+      'Homeowners Insurance (annual)', 'Employment Options']) {
+      assert.equal(out.rows[dropped], undefined, `${dropped} should not be listed`);
+    }
 
     // The three kinds are told apart, because they are not equally
     // trustworthy and the agent is the one who has to defend them.
     assert.ok(out.marks.includes('calculated'), 'the loan amount is marked as worked out');
-    assert.ok(out.marks.includes('assumed'), 'and the standing figures as assumptions');
+    assert.ok(out.marks.includes('assumed'), 'and the standing choices as assumptions');
 
     // Property type is required and nothing on this screen supplies it.
     assert.ok(out.needs.some((n) => /Property Type/.test(n)),

@@ -972,7 +972,7 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 .eq-final.none { color: var(--label-3); font-weight: 600; }
 .eq-note { font-size: 11.5px; color: var(--label-2); margin-top: 3px; }
 
-.eq-rows { margin-top: 10px; }
+.eq-rows { margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--separator); }
 .eq-row {
   display: flex; align-items: baseline; gap: 8px;
   font-size: 12px;
@@ -1017,7 +1017,7 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 .eq-fm .k.asm  { background: rgba(255,149,0,.14); color: var(--orange-deep); }
 .eq-fm .k.chk  { background: var(--fill-2, rgba(120,120,128,.14)); color: var(--label-2); }
 
-.eq-tax { display: block; margin-top: 10px; }
+.eq-tax { display: block; margin: 12px 0 4px; }
 .eq-tax span {
   display: block;
   font-size: 10.5px; font-weight: 600;
