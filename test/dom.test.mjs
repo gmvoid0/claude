@@ -1675,23 +1675,21 @@ test('the loan amount is built from the application and the tax bill', { skip },
     assert.equal(out.after.final, '$385,503');
     assert.match(out.after.note, /Loan Amount/i);
 
+    // One line under the loan amount, and it is the monthly figure — the
+    // six months that go into the loan are stated beside it rather than
+    // shown as the headline.
     const rows = out.after.rows.join(' | ');
-    assert.match(rows, /Escrows, 6 months\$1,367/);
-    assert.match(rows, /Title fees\$1,500/);
-    assert.match(rows, /Mortgage payoff\$270,900/);
-    assert.match(rows, /Cash to borrower\$96,000/);
-    assert.match(rows, /Appraisal\$700/);
-    assert.match(rows, /Underwriting\$2,000/);
-    assert.match(rows, /Subtotal\$372,467/);
-    // The column has to add up on the page, not only in the model.
-    assert.match(rows, /Gross-up × 1\.035\+\$13,036/);
-    assert.match(rows, /Loan amount\$385,503/);
-
-    // The escrow line shows its working, because it is the one that gets
-    // argued with on the call.
-    assert.ok(out.after.why.some((w) => /\$1,733 tax \+ \$1,000 insurance, 6 of 12 months/.test(w)),
+    assert.equal(out.after.rows.length, 1, 'the itemisation is off the panel');
+    assert.match(rows, /Monthly escrow payment\$228/);
+    assert.ok(out.after.why.some((w) => /\$1,733 tax \+ \$1,000 insurance, over 12 months/.test(w)),
       `escrow working not shown: ${JSON.stringify(out.after.why)}`);
+    assert.ok(out.after.why.some((w) => /6 collected at closing/.test(w)));
     assert.match(out.after.src, /entered by hand/);
+
+    // The loan amount is still built from all six charges, grossed up —
+    // 1,366.50 + 1,500 + 270,900 + 96,000 + 700 + 2,000, x 1.035. Only the
+    // display of the working went away.
+    assert.equal(out.after.final, '$385,503');
   } finally {
     await page.close();
   }

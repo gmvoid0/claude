@@ -211,6 +211,10 @@ export function closingCharges({
       insuranceAllowance: round2(r.insuranceAllowance ?? 0),
       annualEscrowed: round2(annualEscrowed),
       months,
+      // What the borrower actually pays each month toward taxes and
+      // insurance, which is the part of PITI this method knows. The six
+      // months collected at closing is the same figure times six.
+      monthly: round2(annualEscrowed / 12),
     },
     complete: known.length === items.length,
     total: round2(known.reduce((sum, i) => sum + i.amount, 0)),

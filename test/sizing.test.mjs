@@ -22,7 +22,11 @@ test('escrows are half a year of tax plus a thousand for insurance', () => {
     insuranceAllowance: 1000,
     annualEscrowed: 2733,
     months: 6,
+    // What the panel shows. The loan amount still uses six months of it.
+    monthly: 227.75,
   });
+  assert.equal(r.escrowDetail.monthly * 6, item(r, 'escrow').amount,
+    'the monthly figure and the closing collection are the same number');
   assert.match(item(r, 'escrow').note, /1,733 tax \+ \$1,000 insurance, 6 of 12 months/);
 });
 

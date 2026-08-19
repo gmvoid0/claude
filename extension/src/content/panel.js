@@ -637,29 +637,23 @@ export class Panel {
       return;
     }
 
-    const rows = sizing.items.map((item) => {
-      const amount = item.amount == null ? '—' : formatMoney(item.amount);
-      // Same as the field list: the rule belongs to the whole line, note
-      // included, or it draws straight through the working underneath.
-      return '<div class="eq-rg">'
-        + `<div class="eq-row${item.missing ? ' gap' : ''}">`
-        + `<span>${escapeHtml(item.label)}</span>`
-        + `<b>${amount}</b></div>`
-        + (item.note ? `<div class="eq-why">${escapeHtml(item.note)}</div>` : '')
-        + '</div>';
-    });
-
-    if (sizing.subtotal != null) {
-      // Three lines that add up down the column, because a row reading
-      // "x 1.035  $13,036" is a multiplication showing its remainder and
-      // reads as arithmetic that does not work.
-      rows.push(`<div class="eq-row sum"><span>Subtotal</span><b>${formatMoney(sizing.subtotal)}</b></div>`);
-      rows.push(`<div class="eq-row"><span>Gross-up &times; ${sizing.grossUp}</span>`
-        + `<b>+${formatMoney(sizing.financedCharge)}</b></div>`);
-      rows.push(`<div class="eq-row total"><span>Loan amount</span>`
-        + `<b>${formatMoney(sizing.finalLoanRounded)}</b></div>`);
-    }
-    els.eqRows.innerHTML = rows.join('');
+    // One line where the whole itemisation used to be. The six charges are
+    // still added and still grossed up — the loan amount above is built the
+    // same way — but reading them back at an agent who set the constants
+    // once in Settings was six rows saying the same thing every call. The
+    // full working is still a keystroke away on Copy.
+    const escrow = sizing.escrowDetail;
+    els.eqRows.innerHTML = escrow
+      ? '<div class="eq-rg">'
+        + '<div class="eq-row"><span>Monthly escrow payment</span>'
+        + `<b>${formatMoney(escrow.monthly)}</b></div>`
+        + `<div class="eq-why">${formatMoney(escrow.annualPropertyTax)} tax + `
+        + `${formatMoney(escrow.insuranceAllowance)} insurance, over 12 months`
+        + `&nbsp;&middot;&nbsp; ${escrow.months} collected at closing</div>`
+        + '</div>'
+      : '<div class="eq-rg"><div class="eq-row gap"><span>Monthly escrow payment</span>'
+        + '<b>&mdash;</b></div>'
+        + '<div class="eq-why">needs the property tax from Zillow</div></div>';
 
     if (sizing.finalLoan == null) {
       els.eqFinal.textContent = '—';
