@@ -189,12 +189,46 @@
         opening on their own, or if the site starts refusing the traffic.
       </span>
     </label>
+    <label class="check"><input type="checkbox" id="financeFee" />
+      Finance the upfront fee into the loan
+      <span class="help">
+        On for every file on this floor. Off means the VA funding fee or FHA
+        UFMIP is paid at closing, out of the borrower's proceeds.
+      </span>
+    </label>
+
+    <label class="check"><input type="checkbox" id="subsequentUse" />
+      VA subsequent use
+      <span class="help">
+        On by default, and it matches the VA Use Type set in Easy Qualifier.
+        Worth 1.15 points of funding fee — 2.15% first use against 3.30%
+        after — so a mismatch between here and EQ is thousands of dollars in
+        the direction that flatters the quote.
+      </span>
+    </label>
+
+    <label class="check"><input type="checkbox" id="feeExempt" />
+      VA funding fee waived
+      <span class="help">
+        Only for a floor writing exempt files as a rule. A disability rating
+        typed on the application does <b>not</b> flip this on its own — a
+        rating is not by itself an exemption, and inferring one quoted a fee
+        those files would be charged.
+      </span>
+    </label>
+
+    <label class="check"><input type="checkbox" id="valueIsAvm" />
+      Treat the home value as an estimate
+      <span class="help">
+        Applies the haircut above to any value, not only ones read off
+        Zillow or Redfin.
+      </span>
+    </label>
+
     <p class="help">
-      The fee switches — finance the upfront fee, VA funding fee waived, VA
-      subsequent use, and whether to treat the value as an estimate — live on
-      the panel itself, next to the figure they move. They are not repeated
-      here: two copies of one switch is two places to disagree about which
-      one is live.
+      These four used to sit on the panel. They are a shop's policy rather
+      than a per-borrower choice, and four switches nobody touches during a
+      call were four rows standing between the agent and the answer.
     </p>
   </section>
 

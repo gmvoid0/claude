@@ -204,34 +204,49 @@ export function extractTaxHistory(doc = document, html = null) {
 function fromTaxJson(html) {
   if (!html) return null;
 
-  // Flat objects only, which is what these entries are: {"time":...,
-  // "taxPaid":1733.0,"value":264629,...}. Matching the object rather than
-  // the array keeps a nested payload from swallowing the whole page.
+  // Both spellings, and this is the whole reason the escrow line was only
+  // filling in now and then. Zillow does not put the property object in the
+  // payload directly — it puts a JSON *string* in there, under
+  // gdpClientCache, so on the real page every quote arrives backslashed:
+  // \"taxPaid\":1733. A pattern looking for "taxPaid" matches the tidy
+  // shape a fixture is written in and nothing at all on the live page, so
+  // the only path that ever worked was the rendered table, which is why it
+  // seemed to depend on how far the agent had scrolled.
   const rows = [];
-  for (const match of html.matchAll(/\{[^{}]{0,400}?"taxPaid"\s*:[^{}]{0,400}?\}/g)) {
-    let entry = null;
-    try {
-      entry = JSON.parse(match[0]);
-    } catch {
-      continue;
+  const unescaped = html.includes('\\"') ? unescapeJson(html) : null;
+  for (const text of [html, unescaped]) {
+    if (!text) continue;
+    for (const match of text.matchAll(/\{[^{}]{0,400}?"taxPaid"\s*:[^{}]{0,400}?\}/g)) {
+      let entry = null;
+      try {
+        entry = JSON.parse(match[0]);
+      } catch {
+        continue;
+      }
+      const annualTax = plausibleTax(entry.taxPaid);
+      const year = yearOf(entry.time) ?? plausibleYear(entry.year);
+      if (annualTax == null || year == null) continue;
+      rows.push({
+        year,
+        annualTax,
+        assessment: Number.isFinite(Number(entry.value)) ? Number(entry.value) : null,
+        source: 'embedded-json',
+      });
     }
-    const annualTax = plausibleTax(entry.taxPaid);
-    const year = yearOf(entry.time) ?? plausibleYear(entry.year);
-    if (annualTax == null || year == null) continue;
-    rows.push({
-      year,
-      annualTax,
-      assessment: Number.isFinite(Number(entry.value)) ? Number(entry.value) : null,
-      source: 'embedded-json',
-    });
+    if (rows.length) break;
   }
 
   return newest(rows);
 }
 
+
+
 function fromTaxTable(doc) {
   try {
     for (const table of doc.querySelectorAll('table')) {
+      // Any th in the table, not only one inside a thead: Zillow's own
+      // markup puts the header row straight in the tbody on some pages, and
+      // requiring the thead meant the fallback quietly found no table.
       const headers = [...table.querySelectorAll('th')]
         .map((cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase());
 
@@ -243,7 +258,7 @@ function fromTaxTable(doc) {
       if (yearAt < 0 || taxAt < 0 || taxAt === assessAt) continue;
 
       const rows = [];
-      for (const row of table.querySelectorAll('tbody tr')) {
+      for (const row of table.querySelectorAll('tr')) {
         const cells = [...row.children].map(
           (cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim(),
         );
@@ -314,8 +329,11 @@ function rawScripts(doc) {
     for (const el of scripts) {
       const text = el.textContent;
       // Only scripts big enough to be a data blob, capped so a huge bundle
-      // does not blow up the regex scan.
-      if (text && text.length > 200) parts.push(text.slice(0, 400000));
+      // does not blow up the regex scan. The cap used to be 400k, which was
+      // under half of Zillow's own payload — the tax history sits near the
+      // end of it, so on a big listing the figure was being sliced off
+      // before anything went looking for it.
+      if (text && text.length > 200) parts.push(text.slice(0, 4000000));
       if (parts.length > 12) break;
     }
 
@@ -341,12 +359,20 @@ function fromEmbeddedJson(html) {
     { re: /"avmValue"\s*:\s*"?(\d{5,9})"?/i, label: 'Estimate' },
   ];
 
+  // The escaped copy as well, for the same reason the tax history needs it:
+  // the property object arrives as a JSON string, so on the live page the
+  // key reads \"zestimate\" and a pattern for "zestimate" never lands. The
+  // rendered value was quietly carrying this path the whole time.
+  const texts = html.includes('\\"') ? [html, unescapeJson(html)] : [html];
+
   for (const { re, label } of attempts) {
-    const m = html.match(re);
-    if (!m) continue;
-    const amount = Number(m[1]);
-    if (Number.isFinite(amount) && amount >= VALUE_RANGE[0]) {
-      return { amount, label, source: 'embedded-json' };
+    for (const text of texts) {
+      const m = text.match(re);
+      if (!m) continue;
+      const amount = Number(m[1]);
+      if (Number.isFinite(amount) && amount >= VALUE_RANGE[0]) {
+        return { amount, label, source: 'embedded-json' };
+      }
     }
   }
   return null;
@@ -421,6 +447,22 @@ function looksLikeAddress(text) {
 
 
 
+/**
+ * Unescape a JSON string that is itself sitting inside JSON.
+ *
+ * Memoized, because it now runs over the whole embedded payload rather than
+ * a short field: Zillow nests the property object as a *string* under
+ * gdpClientCache, so the only way to find anything in it with a pattern is
+ * to undo one level of escaping first. Running JSON.parse over several
+ * megabytes to reach one array would cost far more than this.
+ */
+let unescapeCache = { from: null, to: '' };
+
 function unescapeJson(text) {
-  return String(text).replace(/\\u0026/g, '&').replace(/\\"/g, '"').replace(/\\\//g, '/');
+  const raw = String(text ?? '');
+  if (!raw.includes('\\')) return raw;
+  if (unescapeCache.from === raw) return unescapeCache.to;
+  const out = raw.replace(/\\u0026/g, '&').replace(/\\"/g, '"').replace(/\\\//g, '/');
+  unescapeCache = { from: raw, to: out };
+  return out;
 }

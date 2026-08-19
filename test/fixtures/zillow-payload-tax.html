@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>503 Ginn St, Jacksonville, NC 28540 | Zillow</title>
+  <meta property="og:title" content="503 Ginn St, Jacksonville, NC 28540 | Zillow" />
+</head>
+<body>
+
+<!--
+  The payload as Zillow actually ships it, and the reason the escrow line
+  only filled in now and then.
+
+  Zillow does not put the property object into __NEXT_DATA__ directly. It
+  puts a JSON *string* in there, under gdpClientCache, so on the live page
+  every quote inside it arrives backslashed: \"taxPaid\":1733. A pattern
+  looking for "taxPaid" matches the tidy shape a fixture gets written in
+  and nothing whatsoever on the real page.
+
+  There is deliberately no rendered tax table here. The DOM fallback would
+  otherwise cover for a payload reader that never worked, which is exactly
+  what was happening: the figure appeared only when the agent had scrolled
+  far enough for Zillow to render the table.
+-->
+
+<h1>503 Ginn St, Jacksonville, NC 28540</h1>
+
+<div class="summary">
+  <div>Estimated market value</div>
+  <div>$342,000</div>
+</div>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SingleFamilyResidence",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "503 Ginn St",
+    "addressLocality": "Jacksonville",
+    "addressRegion": "NC",
+    "postalCode": "28540"
+  }
+}
+</script>
+
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"componentProps":{"gdpClientCache":"{\"property\":{\"zpid\":338152895,\"streetAddress\":\"503 Ginn St\",\"city\":\"Jacksonville\",\"state\":\"NC\",\"zipcode\":\"28540\",\"zestimate\":342000,\"homeStatus\":\"OFF_MARKET\",\"taxHistory\":[{\"time\":1767225600000,\"taxPaid\":null,\"value\":264629},{\"time\":1735689600000,\"taxPaid\":1733.0,\"taxIncreaseRate\":0,\"value\":264629},{\"time\":1704067200000,\"taxPaid\":1733.0,\"taxIncreaseRate\":0,\"value\":264629}]}}"}}},"page":"/homedetails/[zpid]","padding":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+</script>
+
+</body>
+</html>

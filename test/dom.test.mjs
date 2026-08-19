@@ -342,6 +342,46 @@ test('extracts the Zestimate and address from a Zillow property page', { skip },
   }
 });
 
+test('reads the tax history out of the payload as Zillow actually ships it', { skip }, async () => {
+  // The bug behind "the escrow works one time in ten". Zillow nests the
+  // property object as a JSON *string* under gdpClientCache, so every quote
+  // in it arrives backslashed on the live page. The reader was looking for
+  // "taxPaid" and the page says \"taxPaid\" — it matched the tidy shape the
+  // fixture had been written in and nothing at all in production, leaving
+  // the rendered table as the only path that ever worked. That table is
+  // lazy, which is why the figure seemed to depend on how far the agent had
+  // scrolled. This fixture carries no table on purpose.
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/zillow-payload-tax.html`);
+
+    const out = await page.evaluate(async (origin) => {
+      const { extractTaxHistory, extractValuation } =
+        await import(`${origin}/extension/src/lib/valuation.js`);
+      return {
+        tax: extractTaxHistory(document),
+        tables: document.querySelectorAll('table').length,
+        valuation: extractValuation(document, {
+          hostname: 'www.zillow.com',
+          href: 'https://www.zillow.com/homedetails/338152895_zpid/',
+        }),
+      };
+    }, `http://127.0.0.1:${port}`);
+
+    assert.equal(out.tables, 0, 'nothing rendered could have covered for this');
+    assert.equal(out.tax.source, 'embedded-json');
+    assert.equal(out.tax.annualTax, 1733);
+    assert.equal(out.tax.year, 2025, 'the newest year that has a bill');
+
+    // And it rides along on the valuation, which is how it reaches the panel.
+    assert.equal(out.valuation.annualPropertyTax, 1733);
+    assert.equal(out.valuation.taxYear, 2025);
+  } finally {
+    await page.close();
+  }
+});
+
 test('reads the tax history off the rendered table when the payload has none', { skip }, async () => {
   // The path that has to work when Zillow changes its bundle. The fixture is
   // the real page: a percentage badge inside the tax cell, a current year
@@ -813,60 +853,6 @@ test('collapsing leaves the title bar and nothing else', { skip }, async () => {
   }
 });
 
-test('the assumptions on the panel move the figure and stick', { skip }, async () => {
-  const { browser } = await setup();
-  const page = await browser.newPage();
-  try {
-    await bootPanel(page, 'agent-screen.html');   // VA, TN, $270,900 balance
-
-    const out = await page.evaluate(async () => {
-      const root = document.getElementById('__sam_panel_host__').shadowRoot;
-      const settle = () => new Promise((r) => setTimeout(r, 120));
-      const cash = () => root.querySelector('[data-out=cash]').textContent.trim();
-
-      const value = root.querySelector('[data-in=propertyValue]');
-      value.value = '400000';
-      value.dispatchEvent(new Event('input', { bubbles: true }));
-      await settle();
-      const financed = cash();
-
-      const toggle = async (key) => {
-        const el = root.querySelector(`[data-ovr=${key}]`);
-        el.checked = !el.checked;
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        await settle();
-      };
-
-      // Paying the funding fee at closing instead of financing it.
-      await toggle('financeFee');
-      const atClosing = cash();
-
-      // Waiving it altogether.
-      await toggle('feeExempt');
-      const waived = cash();
-
-      const stored = await window.chrome.storage.local.get('prefs');
-
-      return {
-        financed,
-        atClosing,
-        waived,
-        feeShown: root.querySelector('[data-ovr=feeLine]').textContent.trim(),
-        prefs: stored.prefs ?? null,
-      };
-    });
-
-    assert.equal(out.financed, '$112,121', 'fee financed inside the 100% cap');
-    assert.equal(out.atClosing, '$111,700', 'an unfinanced fee comes out of the proceeds');
-    assert.equal(out.waived, '$124,900', 'no fee leaves only the closing costs');
-    assert.match(out.feeShown, /no upfront fee/i, 'and the fee line says so');
-
-    assert.equal(out.prefs.financeFee, false, 'the switch is a standing assumption');
-    assert.equal(out.prefs.feeExempt, true);
-  } finally {
-    await page.close();
-  }
-});
 
 test('the property preview is up from the start, and stays shut once closed', { skip }, async () => {
   const { browser } = await setup();
@@ -1711,82 +1697,6 @@ test('the loan amount is built from the application and the tax bill', { skip },
   }
 });
 
-test('the rest of the Easy Qualifier form is listed beside it', { skip }, async () => {
-  // The agent reads down the panel and types into EQ, so the panel has to
-  // show EQ's fields under EQ's names — including the ones nothing can fill,
-  // which are the ones worth seeing before the quote comes back wrong.
-  const { browser } = await setup();
-  const page = await browser.newPage();
-  try {
-    await bootPanel(page, 'agent-screen.html');
-
-    const out = await page.evaluate(async () => {
-      const root = document.getElementById('__sam_panel_host__').shadowRoot;
-      const type = (sel, value) => {
-        const el = root.querySelector(sel);
-        el.value = value;
-        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
-      };
-      const settle = () => new Promise((r) => setTimeout(r, 60));
-
-      type('[data-in=propertyValue]', '400000');
-      await settle();
-      type('[data-in=annualPropertyTax]', '1733');
-      await settle();
-      type('[data-app-field=balance]', '270900');
-      await settle();
-      type('[data-app-field=cashOut]', '96000');
-      await settle();
-      type('[data-app-field=fico]', '712');
-      await settle();
-
-      const rows = {};
-      for (const row of root.querySelectorAll('.eq-f')) {
-        rows[row.querySelector('.eq-fn').textContent.replace(/[*?]/g, '').trim()] =
-          row.querySelector('.eq-fv').textContent.trim();
-      }
-      return {
-        rows,
-        marks: [...root.querySelectorAll('.eq-f .mk')].map((el) => el.className.replace('mk', '').trim()),
-        needs: [...root.querySelectorAll('.eq-f.need .eq-fn')].map((el) => el.textContent.trim()),
-      };
-    });
-
-    assert.equal(out.rows['Borrower Name'], 'RANDY D ROLLINS');
-    assert.equal(out.rows['Appraised Value'], '$400,000');
-    assert.equal(out.rows['Loan Type'], 'VA');
-    assert.equal(out.rows['Qualifying Credit Score'], '712');
-    assert.equal(out.rows['ZIP Code'], '37854');
-    assert.equal(out.rows['Loan Amount'], '$385,503');
-
-    // Standing assumptions rather than questions: this floor refinances
-    // people in the house they live in.
-    assert.equal(out.rows['Occupancy'], 'Primary Residence');
-    assert.equal(out.rows['Property Type'], 'Single family residence');
-    // And VA's use type, always subsequent — worth 1.15 points of fee.
-    assert.equal(out.rows['VA Use Type'], 'Subsequent use');
-
-    // A VA file gets VA's own words for the refinance, not the generic pair.
-    assert.equal(out.rows['Refinance Purpose'], 'VA cash-out - type II');
-
-    // The list ends at Borrower Income: everything past it sits at zero in
-    // EQ and does not move the quote.
-    for (const dropped of ['Monthly Debt', 'Taxes (annual)',
-      'Homeowners Insurance (annual)', 'Employment Options']) {
-      assert.equal(out.rows[dropped], undefined, `${dropped} should not be listed`);
-    }
-
-    // The three kinds are told apart, because they are not equally
-    // trustworthy and the agent is the one who has to defend them.
-    assert.ok(out.marks.includes('calc'), 'the loan amount is marked as worked out');
-    assert.ok(out.marks.includes('asm'), 'and the standing choices as assumptions');
-
-    // Nothing required is left empty on this file.
-    assert.deepEqual(out.needs, [], `required gaps: ${JSON.stringify(out.needs)}`);
-  } finally {
-    await page.close();
-  }
-});
 
 test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, async () => {
   // The round trip: S.A.M sizes the loan, EQ prices it, and the payment
@@ -1998,6 +1908,27 @@ test('the settings page saves the fees where the panel reads them', { skip }, as
     assert.equal(stored.sizing.grossUp, 1.035);
     assert.equal(stored.dti.CONV, 0.30);
     assert.equal(stored.dti.VA, 0.35);
+
+    // The four standing assumptions moved here off the panel, so this is
+    // now the only place they can be set — and the defaults have to be the
+    // ones the calculation already runs on.
+    const shownSwitches = await page.evaluate(() => ({
+      financeFee: document.getElementById('financeFee').checked,
+      subsequentUse: document.getElementById('subsequentUse').checked,
+      feeExempt: document.getElementById('feeExempt').checked,
+      valueIsAvm: document.getElementById('valueIsAvm').checked,
+    }));
+    assert.deepEqual(shownSwitches, {
+      financeFee: true, subsequentUse: true, feeExempt: false, valueIsAvm: false,
+    });
+
+    await page.evaluate(() => { document.getElementById('feeExempt').checked = true; });
+    await page.click('#save');
+    await page.waitForTimeout(300);
+    const prefs = await page.evaluate(async () => (await chrome.storage.local.get('prefs')).prefs);
+    assert.equal(prefs.feeExempt, true);
+    assert.equal(prefs.subsequentUse, true, 'and the rest are carried, not dropped');
+    assert.equal(prefs.financeFee, true);
   } finally {
     await page.close();
   }

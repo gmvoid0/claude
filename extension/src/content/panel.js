@@ -101,14 +101,12 @@ export class Panel {
       eqOver: q('[data-eq=over]'),
       eqRows: q('[data-eq=rows]'),
       eqTaxSrc: q('[data-eq=taxsrc]'),
-      eqMap: q('[data-eq=map]'),
       dtiRows: q('[data-dti=rows]'),
       dtiSrc: q('[data-dti=src]'),
       btnCopyEq: q('[data-act=copy-eq]'),
       advertised: q('[data-out=advertised]'),
       verdict: q('[data-out=verdict]'),
 
-      feeLine: q('[data-ovr=feeLine]'),
 
       barFill: q('.ltvbar .fill'),
       barCap: q('.ltvbar .cap'),
@@ -159,14 +157,9 @@ export class Panel {
       el.addEventListener(evt, () => this.h.onManualChange?.(key, el.value));
     }
 
-    // Optional chaining throughout, deliberately. A control that is missing
-    // from the template should cost that one button, not the whole panel —
-    // this threw on a single absent element and took the calculator down with
-    // it, mid-call, for the sake of a handoff button.
-    for (const key of ['financeFee', 'feeExempt', 'subsequentUse', 'valueIsAvm']) {
-      const el = this.root.querySelector(`[data-ovr=${key}]`);
-      el?.addEventListener('change', () => this.h.onOverrideChange?.(key, el.checked));
-    }
+    // The four standing assumptions moved to Settings; they are a shop's
+    // policy, not a per-borrower choice, and the handler stays wired for
+    // anything else that ever needs it.
 
     els.btnApp?.addEventListener('click', () => this.toggleDrawer());
     els.btnAppSave?.addEventListener('click', () => this.h.onSaveApplication?.());
@@ -513,7 +506,6 @@ export class Panel {
       state.tax?.source === 'typed' ? String(state.tax.amount) : '', force);
     this.renderSizing(state.sizing, state.tax);
     this.renderCeiling(state.sizing);
-    this.renderEqFields(state.eqFields);
     this.renderDti(state.dti);
 
     // --- value read from a Zillow / Redfin tab
@@ -603,7 +595,6 @@ export class Panel {
     // An assumed loan type is a question for the borrower, not a detail.
     els.programRow.classList.toggle('flagged', !!result?.programAssumed);
 
-    this.renderOverrides(overrides, result);
 
     els.resultBox.dataset.tone = !hasValue ? 'idle'
       : result.meetsThreshold ? 'good'
@@ -620,41 +611,6 @@ export class Panel {
 
     this.renderBar(result);
     this.renderMessages(result);
-  }
-
-  /**
-   * The standing assumptions.
-   *
-   * Written into the controls rather than read out of them, so the panel
-   * always shows what the calculation is actually using. An agent flipping
-   * one of these mid-call is changing shop policy from here on, which is
-   * what the section says on its face.
-   */
-  renderOverrides(overrides = {}, result = null) {
-    for (const key of ['financeFee', 'feeExempt', 'subsequentUse', 'valueIsAvm']) {
-      const el = this.root.querySelector(`[data-ovr=${key}]`);
-      // Never fight the agent for a box they are in the middle of clicking.
-      if (el && this.root.activeElement !== el) el.checked = !!overrides[key];
-    }
-
-    // What the current combination of switches actually charges. The fee is
-    // the assumption most easily got wrong, and the difference between
-    // financing it and paying it at closing is real money to the borrower.
-    const line = this.els.feeLine;
-    if (!line) return;
-
-    const amount = result?.financedFee || result?.unfinancedFee || 0;
-    if (!amount) {
-      line.textContent = result?.upfrontFeeRate === 0 && result?.feeLabel
-        ? 'No upfront fee on this program.'
-        : '';
-      line.className = 'asm-fee';
-      return;
-    }
-    line.className = `asm-fee${result.unfinancedFee ? ' out' : ''}`;
-    line.textContent = `${result.feeLabel ?? 'Upfront fee'} `
-      + `${formatPercent(result.upfrontFeeRate, 2)} — ${formatMoney(amount)} `
-      + (result.unfinancedFee ? 'due at closing, out of the proceeds' : 'financed into the loan');
   }
 
   /**
@@ -729,58 +685,11 @@ export class Panel {
   }
 
   /**
-   * The rest of the Easy Qualifier form.
+   * The ratio, against the limit for whichever programme is on the file.
    *
-   * Where each value came from is marked, because the three kinds are not
-   * equally trustworthy and the agent is the one who has to defend them: a
-   * figure read off the record, a figure worked out here, and a standing
-   * assumption that is really a guess with a number on it.
-   */
-  renderEqFields(rows) {
-    const { els } = this;
-    if (!els.eqMap) return;
-    if (!rows?.length) { els.eqMap.textContent = ''; return; }
-
-    // A dot rather than a word. Seven pill-shaped badges down a fifteen-row
-    // list turned the sheet into something to decode instead of read; the
-    // meaning lives in the legend underneath, once.
-    els.eqMap.innerHTML = rows.map((row) => {
-      const classes = ['eq-f'];
-      if (row.missing) classes.push('gap');
-      if (row.required && row.missing) classes.push('need');
-
-      const mark = row.kind === 'computed'
-        ? '<i class="mk calc" title="Worked out by S.A.M"></i>'
-        : row.kind === 'assumed'
-          ? '<i class="mk asm" title="A standing assumption, not read off anything"></i>'
-          : '';
-      const check = row.checkList
-        ? '<i class="mk chk" title="Easy Qualifier\'s exact wording is not confirmed">?</i>'
-        : '';
-
-      // Row and note share one bordered group. With the rule on the row
-      // itself the note hung below it and read as text crossed out.
-      return '<div class="eq-fg">'
-        + `<div class="${classes.join(' ')}">`
-        + `<span class="eq-fn">${mark}${escapeHtml(row.eq)}`
-        + `${row.required ? '<em>*</em>' : ''}${check}</span>`
-        + `<b class="eq-fv">${row.value ? escapeHtml(row.value) : '&mdash;'}</b>`
-        + '</div>'
-        + (row.note ? `<div class="eq-fm">${escapeHtml(row.note)}</div>` : '')
-        + '</div>';
-    }).join('') + '<div class="eq-key">'
-      + '<span><i class="mk calc"></i>calculated</span>'
-      + '<span><i class="mk asm"></i>assumed</span>'
-      + '<span><i class="mk chk">?</i>check the wording in EQ</span>'
-      + '</div>';
-  }
-
-  /**
-   * The two ratios, each against its limit.
-   *
-   * A ratio with no limit behind it shows the number and passes no
-   * judgement, because a red flag against something nobody underwrites to
-   * kills files that would sail through.
+   * A limit set to null shows the number and passes no judgement, because a
+   * red flag against something nobody underwrites to kills files that would
+   * otherwise sail through.
    */
   renderDti(dti) {
     const { els } = this;
@@ -1122,12 +1031,12 @@ const TEMPLATE = `
     <div class="eq-rows" data-eq="rows"></div>
 
     <!--
-      Everything else EQ asks for, in EQ's own words and EQ's own order, so
-      the agent reads down one screen and types into the other. Renaming a
-      field halfway through a phone call is how a payoff lands in a cash-out
-      box.
+      The rest of Easy Qualifier's fields used to be listed here, under EQ's
+      own names. It was fourteen rows between the loan amount and the debt
+      ratio, and it made the panel something to scroll rather than read. The
+      list still exists and still goes on the clipboard with Copy — it just
+      no longer sits between the agent and the two figures that matter.
     -->
-    <div class="eq-map" data-eq="map"></div>
 
     <!--
       Debt-to-income, the other direction. Easy Qualifier gives back a
@@ -1199,35 +1108,11 @@ const TEMPLATE = `
   <div class="msgs"></div>
 
   <!--
-    The switches that move the figure, on the panel because a toggle you
-    have to leave the call to reach is a toggle nobody flips. The numeric
-    settings they pair with — LTV override, loan limit, closing costs —
-    stay in Settings: they are typed once for a shop, not adjusted per
-    borrower, and duplicating them in two places invites the two to
-    disagree about which one is live.
+    The standing assumptions — finance the fee, waive it, subsequent use,
+    treat the value as an estimate — moved to Settings. They are a shop's
+    policy rather than a per-borrower choice, and four switches nobody
+    touches during a call were four rows of panel earning nothing.
   -->
-  <details class="adv asm" open>
-    <summary>Assumptions <span class="asm-note">applied to every call</span></summary>
-
-    <label class="check">
-      <span>Finance the upfront fee</span>
-      <input type="checkbox" data-ovr="financeFee" />
-    </label>
-    <label class="check">
-      <span>VA funding fee waived</span>
-      <input type="checkbox" data-ovr="feeExempt" />
-    </label>
-    <label class="check">
-      <span>VA subsequent use</span>
-      <input type="checkbox" data-ovr="subsequentUse" />
-    </label>
-    <label class="check">
-      <span>Value is an estimate</span>
-      <input type="checkbox" data-ovr="valueIsAvm" />
-    </label>
-
-    <div class="asm-fee" data-ovr="feeLine"></div>
-  </details>
 
   <div class="foot">
     <button class="btn primary" data-act="copy">Copy summary</button>

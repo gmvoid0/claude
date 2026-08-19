@@ -74,6 +74,10 @@ function renderPrefs() {
   $('miniBrowserAuto').checked = prefs.miniBrowserAuto !== false;
   $('readValuationSites').checked = prefs.readValuationSites !== false;
   $('autoLookup').checked = !!prefs.autoLookup;
+  $('financeFee').checked = prefs.financeFee !== false;
+  $('subsequentUse').checked = prefs.subsequentUse !== false;
+  $('feeExempt').checked = !!prefs.feeExempt;
+  $('valueIsAvm').checked = !!prefs.valueIsAvm;
   $('ltvOverride').value = prefs.ltvOverride ?? '';
   $('loanLimit').value = prefs.loanLimit ?? '';
   $('startCollapsed').checked = !!prefs.startCollapsed;
@@ -182,6 +186,10 @@ async function save() {
 
   await setPrefs({
     defaultClosingCosts: parseMoney($('closingCosts').value) ?? 0,
+    financeFee: $('financeFee').checked,
+    subsequentUse: $('subsequentUse').checked,
+    feeExempt: $('feeExempt').checked,
+    valueIsAvm: $('valueIsAvm').checked,
     pollMs: clampInt($('pollMs').value, 0, 5000, 400),
     resetValueOnNewRecord: $('resetValueOnNewRecord').checked,
     showLookupLinks: $('showLookupLinks').checked,
