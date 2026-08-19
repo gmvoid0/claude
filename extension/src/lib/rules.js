@@ -10,6 +10,8 @@
  */
 
 import { DEFAULT_CLOSING_RULES } from './closing.js';
+import { DEFAULT_SIZING } from './sizing.js';
+import { DEFAULT_DTI_LIMITS } from './dti.js';
 
 /** Canonical program identifiers. */
 export const PROGRAMS = ['VA', 'FHA', 'CONV', 'USDA'];
@@ -186,9 +188,20 @@ export const DEFAULT_RULES = {
   minCashOutThreshold: 10000,
 
   /**
-   * Itemised closing-cost defaults. National mid-range figures for a
-   * cash-out refinance — replace them with your own, particularly the title
-   * premium and recording fees, which are set per state.
+   * The fees, and the gross-up that turns them into a loan amount. One set
+   * for the whole tool: the Easy Qualifier loan amount and the take-home
+   * figure are built from these same four charges, so they cannot disagree
+   * on the same screen the way two separate models did.
+   */
+  sizing: DEFAULT_SIZING,
+
+  /** Front-end debt-to-income ceiling, per programme. */
+  dti: DEFAULT_DTI_LIMITS,
+
+  /**
+   * The old itemised estimator's defaults. Nothing reads these now — the
+   * charges above replaced them — and they are kept only so a shop that
+   * had customised them does not lose the figures on upgrade.
    */
   closing: DEFAULT_CLOSING_RULES,
 };

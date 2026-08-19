@@ -88,6 +88,10 @@ export function sizeLoan({
   if (first == null) missing.push('payoff');
   if (cash == null) missing.push('cashOut');
 
+  const charges = closingCharges({ annualPropertyTax, cashOut, program }, r);
+  const irrrl = charges.irrrl;
+  const charge = (id) => charges.items.find((i) => i.id === id);
+
   const items = [];
   const add = (id, label, amount, note) => {
     if (amount == null) {
@@ -97,32 +101,14 @@ export function sizeLoan({
     items.push({ id, label, amount: round2(amount), note });
   };
 
-
-  // 1. Escrows.
-  const months = Number.isFinite(r.escrowMonths) ? r.escrowMonths : 6;
-  const annualEscrowed = tax == null ? null : tax + (r.insuranceAllowance ?? 0);
-  const escrow = annualEscrowed == null ? null : (annualEscrowed * months) / 12;
-  add('escrow', `Escrows, ${months} months`, escrow,
-    tax == null
-      ? 'needs the property tax from Zillow'
-      : `${fmt(tax)} tax + ${fmt(r.insuranceAllowance ?? 0)} insurance, ${months} of 12 months`);
-
-  // 2-6.
-  add('title', 'Title fees', r.titleFees);
+  // The charges in the order the method lists them, with the two lines that
+  // are not charges at all — what is owed, and what is handed over — in
+  // their places between.
+  items.push(charge('escrow'), charge('title'));
   add('payoff', 'Mortgage payoff', first, first == null ? 'from the application' : undefined);
   if (second > 0) add('secondLien', 'Second lien payoff', second);
   add('cashOut', 'Cash to borrower', cash, cash == null ? 'from the application' : undefined);
-  // A VA refinance that takes no cash is an IRRRL, and a streamline reuses
-  // the valuation already on the loan. The line stays at zero rather than
-  // disappearing, so the agent can see the charge was dropped on purpose
-  // instead of wondering whether it was forgotten.
-  // Explicitly zero, not merely unfilled. A blank cash-out box on a fresh
-  // record is an unanswered question, and reading it as "takes no cash"
-  // would waive the appraisal on every file before the agent has asked.
-  const irrrl = String(program ?? '').toUpperCase() === 'VA' && cash === 0;
-  add('appraisal', 'Appraisal', irrrl ? 0 : r.appraisal,
-    irrrl ? 'waived — an IRRRL reuses the existing valuation' : undefined);
-  add('underwriting', 'Underwriting', r.underwriting);
+  items.push(charge('appraisal'), charge('underwriting'));
 
   const complete = missing.length === 0;
   const subtotal = complete
@@ -142,6 +128,10 @@ export function sizeLoan({
     ok: complete,
     missing,
     irrrl,
+    // What a settlement sheet calls closing costs: everything here that is
+    // a charge, with the payoff and the cash left out. The equity figures
+    // take this too, so the two halves of the panel cannot drift apart.
+    charges,
     items,
     subtotal,
     grossUp,
@@ -149,12 +139,81 @@ export function sizeLoan({
     finalLoan,
     finalLoanRounded: finalLoan == null ? null : Math.round(finalLoan),
     grossUpExact,
+    escrowDetail: charges.escrowDetail,
+  };
+}
+
+/**
+ * The charges alone — everything the file costs that is neither money owed
+ * nor money handed over.
+ *
+ * This exists so there is one set of fee numbers in the tool rather than
+ * two. The equity figures used to run a separate itemised estimator with
+ * its own per-programme origination and title percentages, which meant the
+ * take-home figure and the Easy Qualifier loan amount were built out of
+ * different fees and quietly disagreed on the same screen.
+ *
+ * All flat, and none of them depends on the size of the loan — so unlike
+ * the model this replaced, it needs no second pass to settle.
+ */
+export function closingCharges({
+  annualPropertyTax = null, cashOut = null, program = null,
+} = {}, rules = DEFAULT_SIZING) {
+  const r = { ...DEFAULT_SIZING, ...(rules ?? {}) };
+  const tax = money(annualPropertyTax);
+  const cash = money(cashOut);
+
+  const items = [];
+  const warnings = [];
+  const add = (id, label, amount, note) => items.push(
+    amount == null
+      ? { id, label, amount: null, note, missing: true }
+      : { id, label, amount: round2(amount), note },
+  );
+
+  const months = Number.isFinite(r.escrowMonths) ? r.escrowMonths : 6;
+  const annualEscrowed = tax == null ? null : tax + (r.insuranceAllowance ?? 0);
+  add('escrow', `Escrows, ${months} months`,
+    annualEscrowed == null ? null : (annualEscrowed * months) / 12,
+    tax == null
+      ? 'needs the property tax from Zillow'
+      : `${fmt(tax)} tax + ${fmt(r.insuranceAllowance ?? 0)} insurance, ${months} of 12 months`);
+
+  add('title', 'Title fees', r.titleFees);
+
+  // A VA refinance that takes no cash is an IRRRL, and a streamline reuses
+  // the valuation already on the loan. Explicitly zero, not merely
+  // unfilled: a blank cash-out box on a fresh record is an unanswered
+  // question, and reading it as "takes no cash" would waive the appraisal
+  // on every file before the agent has asked. The line stays at zero with
+  // its reason rather than disappearing.
+  const irrrl = String(program ?? '').toUpperCase() === 'VA' && cash === 0;
+  add('appraisal', 'Appraisal', irrrl ? 0 : r.appraisal,
+    irrrl ? 'waived — an IRRRL reuses the existing valuation' : undefined);
+
+  add('underwriting', 'Underwriting', r.underwriting);
+
+  if (tax == null) {
+    warnings.push({
+      level: 'warn',
+      text: 'No property tax read yet, so the escrow line is missing and real '
+        + 'cash to the borrower will be lower than shown.',
+    });
+  }
+
+  const known = items.filter((i) => i.amount != null);
+  return {
+    irrrl,
+    items,
+    warnings,
     escrowDetail: tax == null ? null : {
       annualPropertyTax: round2(tax),
       insuranceAllowance: round2(r.insuranceAllowance ?? 0),
       annualEscrowed: round2(annualEscrowed),
       months,
     },
+    complete: known.length === items.length,
+    total: round2(known.reduce((sum, i) => sum + i.amount, 0)),
   };
 }
 

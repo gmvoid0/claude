@@ -102,14 +102,40 @@ test('what the application knows comes across as typed', () => {
   assert.equal(field(rows, 'zip').value, '37854');
 });
 
-test('the two Easy Qualifier requires but nothing can fill are still listed', () => {
-  // Dropped, they would be two required boxes an agent learns about from
-  // EQ's own validation instead of from the sheet in front of them.
+test('occupancy and property type are standing assumptions, not questions', () => {
+  // This floor refinances people in the house they live in. A second home
+  // or a duplex is rare enough that asking every caller costs more than
+  // correcting the few — but they are marked assumed, so an agent can see
+  // they were not read off anything.
   const rows = scenario();
+  assert.equal(field(rows, 'occupancy').value, 'Primary Residence');
+  assert.equal(field(rows, 'propertyType').value, 'Single family residence');
   for (const key of ['occupancy', 'propertyType']) {
-    assert.equal(field(rows, key).value, null, key);
+    assert.equal(field(rows, key).kind, 'assumed', key);
     assert.equal(field(rows, key).required, true, key);
-    assert.match(field(rows, key).note, /pick it in EQ/, key);
+  }
+});
+
+test('VA files carry the use type, and it is always subsequent', () => {
+  // Worth 1.15 points of funding fee — 2.15% first use against 3.30% after
+  // — so assuming the cheaper one would under-quote every file it got
+  // wrong. This floor writes refinances for veterans who have used the
+  // benefit before.
+  const va = scenario({ application: { loanType: { value: 'VA' } } });
+  const row = field(va, 'vaUseType');
+  assert.equal(row.value, 'Subsequent use');
+  assert.equal(row.kind, 'assumed');
+  assert.match(row.note, /2\.15%.*3\.30%/);
+
+  // It sits where EQ puts it: after the purpose, before the refinance type.
+  const order = va.map((r) => r.key);
+  assert.ok(order.indexOf('vaUseType') > order.indexOf('loanPurpose'));
+  assert.ok(order.indexOf('vaUseType') < order.indexOf('refinancePurpose'));
+
+  // And nowhere else, because no other programme has one.
+  for (const program of ['CONV', 'FHA', 'USDA']) {
+    const rows = scenario({ application: { loanType: { value: program } } });
+    assert.equal(field(rows, 'vaUseType'), undefined, program);
   }
 });
 

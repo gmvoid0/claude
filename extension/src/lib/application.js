@@ -215,21 +215,15 @@ export function isWorthSaving(application) {
   });
 }
 
-/**
- * A VA funding fee is waived for a veteran receiving compensation for a
- * service-connected disability, so a disability rating entered on the form
- * feeds straight back into the calculation.
+/*
+ * There was a rule here that read a disability rating off the form and
+ * waived the VA funding fee on its own. It is gone on instruction: a rating
+ * is not by itself an exemption — that turns on compensation actually being
+ * received, and on entitlement this form cannot see — so inferring the
+ * waiver from a percentage typed on a call was quoting a fee the file may
+ * well be charged. The rating is still collected, and the waiver is still
+ * on the panel as a switch for an agent who knows.
  */
-export function impliesFeeExemption(application) {
-  // The exemption follows the veteran, and the veteran may be either
-  // borrower, so a rating on the co-borrower counts just the same.
-  return ['disability', 'coDisability'].some((key) => {
-    const raw = application?.[key]?.value;
-    if (raw == null || String(raw).trim() === '') return false;
-    const rate = parsePercent(raw);
-    return rate != null && rate >= 0.10;
-  });
-}
 
 /** Flatten to plain values for storage or the clipboard. */
 export function toPlain(application) {

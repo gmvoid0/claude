@@ -72,29 +72,20 @@
   </section>
 
   <section>
-    <h2>Closing costs</h2>
+    <h2>Fees &amp; the loan amount</h2>
     <p class="help">
-      What separates the advertised figure from the take-home figure on the
-      panel. Itemised rather than a single percentage, because most of these
-      are flat charges — one percentage overstates a large loan and
-      understates a small one.
+      The four charges every file carries, and the gross-up that turns them
+      into the figure typed into Easy Qualifier's Loan Amount box. These same
+      four are what separate the advertised figure from the take-home figure
+      on the panel — one set of numbers, so the two halves cannot disagree.
     </p>
     <p class="help">
-      The defaults are national mid-range figures for a cash-out refinance.
-      <b>Replace them with your own.</b> Title premiums, recording fees and
-      transfer taxes are set per state, and no default can know yours.
-    </p>
-    <p class="help">
-      <b>These fees are only part of what the file costs to close.</b> The
-      upfront fee — the VA funding fee, FHA's UFMIP — is charged on top and is
-      usually the largest line of the lot. The panel shows both: the closing
-      costs from this table, and a <b>cost to close</b> figure that adds the
-      upfront fee to them. That second number is the one to compare against
-      what your manager quotes.
+      <b>These are your floor's numbers, not the law.</b> Title work is not
+      $1,500 everywhere and an underwriting fee is a lender's choice.
     </p>
 
     <label class="check"><input type="checkbox" id="estimateClosingCosts" />
-      Estimate closing costs automatically
+      Take the charges out of the take-home figure
       <span class="help">
         Off means zero costs are assumed and the two figures on the panel read
         the same, which flatters every deal. Typing a figure into the override
@@ -102,117 +93,68 @@
       </span>
     </label>
 
-    <table id="closingPrograms">
-      <thead>
-        <tr>
-          <th>Program</th>
-          <th>Origination</th>
-          <th>Underwriting</th>
-          <th>Appraisal</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <p class="help">
-      VA is capped at a 1% origination and the veteran cannot be charged a
-      separate underwriting fee, which is why its underwriting figure is 0.
-    </p>
-
     <div class="two-up">
       <div class="field">
-        <label for="titlePolicyPct">Lender's title policy</label>
-        <input type="text" id="titlePolicyPct" inputmode="decimal" />
-        <span class="help">Share of the loan. 0.4% is about $4 per $1,000.</span>
+        <label for="titleFees">Title fees</label>
+        <input type="text" id="titleFees" inputmode="decimal" />
       </div>
       <div class="field">
-        <label for="titleSearch">Title search / exam</label>
-        <input type="text" id="titleSearch" inputmode="decimal" />
+        <label for="appraisal">Appraisal</label>
+        <input type="text" id="appraisal" inputmode="decimal" />
+        <span class="help">Waived automatically on a VA IRRRL, which reuses the existing valuation.</span>
       </div>
       <div class="field">
-        <label for="settlementFee">Settlement / closing fee</label>
-        <input type="text" id="settlementFee" inputmode="decimal" />
+        <label for="underwriting">Underwriting</label>
+        <input type="text" id="underwriting" inputmode="decimal" />
       </div>
       <div class="field">
-        <label for="recordingFees">Recording</label>
-        <input type="text" id="recordingFees" inputmode="decimal" />
-      </div>
-      <div class="field">
-        <label for="creditReport">Credit report</label>
-        <input type="text" id="creditReport" inputmode="decimal" />
-      </div>
-      <div class="field">
-        <label for="floodCert">Flood certification</label>
-        <input type="text" id="floodCert" inputmode="decimal" />
-      </div>
-      <div class="field">
-        <label for="prepaidInterestDays">Prepaid interest, days</label>
-        <input type="text" id="prepaidInterestDays" inputmode="decimal" />
-        <span class="help">15 is a mid-month closing, the honest average when the date is unknown.</span>
-      </div>
-      <div class="field">
-        <label for="assumedRate">Rate assumed for prepaid interest</label>
-        <input type="text" id="assumedRate" inputmode="decimal" />
-        <span class="help">Used only when no rate has been read off the screen.</span>
-      </div>
-      <div class="field">
-        <label for="discountPointsPct">Discount points</label>
-        <input type="text" id="discountPointsPct" inputmode="decimal" />
+        <label for="grossUp">Gross-up</label>
+        <input type="text" id="grossUp" inputmode="decimal" />
         <span class="help">
-          Share of the loan. 0 by default because it is a pricing choice, not
-          a cost of the file — but if your floor buys the rate down as a
-          matter of course, one point on a $400,000 loan is $4,000 and
-          leaving it at 0 understates every quote by that much.
+          1.035 adds 3.5% to the total. 1 leaves it alone.
         </span>
       </div>
       <div class="field">
-        <label for="transferTaxPct">State transfer / mortgage tax</label>
-        <input type="text" id="transferTaxPct" inputmode="decimal" />
+        <label for="insuranceAllowance">Insurance allowance, a year</label>
+        <input type="text" id="insuranceAllowance" inputmode="decimal" />
         <span class="help">
-          Share of the loan. <b>Set this for your state.</b> Several states
-          charge nothing on a refinance and several charge a great deal — New
-          York's mortgage recording tax runs to about 2%, Florida stacks
-          documentary stamps on an intangible tax. On a $400,000 loan the
-          difference is eight thousand dollars.
+          Added to the property tax read off Zillow before the year is
+          halved. A flat figure rather than a rate on the value, so an agent
+          gets the same answer the person beside them would give.
         </span>
       </div>
       <div class="field">
-        <label for="propertyTaxRate">Property tax rate</label>
-        <input type="text" id="propertyTaxRate" inputmode="decimal" />
-        <span class="help">
-          Share of the home's value a year, used to estimate the tax escrow.
-          Effective rates run from about 0.3% in Hawaii to 2.2% in New Jersey.
-        </span>
+        <label for="escrowMonths">Escrow months</label>
+        <input type="text" id="escrowMonths" inputmode="decimal" />
+        <span class="help">Six of twelve is half a year of taxes and insurance.</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Front-end DTI</h2>
+    <p class="help">
+      The housing payment against gross monthly income. Type the PITI Easy
+      Qualifier came back with and the panel judges it against the limit for
+      that programme. Leave one blank to show the ratio without a verdict —
+      useful where nobody underwrites to a housing ratio at all.
+    </p>
+    <div class="two-up">
+      <div class="field">
+        <label for="dtiVA">VA</label>
+        <input type="text" id="dtiVA" inputmode="decimal" />
       </div>
       <div class="field">
-        <label for="insuranceRate">Homeowner's insurance rate</label>
-        <input type="text" id="insuranceRate" inputmode="decimal" />
-        <span class="help">Share of the home's value a year, for the insurance escrow.</span>
+        <label for="dtiFHA">FHA</label>
+        <input type="text" id="dtiFHA" inputmode="decimal" />
       </div>
       <div class="field">
-        <label for="escrowMonthsTaxes">Tax reserve, months</label>
-        <input type="text" id="escrowMonthsTaxes" inputmode="decimal" />
-        <span class="help">How many months of taxes are collected at closing. Commonly 3–8.</span>
+        <label for="dtiCONV">Conventional</label>
+        <input type="text" id="dtiCONV" inputmode="decimal" />
       </div>
       <div class="field">
-        <label for="escrowMonthsInsurance">Insurance reserve, months</label>
-        <input type="text" id="escrowMonthsInsurance" inputmode="decimal" />
-        <span class="help">Commonly 2–3, on top of the year's premium paid in advance.</span>
-      </div>
-      <div class="field">
-        <label for="escrowReserves">Flat escrow figure</label>
-        <input type="text" id="escrowReserves" inputmode="decimal" />
-        <span class="help">
-          Overrides the two estimates above when set. Use it when you know
-          the real bill; leave it at 0 to have them estimated from the value.
-        </span>
-      </div>
-      <div class="field">
-        <label for="texasFeeCapPct">Texas fee cap</label>
-        <input type="text" id="texasFeeCapPct" inputmode="decimal" />
-        <span class="help">
-          §50(a)(6) caps chargeable fees at 2% of the loan. The appraisal, the
-          survey and the state base title premium sit outside the cap.
-        </span>
+        <label for="dtiUSDA">USDA</label>
+        <input type="text" id="dtiUSDA" inputmode="decimal" />
       </div>
     </div>
   </section>

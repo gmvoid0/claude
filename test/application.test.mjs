@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   APPLICATION_FIELDS, APPLICATION_KEYS, KEY_FIELDS, CO_BORROWER_KEYS, SAVE_THRESHOLD,
-  buildApplication, filledCount, isWorthSaving, impliesFeeExemption, toPlain, toText,
+  buildApplication, filledCount, isWorthSaving, toPlain, toText,
 } from '../extension/src/lib/application.js';
 import { mergeInputs } from '../extension/src/lib/merge.js';
 import { computeEquity } from '../extension/src/lib/equity.js';
@@ -153,20 +153,7 @@ test('blanking a field back out withdraws the save offer', () => {
   assert.equal(isWorthSaving(cleared.application), false);
 });
 
-/* --- the disability link ------------------------------------------------ */
-
-test('a disability rating waives the VA funding fee', () => {
-  assert.equal(impliesFeeExemption({ disability: { value: '30%' } }), true);
-  assert.equal(impliesFeeExemption({ disability: { value: '10' } }), true);
-  assert.equal(impliesFeeExemption({ disability: { value: '100%' } }), true);
-});
-
-test('a rating below the threshold, or none at all, does not', () => {
-  assert.equal(impliesFeeExemption({ disability: { value: '0' } }), false);
-  assert.equal(impliesFeeExemption({ disability: { value: '' } }), false);
-  assert.equal(impliesFeeExemption({}), false);
-  assert.equal(impliesFeeExemption(null), false);
-});
+/* --- the funding-fee waiver --------------------------------------------- */
 
 test('the exemption actually changes the cash-out figure', () => {
   const base = { propertyValue: 400000, firstLien: 270900, program: 'VA', state: 'TN', financeFee: true };
@@ -249,12 +236,6 @@ test('co-borrower entries count toward saving', () => {
   assert.equal(isWorthSaving(application), true);
 });
 
-test('a co-borrower disability waives the funding fee too', () => {
-  // The exemption follows the veteran, and the veteran may be either borrower.
-  assert.equal(impliesFeeExemption({ coDisability: { value: '40%' } }), true);
-  assert.equal(impliesFeeExemption({ disability: { value: '' }, coDisability: { value: '30' } }), true);
-  assert.equal(impliesFeeExemption({ coDisability: { value: '0' } }), false);
-});
 
 test('the co-borrower is written out under its own heading', () => {
   const { inputs, result } = scenario();

@@ -571,9 +571,9 @@ test('the content script boots, detects, and computes on the agent screen', { sk
     assert.equal(after.cap, 'Cap 100%', 'VA outside Texas');
     assert.equal(after.now, 'Now 67.7%');
     assert.equal(after.advertised, '$129,100', 'the raw figure, before fee and costs');
-    assert.equal(after.cash, '$109,535', 'what the borrower actually receives');
-    assert.match(after.cashNote, /after \$19,565/, 'and the gap between them is named');
-    assert.match(after.costLine, /Cost to close \$19,565/, 'all in, fee included');
+    assert.equal(after.cash, '$112,121', 'what the borrower actually receives');
+    assert.match(after.cashNote, /after \$16,978/, 'and the gap between them is named');
+    assert.match(after.costLine, /Cost to close \$16,978/, 'all in, fee included');
     assert.match(after.costLine, /funding fee/i, 'and split into its two halves');
     assert.match(after.verdict, /threshold/i);
   } finally {
@@ -856,9 +856,9 @@ test('the assumptions on the panel move the figure and stick', { skip }, async (
       };
     });
 
-    assert.equal(out.financed, '$109,535', 'fee financed inside the 100% cap');
-    assert.equal(out.atClosing, '$109,237', 'an unfinanced fee comes out of the proceeds');
-    assert.equal(out.waived, '$117,837', 'no fee leaves only the closing costs');
+    assert.equal(out.financed, '$112,121', 'fee financed inside the 100% cap');
+    assert.equal(out.atClosing, '$111,700', 'an unfinanced fee comes out of the proceeds');
+    assert.equal(out.waived, '$124,900', 'no fee leaves only the closing costs');
     assert.match(out.feeShown, /no upfront fee/i, 'and the fee line says so');
 
     assert.equal(out.prefs.financeFee, false, 'the switch is a standing assumption');
@@ -1031,7 +1031,7 @@ test('the application fills from the record and offers to save once worked on', 
     // The ceiling is offered as guidance; the borrower's actual request is
     // the agent's to enter.
     assert.equal(state.before.cashOut, '');
-    assert.equal(state.before.cashOutHint, 'up to $109,535');
+    assert.equal(state.before.cashOutHint, 'up to $112,121');
     assert.equal(state.before.phone, '3024239504');
 
     assert.equal(state.before.saveHidden, true, 'auto-fill alone must not offer a save');
@@ -1083,14 +1083,14 @@ test('correcting the application moves the cash-out figure with it', { skip }, a
     });
 
     assert.equal(out.afterValue.value, '400000', 'the estimator takes the value from the form');
-    assert.equal(out.afterValue.cash, '$109,535');
+    assert.equal(out.afterValue.cash, '$112,121');
 
     assert.equal(out.afterBalance.balance, '250000');
-    assert.equal(out.afterBalance.cash, '$130,435', 'a lower payoff frees more cash');
+    assert.equal(out.afterBalance.cash, '$133,021', 'a lower payoff frees more cash');
 
     assert.equal(out.afterProgram.program, 'CONV');
     // 80% of $400,000 less the $250,000 payoff entered a moment ago, less costs.
-    assert.equal(out.afterProgram.cash, '$59,925', 'conventional caps at 80% of value');
+    assert.equal(out.afterProgram.cash, '$65,800', 'conventional caps at 80% of value');
   } finally {
     await page.close();
   }
@@ -1246,7 +1246,7 @@ test('Save downloads the application as a PDF', { skip }, async () => {
 
     assert.match(shown, /RANDY D ROLLINS/);
     assert.match(shown, /\$129,100/, 'the advertised figure');
-    assert.match(shown, /\$109,535/, 'the take-home figure');
+    assert.match(shown, /\$112,121/, 'the take-home figure');
     assert.match(shown, /\$96,000/, 'what the agent entered');
     assert.match(shown, /not a quote/i, 'and the disclaimer');
 
@@ -1759,10 +1759,12 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
     assert.equal(out.rows['ZIP Code'], '37854');
     assert.equal(out.rows['Loan Amount'], '$385,503');
 
-    // EQ requires these two and nothing here can fill them, so they are
-    // listed empty rather than dropped.
-    assert.equal(out.rows['Occupancy'], '—');
-    assert.equal(out.rows['Property Type'], '—');
+    // Standing assumptions rather than questions: this floor refinances
+    // people in the house they live in.
+    assert.equal(out.rows['Occupancy'], 'Primary Residence');
+    assert.equal(out.rows['Property Type'], 'Single family residence');
+    // And VA's use type, always subsequent — worth 1.15 points of fee.
+    assert.equal(out.rows['VA Use Type'], 'Subsequent use');
 
     // A VA file gets VA's own words for the refinance, not the generic pair.
     assert.equal(out.rows['Refinance Purpose'], 'VA cash-out - type II');
@@ -1779,11 +1781,8 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
     assert.ok(out.marks.includes('calculated'), 'the loan amount is marked as worked out');
     assert.ok(out.marks.includes('assumed'), 'and the standing choices as assumptions');
 
-    // And flagged, because a required box left empty is what sends a quote
-    // back from EQ rather than out to the borrower.
-    assert.ok(out.needs.some((n) => /Property Type/.test(n)),
-      `required gaps not flagged: ${JSON.stringify(out.needs)}`);
-    assert.ok(out.needs.some((n) => /Occupancy/.test(n)));
+    // Nothing required is left empty on this file.
+    assert.deepEqual(out.needs, [], `required gaps: ${JSON.stringify(out.needs)}`);
   } finally {
     await page.close();
   }

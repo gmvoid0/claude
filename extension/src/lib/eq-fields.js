@@ -79,6 +79,16 @@ export function eqFields({ application = {}, sizing = null, inputs = {} } = {}) 
   add('loanPurpose', 'Loan Purpose', 'Refinance 1st mortgage', {
     kind: 'assumed', required: true, checkList: true,
   });
+  // VA only, and always subsequent use: this floor writes refinances for
+  // veterans who have used the benefit before, and the tier is worth 1.15
+  // points of funding fee — 2.15% first use against 3.30% after. Assuming
+  // the cheaper one would under-quote every file it got wrong.
+  if (program === 'VA') {
+    add('vaUseType', 'VA Use Type', 'Subsequent use', {
+      kind: 'assumed', required: true, checkList: true,
+      note: 'first use is 2.15%, subsequent 3.30% — this floor writes subsequent',
+    });
+  }
   add('refinancePurpose', 'Refinance Purpose', refinancePurpose(program, cashOut), {
     kind: 'assumed', checkList: true,
     note: cashOut == null
@@ -97,11 +107,13 @@ export function eqFields({ application = {}, sizing = null, inputs = {} } = {}) 
   add('secondLoanAmount', 'Second Loan Amount', money(inputs.secondLien?.num));
 
   // --- second column
-  // Easy Qualifier requires both and nothing here can supply them, so they
-  // are listed empty rather than dropped — a required field missing from
-  // the sheet is one an agent finds out about from EQ instead.
-  add('occupancy', 'Occupancy', null, { required: true, note: 'pick it in EQ' });
-  add('propertyType', 'Property Type', null, { required: true, note: 'pick it in EQ' });
+  // Standing assumptions rather than questions. This floor refinances people
+  // in the house they live in, and a second home or a duplex is rare enough
+  // that asking every caller costs more than correcting the few. Marked as
+  // assumed so the agent can see they were not read off anything.
+  add('occupancy', 'Occupancy', 'Primary Residence', { kind: 'assumed', required: true });
+  add('propertyType', 'Property Type', 'Single family residence',
+    { kind: 'assumed', required: true });
   add('zip', 'ZIP Code', inputs.zip?.value ?? null, {
     required: true, note: 'sets the county and state',
   });

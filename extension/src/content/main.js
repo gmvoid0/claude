@@ -17,8 +17,8 @@
 
 import { collectCandidates, assignFields, readValue, FIELDS, cleanLabel } from '../lib/detect.js';
 import { computeEquity } from '../lib/equity.js';
-import { estimateClosingCosts, closingCostText } from '../lib/closing.js';
-import { sizeLoan, sizingText, overCeiling } from '../lib/sizing.js';
+import { closingCostText } from '../lib/closing.js';
+import { sizeLoan, sizingText, overCeiling, closingCharges } from '../lib/sizing.js';
 import { eqFields, eqFieldsText } from '../lib/eq-fields.js';
 import { computeDti } from '../lib/dti.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
@@ -33,7 +33,7 @@ import {
   getRuleOverrides, getPrefs, getPanelPos, setPanelPos, getPanelSize, setPanelSize, setPrefs,
 } from '../lib/settings.js';
 import {
-  buildApplication, filledCount, isWorthSaving, impliesFeeExemption, toText, toPlain,
+  buildApplication, filledCount, isWorthSaving, toText, toPlain,
 } from '../lib/application.js';
 import { saveApplication } from '../lib/settings.js';
 import { renderDocument } from '../lib/document.js';
@@ -75,7 +75,7 @@ const state = {
   manual: {},            // fieldKey -> raw string typed by the agent
   overrides: {
     closingCosts: '', ltvOverride: '', loanLimit: '', annualPropertyTax: '', piti: '',
-    feeExempt: false, subsequentUse: false, financeFee: true,
+    feeExempt: false, subsequentUse: true, financeFee: true,
     valueIsAvm: false,
   },
   avmTouched: false,     // true once the agent sets the AVM flag by hand
@@ -262,7 +262,8 @@ function overridesFromPrefs(prefs = {}) {
     loanLimit: prefs.loanLimit ?? '',
     financeFee: prefs.financeFee !== false,
     feeExempt: !!prefs.feeExempt,
-    subsequentUse: !!prefs.subsequentUse,
+    // Defaults on, to match the VA Use Type this floor always sets in EQ.
+    subsequentUse: prefs.subsequentUse !== false,
     valueIsAvm: !!prefs.valueIsAvm,
   };
 }
@@ -752,13 +753,11 @@ function recompute({ forceInputs = false } = {}) {
     state.overrides.valueIsAvm = !!state.prefs?.valueIsAvm || !!inputs.propertyValue.isAvm;
   }
 
-  // Built before the calculation so a disability rating entered on the form
-  // can waive the VA funding fee, which is what it does in reality.
-  const preliminary = buildApplication({
-    inputs, result: state.lastResult, manual: state.app, address: leadAddress(inputs),
-    coBorrower: state.coBorrower,
-  });
-  const feeExempt = !!state.overrides.feeExempt || impliesFeeExemption(preliminary);
+  // The waiver is the agent's to set. A disability percentage on the form
+  // used to flip it on its own; a rating is not an exemption by itself, so
+  // that inference quoted a fee some of those files would actually be
+  // charged.
+  const feeExempt = !!state.overrides.feeExempt;
 
   const shared = {
     propertyValue: inputs.propertyValue.num,
@@ -774,12 +773,10 @@ function recompute({ forceInputs = false } = {}) {
     financeFee: state.overrides.financeFee !== false,
   };
 
-  // Two passes, because closing costs are charged on a loan amount and the
-  // loan amount does not depend on them. The first pass sizes the loan, the
-  // estimate is built against it, and the second pass takes the money out.
-  // Nothing oscillates: the LTV cap never moves between the two.
-  const sized = computeEquity({ ...shared, closingCosts: 0 }, state.rules);
-  const closing = estimateClosing(sized, inputs);
+  // One pass. Every charge in this model is flat — escrows, title,
+  // appraisal, underwriting — so none of them moves with the loan amount
+  // and there is nothing to settle between two passes.
+  const closing = estimateClosing(inputs);
 
   const result = computeEquity({ ...shared, closingCosts: closing.total }, state.rules);
   result.closingEstimate = closing;
@@ -1186,11 +1183,17 @@ function truncate(text, max) {
  * Closing costs for this file.
  *
  * A figure the agent typed wins outright — they are looking at a Loan
- * Estimate and this is not. Otherwise the costs are estimated from the loan
- * that was just sized, per program, because a cash figure quoted with no
- * costs taken out is the optimistic kind of wrong.
+ * Estimate and this is not. Otherwise it is the floor's own charges:
+ * escrows, title, appraisal, underwriting. The same four the Easy Qualifier
+ * loan amount is built from, because two fee models on one panel is how the
+ * take-home figure and the loan amount end up disagreeing in front of a
+ * borrower.
+ *
+ * Every one of them is flat, so unlike the estimator this replaced there is
+ * nothing here that depends on the size of the loan, and no second pass is
+ * needed to settle it.
  */
-function estimateClosing(sized, inputs) {
+function estimateClosing(inputs) {
   const typed = parseMoney(state.overrides.closingCosts);
   if (typed != null) {
     return { total: typed, items: [], warnings: [], typed: true };
@@ -1200,19 +1203,13 @@ function estimateClosing(sized, inputs) {
   }
 
   return {
-    ...estimateClosingCosts({
-      program: sized.program,
-      state: sized.state,
-      baseLoan: sized.maxBaseLoan,
-      totalLoan: sized.totalLoanAmount,
-      // Escrows are estimated off the value, which is the only thing on the
-      // screen that has any bearing on a tax bill.
-      propertyValue: sized.propertyValue,
-      // The rate on the screen belongs to the loan being paid off, not the
-      // new one, so it is a stand-in rather than a fact. Better than nothing
-      // for a fifteen-day interest accrual, and labelled as assumed.
-      rate: parsePercent(inputs.interestRate?.value ?? ''),
-    }, state.rules?.closing),
+    ...closingCharges({
+      annualPropertyTax: annualPropertyTax(state.externalValue),
+      // Read straight off what the agent typed: the cash-out box is never
+      // auto-filled, so this does not need the built application.
+      cashOut: parseMoney(state.app.cashOut),
+      program: inputs?.program?.normalized ?? null,
+    }, state.rules?.sizing),
     typed: false,
   };
 }

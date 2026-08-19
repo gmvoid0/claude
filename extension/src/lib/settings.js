@@ -60,7 +60,11 @@ export const DEFAULT_PREFS = {
    */
   financeFee: true,          // finance the upfront fee into the loan
   feeExempt: false,          // VA funding fee exemption (service-connected disability)
-  subsequentUse: false,      // VA subsequent-use funding fee tier
+  // On by default. Easy Qualifier's VA Use Type is always set to subsequent
+  // use on this floor, and a funding fee quoted at the first-use tier while
+  // EQ prices the subsequent one is 1.15 points of disagreement — about
+  // $4,500 on a $391,000 loan, in the direction that flatters the quote.
+  subsequentUse: true,       // VA subsequent-use funding fee tier
   valueIsAvm: false,         // treat every value as an automated estimate
   /**
    * Standing Salesforce lookups. These are the same person on every
