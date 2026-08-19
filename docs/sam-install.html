@@ -283,8 +283,14 @@
       Seven fields on the application decide the answer — <strong>full name,
       mortgage balance, FICO, cash-out, value, monthly income and loan
       type</strong> — and they sit on a darker ground so a blank among them
-      is visible in a sixteen-row form. The rest is worth having and none of
-      it stops a quote.
+      is visible at a glance. The rest is worth having and none of it stops
+      a quote.
+    </p>
+    <p class="note good" style="margin-top:20px">
+      These are the same four charges that separate the advertised figure
+      from the take-home figure at the top of the panel. One set of numbers,
+      edited in one place, so the two halves cannot quote different fees on
+      the same screen.
     </p>
   </section>
 
@@ -306,6 +312,27 @@
           <tr><td><b>FHA</b></td><td class="n">35%</td><td>Cash Out / Rate–Term</td></tr>
           <tr><td><b>Conventional</b></td><td class="n">32%</td><td>Cash Out / Rate–Term</td></tr>
           <tr><td><b>USDA</b></td><td class="n">29%</td><td>Cash Out / Rate–Term</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>What it assumes without asking</h2>
+    <p>
+      Three standing assumptions, marked on the panel with an amber dot so
+      you can see they were not read off anything. Correct them in Easy
+      Qualifier on the files where they are wrong.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Assumed</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Occupancy</b></td><td>Primary Residence</td><td>This floor refinances people in the house they live in</td></tr>
+          <tr><td><b>Property Type</b></td><td>Single family residence</td><td>Same reason</td></tr>
+          <tr><td><b>VA Use Type</b></td><td>Subsequent use</td><td>Worth 1.15 points of funding fee — 2.15% first use against 3.30% after. Assuming the cheaper one under-quotes every file it gets wrong, so the equity figures use the subsequent tier too.</td></tr>
         </tbody>
       </table>
     </div>
@@ -359,7 +386,7 @@
     <p>
       Source and full history:
       <a href="https://github.com/gmvoid0/claude/pull/2">github.com/gmvoid0/claude/pull/2</a>
-      · 315 tests.
+      · 317 tests.
     </p>
   </footer>
 
