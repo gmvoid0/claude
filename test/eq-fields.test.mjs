@@ -22,10 +22,7 @@ function scenario(overrides = {}) {
     cashOut: { value: '$96,000' },
     fico: { value: '712' },
     income: { value: '$7,400' },
-    monthlyDebt: { value: '$950' },
     loanType: { value: 'CONV' },
-    occupancy: { value: 'Primary Residence' },
-    propertyType: { value: 'Single family residence' },
     employment: { value: 'W2' },
     ...overrides.application,
   };
@@ -103,7 +100,17 @@ test('what the application knows comes across as typed', () => {
   assert.equal(field(rows, 'creditScore').value, '712');
   assert.equal(field(rows, 'income').value, '$7,400');
   assert.equal(field(rows, 'zip').value, '37854');
-  assert.equal(field(rows, 'occupancy').value, 'Primary Residence');
+});
+
+test('the two Easy Qualifier requires but nothing can fill are still listed', () => {
+  // Dropped, they would be two required boxes an agent learns about from
+  // EQ's own validation instead of from the sheet in front of them.
+  const rows = scenario();
+  for (const key of ['occupancy', 'propertyType']) {
+    assert.equal(field(rows, key).value, null, key);
+    assert.equal(field(rows, key).required, true, key);
+    assert.match(field(rows, key).note, /pick it in EQ/, key);
+  }
 });
 
 test('the loan amount is the one calculated figure, and says so', () => {
@@ -154,7 +161,7 @@ test('a dropdown whose wording is not confirmed is flagged rather than asserted'
   // nothing, which is worse than leaving it to the agent.
   const rows = scenario();
   assert.equal(field(rows, 'loanType').checkList, false, 'this one is confirmed');
-  for (const key of ['loanPurpose', 'refinancePurpose', 'occupancy', 'propertyType']) {
+  for (const key of ['loanPurpose', 'refinancePurpose']) {
     assert.equal(field(rows, key).checkList, true, key);
   }
 });

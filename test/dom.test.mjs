@@ -1739,8 +1739,6 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
       await settle();
       type('[data-app-field=fico]', '712');
       await settle();
-      type('[data-app-field=occupancy]', 'Primary Residence');
-      await settle();
 
       const rows = {};
       for (const row of root.querySelectorAll('.eq-f')) {
@@ -1759,8 +1757,12 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
     assert.equal(out.rows['Loan Type'], 'VA');
     assert.equal(out.rows['Qualifying Credit Score'], '712');
     assert.equal(out.rows['ZIP Code'], '37854');
-    assert.equal(out.rows['Occupancy'], 'Primary Residence');
     assert.equal(out.rows['Loan Amount'], '$385,503');
+
+    // EQ requires these two and nothing here can fill them, so they are
+    // listed empty rather than dropped.
+    assert.equal(out.rows['Occupancy'], '—');
+    assert.equal(out.rows['Property Type'], '—');
 
     // A VA file gets VA's own words for the refinance, not the generic pair.
     assert.equal(out.rows['Refinance Purpose'], 'VA cash-out - type II');
@@ -1777,9 +1779,11 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
     assert.ok(out.marks.includes('calculated'), 'the loan amount is marked as worked out');
     assert.ok(out.marks.includes('assumed'), 'and the standing choices as assumptions');
 
-    // Property type is required and nothing on this screen supplies it.
+    // And flagged, because a required box left empty is what sends a quote
+    // back from EQ rather than out to the borrower.
     assert.ok(out.needs.some((n) => /Property Type/.test(n)),
       `required gaps not flagged: ${JSON.stringify(out.needs)}`);
+    assert.ok(out.needs.some((n) => /Occupancy/.test(n)));
   } finally {
     await page.close();
   }

@@ -97,8 +97,11 @@ export function eqFields({ application = {}, sizing = null, inputs = {} } = {}) 
   add('secondLoanAmount', 'Second Loan Amount', money(inputs.secondLien?.num));
 
   // --- second column
-  add('occupancy', 'Occupancy', app('occupancy'), { required: true, checkList: true });
-  add('propertyType', 'Property Type', app('propertyType'), { required: true, checkList: true });
+  // Easy Qualifier requires both and nothing here can supply them, so they
+  // are listed empty rather than dropped — a required field missing from
+  // the sheet is one an agent finds out about from EQ instead.
+  add('occupancy', 'Occupancy', null, { required: true, note: 'pick it in EQ' });
+  add('propertyType', 'Property Type', null, { required: true, note: 'pick it in EQ' });
   add('zip', 'ZIP Code', inputs.zip?.value ?? null, {
     required: true, note: 'sets the county and state',
   });

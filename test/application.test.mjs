@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  APPLICATION_FIELDS, APPLICATION_KEYS, CO_BORROWER_KEYS, SAVE_THRESHOLD,
+  APPLICATION_FIELDS, APPLICATION_KEYS, KEY_FIELDS, CO_BORROWER_KEYS, SAVE_THRESHOLD,
   buildApplication, filledCount, isWorthSaving, impliesFeeExemption, toPlain, toText,
 } from '../extension/src/lib/application.js';
 import { mergeInputs } from '../extension/src/lib/merge.js';
@@ -42,16 +42,23 @@ function scenario({ manual = {}, app = {} } = {}) {
 }
 
 test('the field list is exactly what was specified', () => {
-  // The last three are Easy Qualifier's doing: it requires occupancy and
-  // property type, neither is on a lead screen, and asking once on the call
-  // beats picking them again in EQ afterwards.
   assert.deepEqual(APPLICATION_KEYS, [
     'fullName',
     'rate', 'balance', 'fico', 'cashOut', 'value', 'payment',
-    'income', 'monthlyDebt', 'employment', 'occupancy', 'propertyType',
-    'loanType', 'disability', 'address', 'phone',
+    'income', 'employment', 'loanType', 'disability', 'address', 'phone',
   ]);
-  assert.equal(APPLICATION_FIELDS.length, 16);
+  assert.equal(APPLICATION_FIELDS.length, 13);
+});
+
+test('the seven that decide the answer are named', () => {
+  // Each one feeds the loan amount, the debt ratio, or both, so a blank
+  // among them is the difference between a quote and a dash.
+  assert.deepEqual([...KEY_FIELDS], [
+    'fullName', 'balance', 'fico', 'cashOut', 'value', 'income', 'loanType',
+  ]);
+  for (const key of KEY_FIELDS) {
+    assert.ok(APPLICATION_KEYS.includes(key), `${key} is not on the form`);
+  }
 });
 
 test('everything S.A.M already knows is filled in automatically', () => {
