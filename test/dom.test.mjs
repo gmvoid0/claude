@@ -1681,9 +1681,9 @@ test('the loan amount is built from the application and the tax bill', { skip },
     const rows = out.after.rows.join(' | ');
     assert.equal(out.after.rows.length, 1, 'the itemisation is off the panel');
     assert.match(rows, /Monthly escrow payment\$228/);
-    assert.ok(out.after.why.some((w) => /\$1,733 tax \+ \$1,000 insurance, over 12 months/.test(w)),
+    assert.ok(out.after.why.some((w) => /\$1,733 tax \+ \$1,000 insurance ÷ 12/.test(w)),
       `escrow working not shown: ${JSON.stringify(out.after.why)}`);
-    assert.ok(out.after.why.some((w) => /6 collected at closing/.test(w)));
+    assert.ok(out.after.why.some((w) => /×6 in the loan/.test(w)));
     assert.match(out.after.src, /entered by hand/);
 
     // The loan amount is still built from all six charges, grossed up —

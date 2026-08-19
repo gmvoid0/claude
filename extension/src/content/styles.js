@@ -600,22 +600,24 @@ input.warnval {
   color: var(--label-3);
   margin-bottom: 1px;
 }
+/* A step below the loan amount, which is 38px. These two answer "is there
+   a deal here"; that one answers "what do I type", and only one of them can
+   be the biggest thing on the panel. */
 .head .num {
   display: block;
-  font-size: 30px;
+  font-size: 25px;
   font-weight: 700;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-  line-height: 1.08;
+  line-height: 1.1;
 }
 .head .sub {
   display: block;
   margin-top: 3px;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: .01em;
+  font-size: 10.5px;
+  font-weight: 500;
   color: var(--label-3);
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 /* Blue is the number said out loud, green is the number received, and red
@@ -704,7 +706,7 @@ input.warnval {
   border: 0.5px solid var(--hairline);
   border-radius: var(--r-card);
   padding: 11px 12px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   box-shadow: 0 1px 2px rgba(0,0,0,.04);
 }
 .pair-cell { min-width: 0; }
@@ -967,7 +969,7 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
    Sizes here run a little larger than the rest of the panel — this is the
    part that gets read out loud on a call. */
 .eq {
-  margin: 12px 0 0;
+  margin: 10px 0;
   padding: 15px 14px 14px;
   border-radius: var(--r-card);
   background: var(--card);
@@ -982,6 +984,15 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
   color: var(--label-3);
 }
 .btn.tiny { padding: 5px 12px; font-size: 11.5px; width: auto; }
+/* A secondary action sitting beside the answer. Solid blue there pulled the
+   eye off the figure it is meant to be next to. */
+.btn.quiet {
+  background: var(--fill);
+  color: var(--blue);
+  box-shadow: none;
+  border: none;
+}
+.btn.quiet:hover { background: var(--fill-strong); }
 
 .eq-final {
   font-size: 38px; font-weight: 700;
@@ -1084,6 +1095,14 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 /* --- debt-to-income --------------------------------------------------- */
 .dti { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--separator); }
 .dti-rows { margin-top: 9px; }
+/* Sentence case, like every other label in this card. Only the card header
+   is uppercase — three label idioms in one column was most of why the
+   right-hand side read as complicated. */
+.dti-cap {
+  font-size: 11px; font-weight: 600;
+  color: var(--label-2);
+  margin-bottom: 4px;
+}
 .dti-row {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 9px;
 }
@@ -1116,9 +1135,8 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 .eq-tax { display: block; margin: 13px 0 4px; }
 .eq-tax span {
   display: block;
-  font-size: 10.5px; font-weight: 700;
-  letter-spacing: .07em; text-transform: uppercase;
-  color: var(--label-3);
+  font-size: 11px; font-weight: 600;
+  color: var(--label-2);
   margin-bottom: 5px;
 }
 .eq-tax i {
@@ -1130,14 +1148,15 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 /* The all-in cost of closing, under the two headline figures. Sized to be
    read at a glance without competing with them. */
 .costline {
-  margin-top: 8px;
-  font-size: 11px;
-  line-height: 1.35;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 0.5px solid var(--separator);
   font-variant-numeric: tabular-nums;
-  color: var(--label-2);
   text-align: center;
 }
 .costline:empty { display: none; }
+.costline b { display: block; font-size: 12.5px; font-weight: 600; color: var(--label); }
+.costline span { display: block; margin-top: 2px; font-size: 10.5px; color: var(--label-3); }
 
 .asm-fee {
   margin-top: 9px;

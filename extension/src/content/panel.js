@@ -551,16 +551,21 @@ export class Panel {
         : 'no fees or costs';
       els.cashNote.title = closingBreakdown(result);
 
+      // A figure on its own line and the split under it, rather than one
+      // long sentence that wrapped three times and had to be read twice.
       // The financed fee never comes out of cash-out — it is added to the
-      // loan — so saying so here stops the split from reading as arithmetic
-      // that does not add up against the take-home figure.
+      // loan — so the split says so, or it reads as arithmetic that does
+      // not add up against the take-home figure.
       const split = [];
-      if (fee) split.push(`${formatMoney(fee)} ${(result.feeLabel ?? 'fee').toLowerCase()}`);
+      if (fee) split.push(`${formatMoney(fee)} ${result.feeLabel ?? 'fee'}`);
       if (result.closingCosts) split.push(`${formatMoney(result.closingCosts)} closing costs`);
-      els.costLine.textContent = allIn
-        ? `Cost to close ${formatMoney(allIn)}`
-          + (split.length > 1 ? ` — ${split.join(' + ')}` : '')
-          + (result.financedFee ? ', fee financed into the loan' : '')
+
+      els.costLine.innerHTML = allIn
+        ? `<b>Cost to close ${formatMoney(allIn)}</b>`
+          + (split.length
+            ? `<span>${escapeHtml(split.join(' + '))}`
+              + `${result.financedFee ? ' &middot; fee financed' : ''}</span>`
+            : '')
         : '';
       els.costLine.title = closingBreakdown(result);
 
@@ -648,8 +653,8 @@ export class Panel {
         + '<div class="eq-row"><span>Monthly escrow payment</span>'
         + `<b>${formatMoney(escrow.monthly)}</b></div>`
         + `<div class="eq-why">${formatMoney(escrow.annualPropertyTax)} tax + `
-        + `${formatMoney(escrow.insuranceAllowance)} insurance, over 12 months`
-        + `&nbsp;&middot;&nbsp; ${escrow.months} collected at closing</div>`
+        + `${formatMoney(escrow.insuranceAllowance)} insurance &divide; 12`
+        + `&nbsp; &middot; &nbsp;&times;${escrow.months} in the loan</div>`
         + '</div>'
       : '<div class="eq-rg"><div class="eq-row gap"><span>Monthly escrow payment</span>'
         + '<b>&mdash;</b></div>'
@@ -867,7 +872,8 @@ function dtiRow(dti) {
   }
 
   const pill = part.pass == null ? '' : (part.pass ? 'Qualifies' : 'Over');
-  return `<div class="dti-row ${verdict}">`
+  return '<div class="dti-cap">Front-end DTI</div>'
+    + `<div class="dti-row ${verdict}">`
     + `<b>${part.percent.toFixed(2)}<small>%</small></b>`
     + (pill ? `<span class="dti-pill">${pill}</span>` : '')
     + `<i>${escapeHtml(note)}</i></div>`;
@@ -1005,7 +1011,7 @@ const TEMPLATE = `
   <section class="eq">
     <div class="eq-hd">
       <span class="eq-cap">Easy Qualifier &mdash; Loan Amount</span>
-      <button class="btn tiny" data-act="copy-eq">Copy</button>
+      <button class="btn tiny quiet" data-act="copy-eq">Copy</button>
     </div>
     <div class="eq-final" data-eq="final">&mdash;</div>
     <div class="eq-note" data-eq="note">Needs the payoff, the cash-out and the tax bill.</div>
@@ -1051,7 +1057,7 @@ const TEMPLATE = `
   <!-- Value and equity side by side: the two numbers that move the answer. -->
   <div class="pair">
     <div class="pair-cell">
-      <label>Home value <span class="src" data-src="propertyValue"></span></label>
+      <label>Home value<span class="src" data-src="propertyValue"></span></label>
       <input type="text" class="hero" data-in="propertyValue" placeholder="$0" inputmode="decimal" />
     </div>
   </div>
@@ -1073,7 +1079,7 @@ const TEMPLATE = `
   <div class="group">
     <div class="two">
       <div class="row">
-        <label>Balance <span class="src" data-src="firstLien"></span></label>
+        <label>Balance<span class="src" data-src="firstLien"></span></label>
         <input type="text" data-in="firstLien" placeholder="$0" inputmode="decimal" />
       </div>
       <div class="row">
@@ -1083,7 +1089,7 @@ const TEMPLATE = `
     </div>
     <div class="two">
       <div class="row" data-field="program">
-        <label>Loan type <span class="src" data-src="program"></span></label>
+        <label>Loan type<span class="src" data-src="program"></span></label>
         <select data-in="program">
           <option value="">—</option>
           <option value="VA">VA</option>
@@ -1093,7 +1099,7 @@ const TEMPLATE = `
         </select>
       </div>
       <div class="row">
-        <label>State <span class="src" data-src="state"></span></label>
+        <label>State<span class="src" data-src="state"></span></label>
         <input type="text" data-in="state" placeholder="TN" maxlength="20" />
       </div>
     </div>
@@ -1112,8 +1118,8 @@ const TEMPLATE = `
     <button class="btn primary" data-act="copy">Copy summary</button>
     <button class="btn" data-act="pick-propertyValue">Bind value</button>
     <button class="btn" data-act="pick-firstLien">Bind balance</button>
-    <button class="btn wide" data-act="pick-fullName">Bind name</button>
-    <button class="btn wide" data-act="reset">Reset</button>
+    <button class="btn" data-act="pick-fullName">Bind name</button>
+    <button class="btn quiet" data-act="reset">Reset</button>
   </div>
 
   <div class="disclaimer">
