@@ -1817,8 +1817,6 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
       const before = read();
       type('[data-app-field=income]', '7400');
       await settle();
-      type('[data-app-field=monthlyDebt]', '950');
-      await settle();
       const noPiti = read();
 
       type('[data-in=piti]', '2417.19');
@@ -1833,23 +1831,70 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
 
     assert.match(out.noPiti.empty, /PITI/, 'it asks for the payment rather than showing nothing');
 
-    // 2,417.19 / 7,400 = 32.66%.  (2,417.19 + 950) / 7,400 = 45.50%.
-    const [front, back] = out.va.rows;
+    // 2,417.19 / 7,400 = 32.66%, which clears VA's 35.
+    assert.equal(out.va.rows.length, 1, 'front-end only');
+    const [front] = out.va.rows;
     assert.equal(front.label, 'Front-end');
     assert.equal(front.value, '32.66%');
-    assert.equal(front.verdict, 'ok', 'VA holds the housing ratio at 35%');
-    assert.match(front.note, /under 35%/);
+    assert.equal(front.verdict, 'ok');
+    assert.match(front.note, /under 35%, 2\.34 pts of room/);
+    assert.match(out.va.src, /VA — 35% front-end/);
 
-    assert.equal(back.label, 'Back-end');
-    assert.equal(back.value, '45.50%');
-    assert.equal(back.verdict, 'no', 'and 45.50 is over VA\'s 45');
-    assert.match(back.note, /over 45%/);
-    assert.match(out.va.src, /VA — 35% front, 45% back/);
-
-    // Conventional holds the housing ratio at 32, so the front-end flips.
+    // Conventional holds it at 32, so the same file flips — and the red
+    // number comes with the payment that would have worked.
     assert.equal(out.conv.rows[0].value, '32.66%');
-    assert.equal(out.conv.rows[0].verdict, 'no', 'over conventional\'s 32%');
-    assert.match(out.conv.src, /CONV — 32% front, 45% back/);
+    assert.equal(out.conv.rows[0].verdict, 'no');
+    assert.match(out.conv.rows[0].note, /over 32% — needs a payment under \$2,368/);
+    assert.match(out.conv.src, /CONV — 32% front-end/);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a loan sized past the programme cap says so on the panel', { skip }, async () => {
+  // The two halves of the panel are computed independently: the loan is
+  // sized from what the borrower needs, the cap comes from the programme.
+  // On a conventional file they disagree, and the agent must not be the one
+  // who has to notice.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const type = (sel, value) => {
+        const el = root.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+      };
+      const settle = () => new Promise((r) => setTimeout(r, 60));
+      const over = () => root.querySelector('[data-eq=over]').textContent.trim();
+
+      type('[data-in=propertyValue]', '400000');
+      await settle();
+      type('[data-in=annualPropertyTax]', '1733');
+      await settle();
+      type('[data-app-field=balance]', '270900');
+      await settle();
+      type('[data-app-field=cashOut]', '96000');
+      await settle();
+      const va = over();
+
+      type('[data-in=program]', 'CONV');
+      await settle();
+      const conv = over();
+
+      // Cut the cash-out until it fits under the 80% cap.
+      type('[data-app-field=cashOut]', '30000');
+      await settle();
+      return { va, conv, trimmed: over() };
+    });
+
+    assert.equal(out.va, '', 'VA at 100% has room for this loan');
+    assert.match(out.conv, /Over the 80% cap of \$320,000 by \$65,503/);
+    assert.match(out.conv, /cannot be written as sized/);
+    assert.equal(out.trimmed, '', 'and it clears once the cash-out comes down');
   } finally {
     await page.close();
   }

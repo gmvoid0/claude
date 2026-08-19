@@ -18,7 +18,7 @@
 import { collectCandidates, assignFields, readValue, FIELDS, cleanLabel } from '../lib/detect.js';
 import { computeEquity } from '../lib/equity.js';
 import { estimateClosingCosts, closingCostText } from '../lib/closing.js';
-import { sizeLoan, sizingText } from '../lib/sizing.js';
+import { sizeLoan, sizingText, overCeiling } from '../lib/sizing.js';
 import { eqFields, eqFieldsText } from '../lib/eq-fields.js';
 import { computeDti } from '../lib/dti.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
@@ -828,6 +828,11 @@ function recompute({ forceInputs = false } = {}) {
     program: inputs.program.normalized,
   }, state.rules?.sizing);
 
+  // Sized from what the borrower needs, then checked against what the
+  // programme will actually write. The two are computed independently and
+  // can disagree, and an agent should not be the one to spot it.
+  sizing.overCeiling = overCeiling(sizing.finalLoan, result.propertyValue, result.maxLtv);
+
   const tax = taxReading(external);
   const fields = eqFields({ application, sizing, inputs });
 
@@ -836,7 +841,6 @@ function recompute({ forceInputs = false } = {}) {
   const dti = computeDti({
     piti: parseMoney(state.overrides.piti),
     monthlyIncome: parseMoney(application.income?.value),
-    monthlyDebts: parseMoney(application.monthlyDebt?.value),
     program: inputs.program.normalized,
   }, state.rules?.dti);
 

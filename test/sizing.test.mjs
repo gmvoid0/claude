@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { sizeLoan, sizingText, DEFAULT_SIZING } from '../extension/src/lib/sizing.js';
+import { sizeLoan, sizingText, overCeiling, DEFAULT_SIZING } from '../extension/src/lib/sizing.js';
 
 const item = (result, id) => result.items.find((i) => i.id === id);
 
@@ -89,6 +89,15 @@ test('a VA refinance with no cash is an IRRRL, and pays for no appraisal', () =>
   );
 });
 
+test('an unfilled cash-out box is not a streamline', () => {
+  // Blank means the question has not been asked. Waiving the appraisal on
+  // the strength of an empty field would answer it for the agent.
+  const blank = sizeLoan({ annualPropertyTax: 1733, payoff: 270900, program: 'VA' });
+  assert.equal(blank.irrrl, false);
+  assert.equal(item(blank, 'appraisal').amount, 700);
+  assert.equal(blank.finalLoan, null, 'and there is still no loan amount');
+});
+
 test('only VA turns a no-cash refinance into a streamline', () => {
   for (const program of ['FHA', 'CONV', 'USDA', null]) {
     const r = sizeLoan({ annualPropertyTax: 1733, payoff: 270900, cashOut: 0, program });
@@ -165,4 +174,32 @@ test('the itemisation is legible when copied', () => {
   assert.match(text, /Mortgage payoff:\s+\$270,900/);
   assert.match(text, /Subtotal:\s+\$372,467/);
   assert.match(text, /x 1\.035:\s+\$385,503/);
+});
+
+/* --- the loan the programme will actually write ------------------------- */
+
+test('a loan sized past the programme cap is called out, not quietly quoted', () => {
+  // This method sizes from what the borrower needs and never looks at the
+  // house. That is right for a conversation and wrong for a quote: a
+  // conventional file capped at 80% of a $400,000 home cannot be written at
+  // $385,503 however the arithmetic got there.
+  const over = overCeiling(385503, 400000, 0.80);
+  assert.deepEqual(over, { ceiling: 320000, over: 65503, maxLtv: 0.80 });
+
+  // VA at 100% has room for the same loan.
+  assert.equal(overCeiling(385503, 400000, 1.00), null);
+});
+
+test('a loan exactly on the cap is not over it', () => {
+  assert.equal(overCeiling(320000, 400000, 0.80), null);
+  assert.equal(overCeiling(320000.01, 400000, 0.80).over, 0.01);
+});
+
+test('nothing to compare against means no complaint', () => {
+  // A missing value or an unsized loan is a gap, not a violation, and the
+  // panel already says so elsewhere.
+  assert.equal(overCeiling(null, 400000, 0.8), null);
+  assert.equal(overCeiling(385503, null, 0.8), null);
+  assert.equal(overCeiling(385503, 400000, null), null);
+  assert.equal(overCeiling(385503, 400000, 0), null);
 });

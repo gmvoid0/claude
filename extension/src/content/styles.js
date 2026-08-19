@@ -971,6 +971,17 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 }
 .eq-final.none { color: var(--label-3); font-weight: 600; }
 .eq-note { font-size: 11.5px; color: var(--label-2); margin-top: 3px; }
+/* The loan is larger than the programme will write. Loud, because the two
+   halves of this panel are disagreeing and the agent must not be the one
+   who has to notice. */
+.eq-over {
+  margin-top: 8px; padding: 8px 10px;
+  border-radius: var(--r-field);
+  background: rgba(255,59,48,.12);
+  color: var(--red-deep, var(--red));
+  font-size: 11.5px; line-height: 1.4;
+}
+.eq-over:empty { display: none; }
 
 .eq-rows { margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--separator); }
 .eq-row {

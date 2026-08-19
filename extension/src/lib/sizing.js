@@ -116,7 +116,10 @@ export function sizeLoan({
   // the valuation already on the loan. The line stays at zero rather than
   // disappearing, so the agent can see the charge was dropped on purpose
   // instead of wondering whether it was forgotten.
-  const irrrl = String(program ?? '').toUpperCase() === 'VA' && !(cash > 0);
+  // Explicitly zero, not merely unfilled. A blank cash-out box on a fresh
+  // record is an unanswered question, and reading it as "takes no cash"
+  // would waive the appraisal on every file before the agent has asked.
+  const irrrl = String(program ?? '').toUpperCase() === 'VA' && cash === 0;
   add('appraisal', 'Appraisal', irrrl ? 0 : r.appraisal,
     irrrl ? 'waived — an IRRRL reuses the existing valuation' : undefined);
   add('underwriting', 'Underwriting', r.underwriting);
@@ -153,6 +156,30 @@ export function sizeLoan({
       months,
     },
   };
+}
+
+/**
+ * Whether the sized loan is larger than the programme will actually write.
+ *
+ * This method sizes the loan from what the borrower needs — payoff, cash,
+ * costs — and never looks at the value of the house. That is the right way
+ * round for a conversation and the wrong way round for a quote: a
+ * conventional file capped at 80% of a $400,000 home cannot be written at
+ * $385,503 no matter how the arithmetic got there. Typing it into Easy
+ * Qualifier prices a loan that does not exist.
+ *
+ * So the two are compared once, here, and the gap is stated rather than
+ * left for the agent to notice that two parts of the same panel disagree.
+ */
+export function overCeiling(finalLoan, propertyValue, maxLtv) {
+  const loan = Number(finalLoan);
+  const value = Number(propertyValue);
+  const ltv = Number(maxLtv);
+  if (!(loan > 0) || !(value > 0) || !(ltv > 0)) return null;
+
+  const ceiling = round2(value * ltv);
+  if (loan <= ceiling) return null;
+  return { ceiling, over: round2(loan - ceiling), maxLtv: ltv };
 }
 
 /** The itemisation as text, for the clipboard. */

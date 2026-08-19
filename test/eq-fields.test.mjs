@@ -81,8 +81,13 @@ test('a VA refinance uses VA words, not the generic pair', () => {
 
   assert.equal(va('96000').value, 'VA cash-out - type II');
   assert.equal(va('0').value, 'VA IRRRL');
-  assert.equal(va(null).value, 'VA IRRRL');
   assert.match(va('96000').note, /VA has its own two/);
+
+  // Unknown is not zero. A blank cash-out box on a fresh record is a
+  // question nobody has asked, and answering it "IRRRL" would waive an
+  // appraisal on a file that has not been discussed yet.
+  assert.equal(va(null).value, null);
+  assert.match(va(null).note, /enter the cash-out amount/);
 
   // Everything else keeps the generic pair.
   for (const program of ['CONV', 'FHA', 'USDA']) {

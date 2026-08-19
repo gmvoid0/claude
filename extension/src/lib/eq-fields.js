@@ -81,7 +81,9 @@ export function eqFields({ application = {}, sizing = null, inputs = {} } = {}) 
   });
   add('refinancePurpose', 'Refinance Purpose', refinancePurpose(program, cashOut), {
     kind: 'assumed', checkList: true,
-    note: program === 'VA' ? 'VA has its own two, and this is which' : undefined,
+    note: cashOut == null
+      ? 'enter the cash-out amount'
+      : (program === 'VA' ? 'VA has its own two, and this is which' : undefined),
   });
   add('appraisedValue', 'Appraised Value', money(app('value') ?? inputs.propertyValue?.num), {
     required: true,
@@ -89,7 +91,7 @@ export function eqFields({ application = {}, sizing = null, inputs = {} } = {}) 
   add('loanAmount', 'Loan Amount', money(sizing?.finalLoanRounded), {
     kind: 'computed', required: true,
     note: sizing?.finalLoan == null
-      ? `waiting on ${(sizing?.missing ?? []).join(', ') || 'the application'}`
+      ? `waiting on ${missingLabels(sizing?.missing)}`
       : `escrows + fees + payoff + cash, x ${sizing.grossUp}`,
   });
   add('secondLoanAmount', 'Second Loan Amount', money(inputs.secondLien?.num));
@@ -131,9 +133,26 @@ export function eqFieldsText(rows) {
  * takes no cash is an IRRRL, the streamline.
  */
 function refinancePurpose(program, cashOut) {
-  const takesCash = cashOut != null && cashOut > 0;
+  // Unknown is not zero. A blank cash-out box on a fresh record is a
+  // question nobody has asked yet, and calling it an IRRRL on the strength
+  // of an empty field would be answering it for them.
+  if (cashOut == null) return null;
+  const takesCash = cashOut > 0;
   if (program === 'VA') return takesCash ? 'VA cash-out - type II' : 'VA IRRRL';
   return takesCash ? 'Cash Out' : 'Rate/Term';
+}
+
+/** The missing inputs, in the words an agent would use for them. */
+export function missingLabels(missing) {
+  const words = {
+    annualPropertyTax: 'the property tax',
+    payoff: 'the mortgage balance',
+    cashOut: 'the cash-out amount',
+  };
+  const list = (missing ?? []).map((key) => words[key] ?? key);
+  if (!list.length) return 'the application';
+  if (list.length === 1) return list[0];
+  return `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
 }
 
 function money(value) {

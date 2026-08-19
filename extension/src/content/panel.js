@@ -9,6 +9,7 @@
 
 import { formatMoney, formatPercent } from '../lib/money.js';
 import { APPLICATION_FIELDS, CO_BORROWER_FIELDS } from '../lib/application.js';
+import { missingLabels } from '../lib/eq-fields.js';
 import { PANEL_CSS } from './styles.js';
 import { PANEL_HOST_ID as HOST_ID } from '../lib/constants.js';
 
@@ -97,6 +98,7 @@ export class Panel {
 
       eqFinal: q('[data-eq=final]'),
       eqNote: q('[data-eq=note]'),
+      eqOver: q('[data-eq=over]'),
       eqRows: q('[data-eq=rows]'),
       eqTaxSrc: q('[data-eq=taxsrc]'),
       eqMap: q('[data-eq=map]'),
@@ -508,6 +510,7 @@ export class Panel {
     this.setInput(els.eqTax ?? this.root.querySelector('[data-in=annualPropertyTax]'),
       state.tax?.source === 'typed' ? String(state.tax.amount) : '', force);
     this.renderSizing(state.sizing, state.tax);
+    this.renderCeiling(state.sizing);
     this.renderEqFields(state.eqFields);
     this.renderDti(state.dti);
 
@@ -699,13 +702,24 @@ export class Panel {
     if (sizing.finalLoan == null) {
       els.eqFinal.textContent = '—';
       els.eqFinal.className = 'eq-final none';
-      els.eqNote.textContent = `Waiting on ${sizing.missing.map(missingLabel).join(', ')}.`;
+      els.eqNote.textContent = `Waiting on ${missingLabels(sizing.missing)}.`;
       return;
     }
 
     els.eqFinal.textContent = formatMoney(sizing.finalLoanRounded);
     els.eqFinal.className = 'eq-final';
     els.eqNote.textContent = 'Type this into Loan Amount.';
+  }
+
+  /** The loan is bigger than the programme will write. Said out loud. */
+  renderCeiling(sizing) {
+    const el = this.els.eqOver;
+    if (!el) return;
+    const over = sizing?.overCeiling;
+    if (!over) { el.textContent = ''; return; }
+    el.textContent = `Over the ${formatPercent(over.maxLtv, 0)} cap of `
+      + `${formatMoney(over.ceiling)} by ${formatMoney(over.over)} — this cannot be `
+      + 'written as sized. Cut the cash-out or raise the value.';
   }
 
   /**
@@ -753,19 +767,15 @@ export class Panel {
     if (!els.dtiRows) return;
 
     els.dtiSrc.textContent = dti?.program
-      ? `${dti.program} — ${pctLimit(dti.limits.front)} front, ${pctLimit(dti.limits.back)} back`
+      ? `${dti.program} — ${pctLimit(dti.limit)} front-end`
       : 'no programme set';
 
-    if (!dti || (dti.front.percent == null && dti.back.percent == null)) {
-      els.dtiRows.innerHTML = `<div class="dti-none">${
-        escapeHtml(dtiGap(dti))}</div>`;
+    if (!dti || dti.front.percent == null) {
+      els.dtiRows.innerHTML = `<div class="dti-none">${escapeHtml(dtiGap(dti))}</div>`;
       return;
     }
 
-    els.dtiRows.innerHTML = [
-      dtiRow('Front-end', 'housing payment alone', dti.front),
-      dtiRow('Back-end', 'plus every other monthly debt', dti.back),
-    ].join('') + (dti.warnings ?? [])
+    els.dtiRows.innerHTML = dtiRow(dti) + (dti.warnings ?? [])
       .map((w) => `<div class="dti-warn ${w.level === 'warn' ? 'hot' : ''}">${
         escapeHtml(w.text)}</div>`).join('');
   }
@@ -912,20 +922,29 @@ function clamp(n, lo, hi) {
 }
 
 /** The itemised costs, as hover text on the figure they came out of. */
-/** One ratio: the number, the limit it is judged by, and the verdict. */
-function dtiRow(label, why, part) {
-  if (part.percent == null) {
-    return `<div class="dti-row idle"><span>${label}</span>`
-      + `<b>&mdash;</b><i>${escapeHtml(why)}</i></div>`;
-  }
+/**
+ * The ratio, the limit it was judged by, and what to do about it.
+ *
+ * A failing file gets the payment that would have cleared instead of a bare
+ * red number: "over 32%" ends the call, "needs a payment under $2,368" is
+ * the next sentence of it.
+ */
+function dtiRow(dti) {
+  const part = dti.front;
   const verdict = part.pass == null ? 'none' : (part.pass ? 'ok' : 'no');
-  const note = part.limit == null
-    ? 'not tested on this programme'
-    : `${part.pass ? 'under' : 'over'} ${pctLimit(part.limit)}`
-      + `, ${part.headroom >= 0 ? '' : '-'}${Math.abs(part.headroom).toFixed(2)} pts`;
+
+  let note;
+  if (part.limit == null) {
+    note = 'no limit set for this programme';
+  } else if (part.pass) {
+    note = `under ${pctLimit(part.limit)}, ${part.headroom.toFixed(2)} pts of room`;
+  } else {
+    note = `over ${pctLimit(part.limit)}`
+      + (dti.maxPayment ? ` — needs a payment under ${formatMoney(dti.maxPayment)}` : '');
+  }
 
   return `<div class="dti-row ${verdict}">`
-    + `<span>${label}</span>`
+    + '<span>Front-end</span>'
     + `<b>${part.percent.toFixed(2)}%</b>`
     + `<i>${escapeHtml(note)}</i></div>`;
 }
@@ -936,19 +955,10 @@ const pctLimit = (limit) => (limit == null ? 'none' : `${(limit * 100).toFixed(0
 function dtiGap(dti) {
   const missing = dti?.missing ?? ['piti', 'monthlyIncome'];
   if (missing.includes('piti') && missing.includes('monthlyIncome')) {
-    return 'Enter the PITI from Easy Qualifier and the borrower\'s monthly income.';
+    return 'Enter the PITI from Easy Qualifier and the monthly income on the application.';
   }
   if (missing.includes('piti')) return 'Enter the PITI Easy Qualifier came back with.';
-  return 'Enter the borrower\'s gross monthly income on the application.';
-}
-
-/** What an agent would call the thing that is missing. */
-function missingLabel(key) {
-  return {
-    annualPropertyTax: 'the property tax',
-    payoff: 'the mortgage balance',
-    cashOut: 'the cash-out amount',
-  }[key] ?? key;
+  return 'Enter the gross monthly income on the application.';
 }
 
 function escapeHtml(value) {
@@ -1075,6 +1085,7 @@ const TEMPLATE = `
     </div>
     <div class="eq-final" data-eq="final">&mdash;</div>
     <div class="eq-note" data-eq="note">Needs the payoff, the cash-out and the tax bill.</div>
+    <div class="eq-over" data-eq="over"></div>
 
     <!--
       The tax bill sits directly above the working it feeds rather than at
@@ -1100,10 +1111,9 @@ const TEMPLATE = `
     <!--
       Debt-to-income, the other direction. Easy Qualifier gives back a
       payment; that payment comes back here and says whether the borrower
-      can carry it. Front-end is shown on every programme even where the
-      agency does not test one, because a borrower who cannot carry the
-      house alone will not carry it with a car note, and that is worth
-      thirty seconds rather than a credit pull.
+      can carry it. Front-end only: it is the cheap early answer, and a file
+      that fails the house on its own is finished before the liabilities
+      are even worth asking about.
     -->
     <div class="dti">
       <label class="eq-tax">

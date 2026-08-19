@@ -1,97 +1,81 @@
 /**
- * Debt-to-income, front and back.
+ * Front-end debt-to-income.
  *
- * Two ratios, and the difference is the whole point:
+ * The housing payment alone against gross monthly income. PITI — principal,
+ * interest, taxes, insurance, plus mortgage insurance and any HOA — over
+ * what the borrower earns in a month before deductions.
  *
- *   front-end   the housing payment alone against gross monthly income.
- *               PITI — principal, interest, taxes, insurance, plus mortgage
- *               insurance and any HOA. This is the figure Easy Qualifier
- *               hands back, so it is typed in rather than rebuilt here:
- *               guessing at a payment when the pricing engine has already
- *               produced one would be inventing a worse version of it.
+ * Front-end only, deliberately. It is the cheap early answer: a borrower who
+ * cannot carry the house by itself will not carry it with a car note behind
+ * it, so a file that fails here is finished, and one that clears it is worth
+ * the next question. Back-end needs a full liability picture that nobody has
+ * thirty seconds into a call, and half a picture would read as a verdict.
  *
- *   back-end    that same housing payment plus every other monthly
- *               obligation — cards, autos, student loans, support orders.
- *
- * Front-end is always shown even where the programme does not underwrite to
- * it, because it is the cheap early answer: a borrower who cannot carry the
- * house alone will not carry the house plus a car note, and knowing that
- * thirty seconds into a call is worth more than knowing it after a pull.
+ * The payment is typed in rather than rebuilt here. Easy Qualifier has
+ * already priced the loan and handed one back; producing a worse version of
+ * a figure the pricing engine has already produced would be inventing a
+ * disagreement with it.
  *
  * ---
  *
- * The limits, and where they come from. Every one is a setting, because a
- * shop's overlays are its own and an AUS approval routinely runs past the
- * manual figures below.
+ * The limits, all settings, because a shop's overlays are its own and an AUS
+ * approval routinely runs past the manual figures:
  *
- *   VA    35 / 45. VA has no hard ratio of its own — it underwrites to
- *         residual income, with 41% back-end as the guideline that triggers
- *         a closer look. 35/45 is this floor's working pair.
+ *   VA    35. VA has no hard ratio of its own — it underwrites to residual
+ *         income — so this is the floor's working number.
+ *   FHA   35. FHA's manual housing ratio is 31, stretching to 37 with two
+ *         compensating factors; 35 sits between them.
+ *   CONV  32. Conventional AUS runs no front-end test at all, so this is an
+ *         overlay rather than an agency rule — the tightest of the three,
+ *         and deliberately so.
+ *   USDA  29, the published figure. Included because the programme is on the
+ *         dropdown, not because this floor writes many.
  *
- *   FHA   35 / 47. FHA's manual limits are 31/43, rising to 37/47 with two
- *         compensating factors; 47 is that stretched back-end, and 35 is
- *         where this floor holds the housing ratio.
- *
- *   CONV  32 / 45. Fannie Mae's standard back-end ceiling, with DU going to
- *         50 on strong reserves and credit. Conventional AUS runs no
- *         front-end test of its own, so 32 is an overlay rather than an
- *         agency rule — the tightest of the three, and deliberately so.
- *
- *   USDA  29 / 41, the published pair. Included because the programme is on
- *         the dropdown, not because this floor writes many.
- *
- * A null limit means "not tested on this programme". The ratio is still
- * shown; it just carries no verdict.
+ * A null limit means the ratio is shown and no verdict is passed on it.
  *
  * Pure and DOM-free.
  */
 
 export const DEFAULT_DTI_LIMITS = {
-  VA: { front: 0.35, back: 0.45 },
-  FHA: { front: 0.35, back: 0.47 },
-  CONV: { front: 0.32, back: 0.45 },
-  USDA: { front: 0.29, back: 0.41 },
+  VA: 0.35,
+  FHA: 0.35,
+  CONV: 0.32,
+  USDA: 0.29,
 };
 
 /**
  * Below this, the income figure is almost certainly a yearly one typed into
  * a monthly box. Nobody is buying a house on a payment that is six per cent
  * of what they earn, and the error runs twelve times in the flattering
- * direction, which is the one that gets a file to underwriting and back.
+ * direction — the one that gets a file to underwriting and back.
  */
-const IMPLAUSIBLY_LOW_FRONT = 0.08;
+const IMPLAUSIBLY_LOW = 0.08;
 
 /**
  * @param {object} input
  * @param {number|null} input.piti           the payment, from Easy Qualifier
  * @param {number|null} input.monthlyIncome  gross, per month
- * @param {number|null} input.monthlyDebts   everything else; null is unknown,
- *                                           0 is "none", and they differ
  * @param {string|null} input.program
- * @param {object} [limits]
+ * @param {object} [limits]                  programme -> ratio, or null
  */
 export function computeDti({
-  piti = null, monthlyIncome = null, monthlyDebts = null, program = null,
+  piti = null, monthlyIncome = null, program = null,
 } = {}, limits = DEFAULT_DTI_LIMITS) {
   const table = { ...DEFAULT_DTI_LIMITS, ...(limits ?? {}) };
-  const key = program && table[program] ? program : null;
-  const limit = key ? table[key] : { front: null, back: null };
+  const key = program && table[program] !== undefined ? program : null;
+  const limit = key ? table[key] : null;
 
   const payment = positive(piti);
   const income = positive(monthlyIncome);
-  const debts = nonNegative(monthlyDebts);
 
   const missing = [];
   if (payment == null) missing.push('piti');
   if (income == null) missing.push('monthlyIncome');
 
   const warnings = [];
-  const front = ratio(payment, income, limit.front);
-  const back = debts == null
-    ? blank(limit.back)
-    : ratio(payment == null ? null : payment + debts, income, limit.back);
+  const front = ratio(payment, income, limit);
 
-  if (front.ratio != null && front.ratio < IMPLAUSIBLY_LOW_FRONT) {
+  if (front.ratio != null && front.ratio < IMPLAUSIBLY_LOW) {
     warnings.push({
       level: 'warn',
       text: 'That income looks like a yearly figure in a monthly box — at this '
@@ -99,66 +83,51 @@ export function computeDti({
         + 'monthly.',
     });
   }
-  if (payment != null && income != null && debts == null) {
-    warnings.push({
-      level: 'info',
-      text: 'No monthly debts entered, so there is no back-end ratio. Enter 0 '
-        + 'if there genuinely are none.',
-    });
-  }
 
   return {
     ok: missing.length === 0,
     missing,
     program: key,
-    limits: limit,
+    limit,
     front,
-    back,
+    // The payment that would clear the limit, so a failure comes with the
+    // next sentence of the call rather than just a red number.
+    maxPayment: maxPaymentFor({ monthlyIncome: income, limit }),
     warnings,
   };
 }
 
 /**
- * One ratio, judged against its limit.
+ * The ratio, judged against its limit.
  *
  * The comparison is made on the rounded percentage rather than the raw
  * quotient, so the figure on the panel is the figure that decided. A ratio
- * shown as 45.00% against a 45% ceiling has to read as a pass, or the panel
+ * shown as 35.00% against a 35% ceiling has to read as a pass, or the panel
  * is arguing with itself in front of the borrower.
  */
-function ratio(numerator, income, limit) {
-  if (numerator == null || income == null) return blank(limit);
-  const raw = numerator / income;
-  const rounded = Math.round(raw * 10000) / 10000;
+function ratio(payment, income, limit) {
+  if (payment == null || income == null) {
+    return { ratio: null, percent: null, limit: limit ?? null, pass: null, headroom: null };
+  }
+  const rounded = Math.round((payment / income) * 10000) / 10000;
   return {
     ratio: rounded,
-    percent: Math.round(raw * 10000) / 100,
+    percent: Math.round(rounded * 10000) / 100,
     limit: limit ?? null,
     pass: limit == null ? null : rounded <= limit,
     headroom: limit == null ? null : Math.round((limit - rounded) * 10000) / 100,
   };
 }
 
-const blank = (limit) => ({
-  ratio: null, percent: null, limit: limit ?? null, pass: null, headroom: null,
-});
-
-/** The largest payment that still fits a limit, for "what would qualify". */
-export function maxPaymentFor({ monthlyIncome, monthlyDebts = 0, limit }) {
+/** The largest payment that still fits the limit. */
+export function maxPaymentFor({ monthlyIncome, limit }) {
   const income = positive(monthlyIncome);
-  const debts = nonNegative(monthlyDebts) ?? 0;
   if (income == null || !(limit > 0)) return null;
-  return Math.max(0, Math.round((income * limit - debts) * 100) / 100);
+  return Math.round(income * limit * 100) / 100;
 }
 
 function positive(value) {
   if (value == null || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function nonNegative(value) {
-  if (value == null || value === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? n : null;
 }
