@@ -9,9 +9,18 @@
 
 import { formatMoney, formatPercent } from '../lib/money.js';
 import { APPLICATION_FIELDS, CO_BORROWER_FIELDS, KEY_FIELDS } from '../lib/application.js';
-import { missingLabels } from '../lib/eq-fields.js';
 import { PANEL_CSS } from './styles.js';
 import { PANEL_HOST_ID as HOST_ID } from '../lib/constants.js';
+
+/**
+ * What stands in for a figure that has not arrived.
+ *
+ * An em dash at forty-two pixels reads as an error rather than a wait. A
+ * bar the shape of the number that is coming says the same thing without
+ * shouting it, and is what every other application shows while it is still
+ * fetching something.
+ */
+const WAITING = '<span class="waiting-bar"></span>';
 
 /** Matches `--panel-w` in the stylesheet; one column's width. */
 const DEFAULT_WIDTH = 358;
@@ -100,7 +109,7 @@ export class Panel {
       eqNote: q('[data-eq=note]'),
       eqOver: q('[data-eq=over]'),
       eqRows: q('[data-eq=rows]'),
-      eqTaxRow: q('[data-eq=taxrow]'),
+      eqEscrow: q('[data-in=monthlyEscrow]'),
       dtiRows: q('[data-dti=rows]'),
       dtiSrc: q('[data-dti=src]'),
       btnCopyEq: q('[data-act=copy-eq]'),
@@ -150,7 +159,7 @@ export class Panel {
     els.btnClose?.addEventListener('click', () => this.h.onClose?.());
 
     for (const key of ['propertyValue', 'firstLien', 'secondLien', 'program', 'state',
-      'annualPropertyTax', 'piti']) {
+      'piti', 'monthlyEscrow']) {
       const el = this.root.querySelector(`[data-in=${key}]`);
       if (!el) continue;
       const evt = el.tagName === 'SELECT' ? 'change' : 'input';
@@ -507,9 +516,7 @@ export class Panel {
     els.btnPickName?.classList.toggle('picking', picking === 'fullName');
 
     // --- the Easy Qualifier loan amount
-    this.setInput(els.eqTax ?? this.root.querySelector('[data-in=annualPropertyTax]'),
-      state.tax?.source === 'typed' ? String(state.tax.amount) : '', force);
-    this.renderSizing(state.sizing, state.tax);
+    this.renderSizing(state.sizing, state.tax, force);
     this.renderCeiling(state.sizing);
     this.renderDti(state.dti);
 
@@ -631,18 +638,24 @@ export class Panel {
    * the escrow line in particular is the one that gets questioned — so it
    * carries the tax year and the site it was read from.
    */
-  renderSizing(sizing, tax) {
+  renderSizing(sizing, tax, force = false) {
     const { els } = this;
     if (!els.eqFinal) return;
 
-    // Hidden while Zillow is supplying it and nobody has argued with it.
-    if (els.eqTaxRow) els.eqTaxRow.hidden = !!tax && tax.source !== 'typed';
+    // The escrow box shows what was worked out until somebody types over it.
+    const escrow = sizing?.escrowDetail;
+    // Formatted, like every other money figure on the panel. The focus
+    // guard in setInput keeps it from reformatting under someone's cursor
+    // mid-keystroke, and parseMoney takes the dollar sign back off.
+    this.setInput(els.eqEscrow, escrow ? formatMoney(escrow.monthly) : '', force);
+    // No placeholder. An empty box already says "nothing here yet", and a
+    // dash inside one reads as a value somebody entered.
+    els.eqEscrow.classList.toggle('waiting', !escrow);
 
     if (!sizing?.items?.length) {
-      els.eqFinal.textContent = '—';
+      els.eqFinal.innerHTML = WAITING;
       els.eqFinal.className = 'eq-final none';
-      els.eqNote.textContent = 'Needs the payoff, the cash-out and the tax bill.';
-      els.eqRows.textContent = '';
+      els.eqNote.textContent = '';
       return;
     }
 
@@ -651,19 +664,13 @@ export class Panel {
     // same way — but reading them back at an agent who set the constants
     // once in Settings was six rows saying the same thing every call. The
     // full working is still a keystroke away on Copy.
-    // The figure, and nothing about how it was reached. The derivation was
-    // the same sentence on every call and the constants behind it are set
-    // once in Settings; it is still on the clipboard under Copy.
-    const escrow = sizing.escrowDetail;
-    els.eqRows.innerHTML = '<div class="eq-row">'
-      + '<span>Monthly escrow</span>'
-      + `<b class="${escrow ? '' : 'gap'}">${escrow ? formatMoney(escrow.monthly) : '&mdash;'}</b>`
-      + '</div>';
-
     if (sizing.finalLoan == null) {
-      els.eqFinal.textContent = '—';
+      // No sentence listing what is missing. Every empty box on the card is
+      // already saying it, and the sentence was three lines of the panel
+      // repeating them back.
+      els.eqFinal.innerHTML = WAITING;
       els.eqFinal.className = 'eq-final none';
-      els.eqNote.textContent = `Waiting on ${missingLabels(sizing.missing)}.`;
+      els.eqNote.textContent = '';
       return;
     }
 
@@ -700,7 +707,7 @@ export class Panel {
 
     if (!dti || dti.front.percent == null) {
       els.dtiRows.innerHTML = '<div class="dti-cap">Front-end DTI</div>'
-        + '<div class="dti-row idle"><b>&mdash;</b></div>';
+        + `<div class="dti-row idle"><b>${WAITING}</b></div>`;
       return;
     }
 
@@ -851,6 +858,15 @@ function clamp(n, lo, hi) {
 }
 
 /** The itemised costs, as hover text on the figure they came out of. */
+/**
+ * What stands in for a figure that has not arrived.
+ *
+ * An em dash at forty-two pixels reads as an error rather than a wait. A
+ * bar the shape of the number that is coming says the same thing without
+ * shouting it, and matches what every other application does while it is
+ * still loading something.
+ */
+
 /**
  * The ratio, the limit it was judged by, and what to do about it.
  *
@@ -1016,18 +1032,15 @@ const TEMPLATE = `
       escrow line move as they type.
     -->
     <!--
-      Only on screen when it is wanted. Zillow supplies this on almost every
-      file, and a labelled input sitting there restating a figure nobody has
-      to touch was a row of furniture between the loan amount and the
-      escrow. It comes back the moment the tax is missing or has been
-      corrected by hand.
+      The monthly escrow is both the figure and the way to correct it. The
+      property-tax box that used to sit above this was a second field for
+      one number, and a page whose tax history cannot be read needed some
+      way out other than giving up on the loan amount entirely.
     -->
-    <label class="eq-tax" data-eq="taxrow" hidden>
-      <span>Property tax, a year</span>
-      <input type="text" data-in="annualPropertyTax" placeholder="0" inputmode="decimal" />
+    <label class="eq-line">
+      <span>Monthly escrow</span>
+      <input type="text" class="eq-val" data-in="monthlyEscrow" inputmode="decimal" />
     </label>
-
-    <div class="eq-rows" data-eq="rows"></div>
 
     <!--
       The rest of Easy Qualifier's fields used to be listed here, under EQ's

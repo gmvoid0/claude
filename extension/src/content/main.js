@@ -76,7 +76,8 @@ const state = {
   detected: {},          // fieldKey -> { raw, label, source }
   manual: {},            // fieldKey -> raw string typed by the agent
   overrides: {
-    closingCosts: '', ltvOverride: '', loanLimit: '', annualPropertyTax: '', piti: '',
+    closingCosts: '', ltvOverride: '', loanLimit: '', annualPropertyTax: '',
+    piti: '', monthlyEscrow: '',
     feeExempt: false, subsequentUse: true, financeFee: true,
     valueIsAvm: false,
   },
@@ -260,6 +261,7 @@ function overridesFromPrefs(prefs = {}) {
     // is this file's payment, and neither must survive into the next call.
     annualPropertyTax: '',
     piti: '',
+    monthlyEscrow: '',
     ltvOverride: prefs.ltvOverride ?? '',
     loanLimit: prefs.loanLimit ?? '',
     financeFee: prefs.financeFee !== false,
@@ -415,7 +417,9 @@ async function activate() {
         // off, so they live with the per-call overrides and clear with the
         // record. The PITI in particular is last call's answer to a
         // different question.
-        if (field === 'annualPropertyTax' || field === 'piti') state.overrides[field] = value;
+        if (['annualPropertyTax', 'piti', 'monthlyEscrow'].includes(field)) {
+          state.overrides[field] = value;
+        }
         else state.manual[field] = value;
         recompute();
       },
@@ -852,6 +856,7 @@ function recompute({ forceInputs = false } = {}) {
   // the LTV ceiling, because the borrower's ask is what is being priced.
   const sizing = sizeLoan({
     annualPropertyTax: annualPropertyTax(external),
+    monthlyEscrow: parseMoney(state.overrides.monthlyEscrow),
     payoff: parseMoney(application.balance?.value) ?? inputs.firstLien.num,
     cashOut: parseMoney(application.cashOut?.value),
     secondLien: inputs.secondLien.num,
@@ -1240,6 +1245,7 @@ function estimateClosing(inputs) {
       annualPropertyTax: annualPropertyTax(state.externalValue),
       // Read straight off what the agent typed: the cash-out box is never
       // auto-filled, so this does not need the built application.
+      monthlyEscrow: parseMoney(state.overrides.monthlyEscrow),
       cashOut: parseMoney(state.app.cashOut),
       program: inputs?.program?.normalized ?? null,
     }, state.rules?.sizing),

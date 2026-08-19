@@ -1646,11 +1646,9 @@ test('the loan amount is built from the application and the tax bill', { skip },
 
       const read = () => ({
         final: root.querySelector('[data-eq=final]').textContent.trim(),
+        waiting: !!root.querySelector('[data-eq=final] .waiting-bar'),
         note: root.querySelector('[data-eq=note]').textContent.trim(),
-        rows: [...root.querySelectorAll('.eq-row')]
-          .map((row) => row.textContent.replace(/\s+/g, ' ').trim()),
-        why: [...root.querySelectorAll('.eq-why')].map((el) => el.textContent.trim()),
-        taxRowHidden: root.querySelector('[data-eq=taxrow]').hidden,
+        escrow: root.querySelector('[data-in=monthlyEscrow]').value,
       });
 
       const before = read();
@@ -1661,31 +1659,25 @@ test('the loan amount is built from the application and the tax bill', { skip },
       await settle();
       const noTax = read();
 
-      type('[data-in=annualPropertyTax]', '1733');
+      // The escrow box is both the figure and the way to set it — the
+      // property-tax field came off the panel.
+      type('[data-in=monthlyEscrow]', '227.75');
       await settle();
       return { before, noTax, after: read() };
     });
 
-    // Nothing invented while a line is still missing.
-    assert.equal(out.noTax.final, '—', 'no loan amount without the tax bill');
-    assert.match(out.noTax.note, /property tax/i, 'and it says which line is holding it up');
+    // Nothing invented while a line is still missing — and it waits rather
+    // than showing an em dash the size of the figure it is waiting for.
+    assert.equal(out.noTax.waiting, true, 'no loan amount without an escrow');
+    assert.equal(out.noTax.escrow, '', 'and the escrow box is empty, not zero');
+    assert.equal(out.noTax.note, '', 'no sentence listing what every empty box already says');
 
     // 1,366.50 escrow + 1,500 title + 270,900 payoff + 96,000 cash
-    // + 700 appraisal + 2,000 underwriting = 372,466.50, x 1.035.
+    // + 700 appraisal + 2,000 underwriting = 372,466.50, x 1.035. All six
+    // charges are still in there; only the display of the working went.
     assert.equal(out.after.final, '$385,503');
     assert.match(out.after.note, /Loan Amount/i);
-
-    // One line under the loan amount, the monthly figure, and nothing about
-    // how it was reached — the derivation was the same sentence every call.
-    const rows = out.after.rows.join(' | ');
-    assert.equal(out.after.rows.length, 1, 'the itemisation is off the panel');
-    assert.match(rows, /Monthly escrow\$228/);
-    assert.deepEqual(out.after.why, [], 'and the working is not restated on screen');
-
-    // The loan amount is still built from all six charges, grossed up —
-    // 1,366.50 + 1,500 + 270,900 + 96,000 + 700 + 2,000, x 1.035. Only the
-    // display of the working went away.
-    assert.equal(out.after.final, '$385,503');
+    assert.equal(out.after.escrow, '$228', 'and the escrow box holds the figure');
   } finally {
     await page.close();
   }
@@ -1710,6 +1702,7 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
       };
       const settle = () => new Promise((r) => setTimeout(r, 60));
       const read = () => ({
+        waiting: !!root.querySelector('.dti-row .waiting-bar'),
         rows: [...root.querySelectorAll('.dti-row')].map((row) => ({
           value: row.querySelector('b').textContent.trim(),
           pill: row.querySelector('.dti-pill')?.textContent.trim() ?? null,
@@ -1735,7 +1728,7 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
       return { before, noPiti, va, conv: read() };
     });
 
-    assert.equal(out.noPiti.rows[0].value, '—', 'a dash rather than a paragraph of instructions');
+    assert.equal(out.noPiti.waiting, true, 'a quiet bar rather than a paragraph of instructions');
 
     // 2,417.19 / 7,400 = 32.66%, which clears VA's 35.
     assert.equal(out.va.rows.length, 1, 'front-end only');
@@ -1780,7 +1773,7 @@ test('a loan sized past the programme cap says so on the panel', { skip }, async
 
       type('[data-in=propertyValue]', '400000');
       await settle();
-      type('[data-in=annualPropertyTax]', '1733');
+      type('[data-in=monthlyEscrow]', '227.75');
       await settle();
       type('[data-app-field=balance]', '270900');
       await settle();
@@ -2017,6 +2010,83 @@ test('a tax history Zillow has not mounted yet is scrolled into existence', { sk
     assert.equal(after.tax.annualTax, 5228, 'the newest year, once it exists');
     assert.equal(after.tax.year, 2024);
     assert.equal(after.scrollY, 0, 'and the page is left where it was found');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the stylesheet is one template literal and nothing closes it early', async () => {
+  // This has cost a whole afternoon once already: a backtick in a comment
+  // ends PANEL_CSS, and the panel then fails to mount at all — mid-call,
+  // for the sake of a punctuation mark in a note to a future reader.
+  const source = await fs.readFile(
+    path.join(ROOT, 'extension/src/content/styles.js'), 'utf8',
+  );
+  const body = source.slice(source.indexOf('export const PANEL_CSS'));
+  const opening = body.indexOf('`');
+  const closing = body.indexOf('`', opening + 1);
+
+  assert.ok(opening > 0, 'the stylesheet is a template literal');
+  // The first backtick after the opening one has to be the closing one, and
+  // a semicolon has to follow it. A stray backtick in a comment ends the
+  // literal early and everything after it becomes broken JavaScript.
+  assert.equal(
+    body.slice(closing, closing + 2), '`;',
+    'something inside PANEL_CSS closed it early — look for a backtick in a comment',
+  );
+
+  // And it still parses as a stylesheet the browser will accept.
+  const { PANEL_CSS } = await import('../extension/src/content/styles.js');
+  assert.ok(PANEL_CSS.includes('.eq-final'), 'the whole sheet is there');
+  assert.equal((PANEL_CSS.match(/\{/g) ?? []).length, (PANEL_CSS.match(/\}/g) ?? []).length,
+    'braces are balanced');
+});
+
+test('the escrow figure is the field, and typing over it moves the loan amount', { skip }, async () => {
+  // The property-tax box came off the panel, so this is the only way to
+  // correct an escrow — and a listing whose tax history cannot be read
+  // would otherwise have no escrow, no loan amount and no way forward.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const type = (sel, value) => {
+        const el = root.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const settle = () => new Promise((r) => setTimeout(r, 60));
+      const final = () => root.querySelector('[data-eq=final]').textContent.trim();
+
+      type('[data-in=propertyValue]', '400000');
+      await settle();
+      type('[data-app-field=balance]', '270900');
+      await settle();
+      type('[data-app-field=cashOut]', '96000');
+      await settle();
+      type('[data-in=monthlyEscrow]', '228');
+      await settle();
+      const at228 = final();
+
+      type('[data-in=monthlyEscrow]', '400');
+      await settle();
+      const at400 = final();
+
+      // A dollar sign on the way in is taken back off.
+      type('[data-in=monthlyEscrow]', '$400');
+      await settle();
+      return { at228, at400, withSign: final() };
+    });
+
+    // 228 x 6 = 1,368 of escrow against 400 x 6 = 2,400: 1,032 more, which
+    // grosses up by 1.035 to 1,068.
+    assert.equal(out.at228, '$385,504');
+    assert.equal(out.at400, '$386,573');
+    assert.equal(386573 - 385504, 1069, 'the rounded pair differ by the grossed-up gap');
+    assert.equal(out.withSign, out.at400, 'a typed dollar sign changes nothing');
   } finally {
     await page.close();
   }

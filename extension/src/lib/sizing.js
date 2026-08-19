@@ -75,6 +75,7 @@ export function sizeLoan({
   cashOut = null,
   secondLien = null,
   program = null,
+  monthlyEscrow = null,
 } = {}, rules = DEFAULT_SIZING) {
   const r = { ...DEFAULT_SIZING, ...(rules ?? {}) };
 
@@ -84,11 +85,11 @@ export function sizeLoan({
   const cash = money(cashOut);
 
   const missing = [];
-  if (tax == null) missing.push('annualPropertyTax');
+  if (tax == null && money(monthlyEscrow) == null) missing.push('annualPropertyTax');
   if (first == null) missing.push('payoff');
   if (cash == null) missing.push('cashOut');
 
-  const charges = closingCharges({ annualPropertyTax, cashOut, program }, r);
+  const charges = closingCharges({ annualPropertyTax, monthlyEscrow, cashOut, program }, r);
   const irrrl = charges.irrrl;
   const charge = (id) => charges.items.find((i) => i.id === id);
 
@@ -157,10 +158,11 @@ export function sizeLoan({
  * the model this replaced, it needs no second pass to settle.
  */
 export function closingCharges({
-  annualPropertyTax = null, cashOut = null, program = null,
+  annualPropertyTax = null, monthlyEscrow = null, cashOut = null, program = null,
 } = {}, rules = DEFAULT_SIZING) {
   const r = { ...DEFAULT_SIZING, ...(rules ?? {}) };
   const tax = money(annualPropertyTax);
+  const typedMonthly = money(monthlyEscrow);
   const cash = money(cashOut);
 
   const items = [];
@@ -171,13 +173,20 @@ export function closingCharges({
       : { id, label, amount: round2(amount), note },
   );
 
+  // A monthly figure typed by hand wins. It is the one number an agent
+  // actually looks at here, and without it a property whose tax history
+  // cannot be read has no escrow, no loan amount and no way to proceed.
   const months = Number.isFinite(r.escrowMonths) ? r.escrowMonths : 6;
-  const annualEscrowed = tax == null ? null : tax + (r.insuranceAllowance ?? 0);
+  const derived = tax == null ? null : tax + (r.insuranceAllowance ?? 0);
+  const annualEscrowed = typedMonthly != null ? typedMonthly * 12 : derived;
+
   add('escrow', `Escrows, ${months} months`,
     annualEscrowed == null ? null : (annualEscrowed * months) / 12,
-    tax == null
+    annualEscrowed == null
       ? 'needs the property tax from Zillow'
-      : `${fmt(tax)} tax + ${fmt(r.insuranceAllowance ?? 0)} insurance, ${months} of 12 months`);
+      : typedMonthly != null
+        ? `${fmt(typedMonthly)} a month, entered by hand`
+        : `${fmt(tax)} tax + ${fmt(r.insuranceAllowance ?? 0)} insurance, ${months} of 12 months`);
 
   add('title', 'Title fees', r.titleFees);
 
@@ -193,7 +202,7 @@ export function closingCharges({
 
   add('underwriting', 'Underwriting', r.underwriting);
 
-  if (tax == null) {
+  if (annualEscrowed == null) {
     warnings.push({
       level: 'warn',
       text: 'No property tax read yet, so the escrow line is missing and real '
@@ -206,11 +215,12 @@ export function closingCharges({
     irrrl,
     items,
     warnings,
-    escrowDetail: tax == null ? null : {
-      annualPropertyTax: round2(tax),
+    escrowDetail: annualEscrowed == null ? null : {
+      annualPropertyTax: tax == null ? null : round2(tax),
       insuranceAllowance: round2(r.insuranceAllowance ?? 0),
       annualEscrowed: round2(annualEscrowed),
       months,
+      typed: typedMonthly != null,
       // What the borrower actually pays each month toward taxes and
       // insurance, which is the part of PITI this method knows. The six
       // months collected at closing is the same figure times six.

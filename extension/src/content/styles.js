@@ -1009,6 +1009,24 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
   color: var(--green-deep);
 }
 .eq-final.none { color: var(--label-3); font-weight: 600; font-size: 30px; }
+
+/* Standing in for a figure that has not arrived. A bar the shape of the
+   number that is coming, rather than an em dash at display size — which
+   read as something having gone wrong rather than something being waited
+   for. */
+.waiting-bar {
+  display: inline-block;
+  width: 2.6em; height: 0.5em;
+  vertical-align: 0.12em;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  opacity: .17;
+  animation: waiting 1.9s ease-in-out infinite;
+}
+@keyframes waiting { 0%, 100% { opacity: .13; } 50% { opacity: .26; } }
+@media (prefers-reduced-motion: reduce) {
+  .waiting-bar { animation: none; }
+}
 .eq-note { font-size: 12px; color: var(--label-2); margin-top: 5px; }
 
 /* The loan is larger than the programme will write. Loud, because the two
@@ -1025,20 +1043,48 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 
 /* The working. A grouped inset list, the way the rest of the panel does
    lists, rather than a run of loose rows. */
-/* A result, not a field. It sat on a white ground and read as another
-   input box directly under the one above it. */
-.eq-rows { margin-top: 12px; }
-.eq-row {
+/* A figure that happens to be editable. It looks like the result it is
+   until someone puts a cursor in it, because a second labelled input box
+   for one number was the thing that made this card feel like a form. */
+.eq-line {
   display: flex; align-items: baseline; gap: 10px;
+  margin-top: 13px;
   font-size: 12.5px; font-weight: 600;
   color: var(--label-2);
 }
-.eq-row > span { flex: 1; min-width: 0; }
-.eq-row > b {
-  font-size: 18px; font-weight: 700; color: var(--label);
+.eq-line > span { flex: 1; min-width: 0; white-space: nowrap; }
+/* Two classes deep on purpose. The input[type=text] width rule further up
+   is an attribute selector and outranks a single class, so a bare .eq-val
+   lost its width: the box took the whole row and the label beside it
+   wrapped onto two lines underneath it. (No backticks in this file — it is
+   one template literal, and one of them ends it.) */
+.eq-line .eq-val {
+  all: unset;
+  box-sizing: border-box;
+  flex: none;
+  width: 104px; padding: 2px 6px;
+  text-align: right;
+  font-family: inherit;
+  font-size: 18px; font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: var(--label);
+  border-radius: 7px;
+  border: 0.5px solid transparent;
+  cursor: text;
 }
-.eq-row > b.gap { color: var(--label-3); font-weight: 600; }
+.eq-line .eq-val:hover { background: var(--fill); }
+.eq-line .eq-val:focus {
+  background: var(--card-solid);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(0,122,255,.18);
+}
+.eq-line .eq-val::placeholder { color: var(--label-3); font-weight: 600; }
+/* Empty, it has to look like a box somebody can type in. Transparent with
+   nothing in it read as no field at all. */
+.eq-line .eq-val.waiting {
+  background: var(--card-solid);
+  border-color: var(--hairline);
+}
 .eq-row span { flex: 1; min-width: 0; }
 .eq-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .eq-row.gap { color: var(--orange-deep); }

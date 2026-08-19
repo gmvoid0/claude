@@ -22,6 +22,7 @@ test('escrows are half a year of tax plus a thousand for insurance', () => {
     insuranceAllowance: 1000,
     annualEscrowed: 2733,
     months: 6,
+    typed: false,
     // What the panel shows. The loan amount still uses six months of it.
     monthly: 227.75,
   });
@@ -108,6 +109,29 @@ test('only VA turns a no-cash refinance into a streamline', () => {
     assert.equal(r.irrrl, false, String(program));
     assert.equal(item(r, 'appraisal').amount, 700, String(program));
   }
+});
+
+test('a monthly escrow typed by hand wins, and rescues a file Zillow cannot read', () => {
+  // The property-tax box came off the panel, so this is the only way to
+  // correct the escrow — and without it a listing whose tax history cannot
+  // be read has no escrow, no loan amount and no way to proceed.
+  const typed = sizeLoan({
+    monthlyEscrow: 400, payoff: 270900, cashOut: 96000, program: 'VA',
+  });
+
+  assert.equal(typed.ok, true, 'no property tax needed once it is entered');
+  assert.equal(item(typed, 'escrow').amount, 2400, '400 a month, six months in');
+  assert.match(item(typed, 'escrow').note, /entered by hand/);
+  assert.equal(typed.escrowDetail.monthly, 400);
+  assert.equal(typed.escrowDetail.typed, true);
+  assert.equal(typed.finalLoanRounded, 386573);
+
+  // And it overrides a tax that was read, rather than being ignored.
+  const both = sizeLoan({
+    annualPropertyTax: 1733, monthlyEscrow: 400,
+    payoff: 270900, cashOut: 96000, program: 'VA',
+  });
+  assert.equal(both.escrowDetail.monthly, 400);
 });
 
 test('a missing input produces no loan amount at all', () => {
