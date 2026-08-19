@@ -73,9 +73,6 @@ function renderPrefs() {
   $('miniBrowser').checked = prefs.miniBrowser !== false;
   $('miniBrowserAuto').checked = prefs.miniBrowserAuto !== false;
   $('readValuationSites').checked = prefs.readValuationSites !== false;
-  $('loanOfficer').value = prefs.loanOfficer ?? '';
-  $('transferAgent').value = prefs.transferAgent ?? '';
-  $('loanOfficerAssistant').value = prefs.loanOfficerAssistant ?? '';
   $('autoLookup').checked = !!prefs.autoLookup;
   $('ltvOverride').value = prefs.ltvOverride ?? '';
   $('loanLimit').value = prefs.loanLimit ?? '';
@@ -191,9 +188,11 @@ async function save() {
     miniBrowser: $('miniBrowser').checked,
     miniBrowserAuto: $('miniBrowserAuto').checked,
     readValuationSites: $('readValuationSites').checked,
-    loanOfficer: $('loanOfficer').value.trim(),
-    transferAgent: $('transferAgent').value.trim(),
-    loanOfficerAssistant: $('loanOfficerAssistant').value.trim(),
+    // The Salesforce handoff is off; its stored names are carried through
+    // untouched so a shop that had set them does not lose them.
+    loanOfficer: prefs.loanOfficer ?? '',
+    transferAgent: prefs.transferAgent ?? '',
+    loanOfficerAssistant: prefs.loanOfficerAssistant ?? '',
     autoLookup: $('autoLookup').checked,
     ltvOverride: $('ltvOverride').value.trim(),
     loanLimit: $('loanLimit').value.trim(),

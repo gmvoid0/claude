@@ -959,122 +959,172 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 }
 
 /* What the switches above actually charge. An output, not a control. */
-/* --- Easy Qualifier loan amount ------------------------------------- *
-   The output block. Given more visual weight than the inputs around it
-   because it is the thing being produced: an agent scanning this panel
-   mid-call should land on the loan amount without hunting for it. */
+/* --- Easy Qualifier -------------------------------------------------- *
+   The output half of the panel, and the reason the tool exists. It gets the
+   weight: the loan amount is set at display size against a quiet ground so
+   an agent glancing over mid-sentence lands on it without hunting, and
+   everything under it is deliberately smaller than the answer it explains.
+   Sizes here run a little larger than the rest of the panel — this is the
+   part that gets read out loud on a call. */
 .eq {
   margin: 12px 0 0;
-  padding: 12px;
-  border-radius: var(--r-field);
-  background: var(--fill);
-  border: 0.5px solid var(--separator);
+  padding: 15px 14px 14px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  border: 0.5px solid var(--hairline);
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
 }
-.eq-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.eq-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
 .eq-cap {
   flex: 1; min-width: 0;
-  font-size: 10.5px; font-weight: 600;
-  letter-spacing: .07em; text-transform: uppercase;
-  color: var(--label-2);
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: .09em; text-transform: uppercase;
+  color: var(--label-3);
 }
-.btn.tiny { padding: 4px 10px; font-size: 11px; width: auto; }
+.btn.tiny { padding: 5px 12px; font-size: 11.5px; width: auto; }
 
 .eq-final {
-  font-size: 30px; font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 38px; font-weight: 700;
+  letter-spacing: -0.028em;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: 1.02;
   color: var(--green-deep);
 }
-.eq-final.none { color: var(--label-3); font-weight: 600; }
-.eq-note { font-size: 11.5px; color: var(--label-2); margin-top: 3px; }
+.eq-final.none { color: var(--label-3); font-weight: 600; font-size: 30px; }
+.eq-note { font-size: 12px; color: var(--label-2); margin-top: 5px; }
+
 /* The loan is larger than the programme will write. Loud, because the two
    halves of this panel are disagreeing and the agent must not be the one
    who has to notice. */
 .eq-over {
-  margin-top: 8px; padding: 8px 10px;
+  margin-top: 10px; padding: 9px 11px;
   border-radius: var(--r-field);
   background: rgba(255,59,48,.12);
-  color: var(--red-deep, var(--red));
-  font-size: 11.5px; line-height: 1.4;
+  color: var(--red-deep);
+  font-size: 12px; line-height: 1.4;
 }
 .eq-over:empty { display: none; }
 
-.eq-rows { margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--separator); }
+/* The working. A grouped inset list, the way the rest of the panel does
+   lists, rather than a run of loose rows. */
+.eq-rows {
+  margin-top: 11px;
+  border-radius: var(--r-field);
+  background: var(--fill);
+  padding: 3px 11px;
+}
+.eq-rg { border-bottom: 0.5px solid var(--separator); padding: 6px 0; }
+.eq-rg:last-child { border-bottom: none; }
 .eq-row {
-  display: flex; align-items: baseline; gap: 8px;
-  font-size: 12px;
-  padding: 3px 0;
+  display: flex; align-items: baseline; gap: 10px;
+  font-size: 12.5px;
   color: var(--label);
 }
 .eq-row span { flex: 1; min-width: 0; }
 .eq-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .eq-row.gap { color: var(--orange-deep); }
-.eq-row.sum { border-top: 0.5px solid var(--separator); margin-top: 4px; padding-top: 6px; }
-.eq-row.total { font-weight: 600; color: var(--green-deep); }
+.eq-row.sum { padding-top: 2px; }
+.eq-row.total { font-weight: 700; color: var(--green-deep); }
 .eq-row.total b { font-weight: 700; }
-.eq-why { font-size: 10.5px; color: var(--label-3); margin: -2px 0 4px; }
-
-/* The rest of EQ's form. Denser than the loan-amount working above it:
-   this is a reference list to read down, not a calculation to follow. */
-.eq-map {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 0.5px solid var(--separator);
+.eq-why {
+  font-size: 10.5px; color: var(--label-3);
+  margin-top: 2px; line-height: 1.35;
 }
+
+/* --- the rest of EQ's form ------------------------------------------- */
+.eq-map { margin-top: 13px; }
+/* The rule belongs to the field, not the row: a note is part of the field
+   above it, and a border between the two read as text struck through. */
+.eq-fg { border-bottom: 0.5px solid var(--separator); padding: 5px 0; }
+.eq-fg:last-of-type { border-bottom: none; }
 .eq-f {
-  display: flex; align-items: baseline; gap: 8px;
-  font-size: 12px; padding: 2px 0;
+  display: flex; align-items: baseline; gap: 10px;
+  font-size: 12.5px;
 }
 .eq-fn { flex: 1; min-width: 0; color: var(--label-2); }
-.eq-fn em { font-style: normal; color: var(--red); margin-left: 2px; }
+.eq-fn em { font-style: normal; color: var(--red); margin: 0 1px 0 2px; }
 .eq-fv {
   font-weight: 600; color: var(--label);
   font-variant-numeric: tabular-nums;
-  text-align: right; max-width: 58%;
+  text-align: right; max-width: 60%;
   overflow-wrap: anywhere;
 }
 .eq-f.gap .eq-fv { color: var(--label-3); font-weight: 500; }
 .eq-f.need .eq-fv { color: var(--orange-deep); }
-.eq-fm { font-size: 10px; color: var(--label-3); margin: -1px 0 4px; }
-.eq-fm .k {
-  font-style: normal; font-weight: 600;
-  padding: 1px 5px; border-radius: 4px; margin-right: 5px;
+.eq-fm {
+  font-size: 10.5px; color: var(--label-3);
+  margin-top: 2px; padding-left: 13px; line-height: 1.35;
 }
-.eq-fm .k.calc { background: rgba(48,209,88,.16); color: var(--green-deep); }
-.eq-fm .k.asm  { background: rgba(255,149,0,.14); color: var(--orange-deep); }
-.eq-fm .k.chk  { background: var(--fill-2, rgba(120,120,128,.14)); color: var(--label-2); }
+
+/* A dot, not a badge. Seven pill-shaped labels down a fifteen-row list
+   turned the sheet into something to decode instead of read, so the
+   meaning moved to a legend that is stated once. */
+.mk {
+  display: inline-block;
+  width: 6px; height: 6px; border-radius: 50%;
+  margin-right: 7px; vertical-align: 1px;
+  background: var(--label-3);
+}
+.mk.calc { background: var(--green); }
+.mk.asm  { background: var(--orange); }
+.mk.chk {
+  width: auto; height: auto; border-radius: 0; background: none;
+  margin: 0 0 0 4px; vertical-align: baseline;
+  font-style: normal; font-weight: 700; font-size: 11px;
+  color: var(--label-3); cursor: help;
+}
+.eq-key {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  margin-top: 10px; padding-top: 9px;
+  border-top: 0.5px solid var(--separator);
+  font-size: 10.5px; color: var(--label-3);
+}
+.eq-key .mk { margin-right: 5px; }
 
 /* --- debt-to-income --------------------------------------------------- */
-.dti { margin-top: 12px; padding-top: 10px; border-top: 0.5px solid var(--separator); }
-.dti-rows { margin-top: 8px; }
+.dti { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--separator); }
+.dti-rows { margin-top: 9px; }
 .dti-row {
-  display: flex; align-items: baseline; gap: 8px;
-  font-size: 12px; padding: 4px 0;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 9px;
 }
-.dti-row span { width: 74px; flex: none; color: var(--label-2); }
 .dti-row b {
-  width: 62px; flex: none; text-align: right;
-  font-weight: 700; font-size: 14px;
+  font-size: 27px; font-weight: 700;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  line-height: 1.05;
 }
-.dti-row i { flex: 1; min-width: 0; font-style: normal; font-size: 10.5px; color: var(--label-3); }
+.dti-row b small { font-size: 15px; font-weight: 600; margin-left: 1px; }
+.dti-row i {
+  flex: 0 0 100%; order: 3;
+  font-style: normal; font-size: 11px; color: var(--label-3);
+  margin-top: 3px; line-height: 1.35;
+}
+.dti-pill {
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: var(--r-pill);
+}
 .dti-row.ok b { color: var(--green-deep); }
-.dti-row.no b { color: var(--red); }
+.dti-row.ok .dti-pill { background: rgba(52,199,89,.16); color: var(--green-deep); }
+.dti-row.no b { color: var(--red-deep); }
+.dti-row.no .dti-pill { background: rgba(255,59,48,.13); color: var(--red-deep); }
 .dti-row.none b, .dti-row.idle b { color: var(--label-3); }
-.dti-none { font-size: 11.5px; color: var(--label-3); padding: 4px 0; }
-.dti-warn { font-size: 10.5px; color: var(--label-3); margin-top: 6px; line-height: 1.4; }
+.dti-none { font-size: 12px; color: var(--label-3); padding: 4px 0; line-height: 1.4; }
+.dti-warn { font-size: 11px; color: var(--label-3); margin-top: 8px; line-height: 1.4; }
 .dti-warn.hot { color: var(--orange-deep); }
 
-.eq-tax { display: block; margin: 12px 0 4px; }
+.eq-tax { display: block; margin: 13px 0 4px; }
 .eq-tax span {
   display: block;
-  font-size: 10.5px; font-weight: 600;
-  letter-spacing: .06em; text-transform: uppercase;
-  color: var(--label-2);
-  margin-bottom: 4px;
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--label-3);
+  margin-bottom: 5px;
 }
-.eq-tax i { font-style: normal; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--label-3); }
+.eq-tax i {
+  font-style: normal; font-weight: 500;
+  text-transform: none; letter-spacing: 0; color: var(--label-3);
+}
 .eq-tax input { width: 100%; }
 
 /* The all-in cost of closing, under the two headline figures. Sized to be

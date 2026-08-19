@@ -1742,12 +1742,12 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
 
       const rows = {};
       for (const row of root.querySelectorAll('.eq-f')) {
-        rows[row.querySelector('.eq-fn').textContent.replace('*', '').trim()] =
+        rows[row.querySelector('.eq-fn').textContent.replace(/[*?]/g, '').trim()] =
           row.querySelector('.eq-fv').textContent.trim();
       }
       return {
         rows,
-        marks: [...root.querySelectorAll('.eq-fm .k')].map((el) => el.textContent.trim()),
+        marks: [...root.querySelectorAll('.eq-f .mk')].map((el) => el.className.replace('mk', '').trim()),
         needs: [...root.querySelectorAll('.eq-f.need .eq-fn')].map((el) => el.textContent.trim()),
       };
     });
@@ -1778,8 +1778,8 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
 
     // The three kinds are told apart, because they are not equally
     // trustworthy and the agent is the one who has to defend them.
-    assert.ok(out.marks.includes('calculated'), 'the loan amount is marked as worked out');
-    assert.ok(out.marks.includes('assumed'), 'and the standing choices as assumptions');
+    assert.ok(out.marks.includes('calc'), 'the loan amount is marked as worked out');
+    assert.ok(out.marks.includes('asm'), 'and the standing choices as assumptions');
 
     // Nothing required is left empty on this file.
     assert.deepEqual(out.needs, [], `required gaps: ${JSON.stringify(out.needs)}`);
@@ -1807,8 +1807,8 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
       const settle = () => new Promise((r) => setTimeout(r, 60));
       const read = () => ({
         rows: [...root.querySelectorAll('.dti-row')].map((row) => ({
-          label: row.querySelector('span').textContent.trim(),
           value: row.querySelector('b').textContent.trim(),
+          pill: row.querySelector('.dti-pill')?.textContent.trim() ?? null,
           note: row.querySelector('i').textContent.trim(),
           verdict: row.className.replace('dti-row', '').trim(),
         })),
@@ -1837,8 +1837,8 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
     // 2,417.19 / 7,400 = 32.66%, which clears VA's 35.
     assert.equal(out.va.rows.length, 1, 'front-end only');
     const [front] = out.va.rows;
-    assert.equal(front.label, 'Front-end');
     assert.equal(front.value, '32.66%');
+    assert.equal(front.pill, 'Qualifies');
     assert.equal(front.verdict, 'ok');
     assert.match(front.note, /under 35%, 2\.34 pts of room/);
     assert.match(out.va.src, /VA — 35% front-end/);
@@ -1846,6 +1846,7 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
     // Conventional holds it at 32, so the same file flips — and the red
     // number comes with the payment that would have worked.
     assert.equal(out.conv.rows[0].value, '32.66%');
+    assert.equal(out.conv.rows[0].pill, 'Over');
     assert.equal(out.conv.rows[0].verdict, 'no');
     assert.match(out.conv.rows[0].note, /over 32% — needs a payment under \$2,368/);
     assert.match(out.conv.src, /CONV — 32% front-end/);
@@ -1931,6 +1932,72 @@ test('the seven fields the answer depends on are picked out', { skip }, async ()
     ]);
     assert.notEqual(out.keyBg, out.plainBg, 'and they sit on a different ground');
     assert.notEqual(out.keyBg, 'rgba(0, 0, 0, 0)');
+  } finally {
+    await page.close();
+  }
+});
+
+test('the settings page saves the fees where the panel reads them', { skip }, async () => {
+  // The quiet failure this guards: a settings page that looks like it saved
+  // and writes the figures under a key nothing reads. Both halves of the
+  // panel now take their charges from rules.sizing, so if this drifts the
+  // whole tool goes on quoting the defaults while the form shows otherwise.
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  try {
+    await page.addInitScript(() => {
+      const store = {};
+      window.chrome = {
+        storage: {
+          local: {
+            async get(k) {
+              const keys = Array.isArray(k) ? k : [k];
+              const out = {};
+              for (const x of keys) if (x in store) out[x] = store[x];
+              return out;
+            },
+            async set(o) { Object.assign(store, o); },
+            async remove() {},
+          },
+          onChanged: { addListener() {} },
+        },
+        runtime: { getURL: (p) => p, onMessage: { addListener() {} }, sendMessage: async () => ({}) },
+      };
+    });
+    await page.goto(`http://127.0.0.1:${port}/extension/src/options/options.html`);
+    await page.waitForFunction(() => document.getElementById('appraisal')?.value, null, { timeout: 8000 });
+
+    // The defaults land on the form.
+    const shown = await page.evaluate(() => ({
+      title: document.getElementById('titleFees').value,
+      appraisal: document.getElementById('appraisal').value,
+      underwriting: document.getElementById('underwriting').value,
+      grossUp: document.getElementById('grossUp').value,
+      insurance: document.getElementById('insuranceAllowance').value,
+      months: document.getElementById('escrowMonths').value,
+      conv: document.getElementById('dtiCONV').value,
+    }));
+    assert.deepEqual(shown, {
+      title: '1500', appraisal: '700', underwriting: '2000',
+      grossUp: '1.035', insurance: '1000', months: '6', conv: '32%',
+    });
+
+    await page.evaluate(() => {
+      document.getElementById('appraisal').value = '850';
+      document.getElementById('dtiCONV').value = '30%';
+    });
+    await page.click('#save');
+    await page.waitForTimeout(300);
+
+    const stored = await page.evaluate(async () => {
+      const { ruleOverrides } = await chrome.storage.local.get('ruleOverrides');
+      return { sizing: ruleOverrides?.sizing, dti: ruleOverrides?.dti };
+    });
+    assert.equal(stored.sizing.appraisal, 850, 'the changed figure');
+    assert.equal(stored.sizing.titleFees, 1500, 'and the ones left alone');
+    assert.equal(stored.sizing.grossUp, 1.035);
+    assert.equal(stored.dti.CONV, 0.30);
+    assert.equal(stored.dti.VA, 0.35);
   } finally {
     await page.close();
   }

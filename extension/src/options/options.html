@@ -159,33 +159,6 @@
     </div>
   </section>
 
-  <section>
-    <h2>Salesforce</h2>
-    <p class="help">
-      Names to search for in the application's lookup fields. Type them exactly
-      as Salesforce shows them — S.A.M searches, and selects only when exactly
-      one record matches. If several people share a name it leaves the field
-      for you rather than guessing.
-    </p>
-    <div class="two-up">
-      <div class="field">
-        <label for="loanOfficer">Loan Officer</label>
-        <input type="text" id="loanOfficer" placeholder="Jane Smith" />
-      </div>
-      <div class="field">
-        <label for="transferAgent">Transfer Agent</label>
-        <input type="text" id="transferAgent" placeholder="Your name" />
-      </div>
-      <div class="field">
-        <label for="loanOfficerAssistant">Loan Officer Assistant</label>
-        <input type="text" id="loanOfficerAssistant" placeholder="Optional" />
-      </div>
-    </div>
-    <p class="help">
-      The Lead lookup is searched using the borrower's name from S.A.M, so it
-      needs no setting here.
-    </p>
-  </section>
 
   <section>
     <h2>Standing assumptions</h2>
@@ -299,7 +272,8 @@
   <section class="fineprint">
     <h2>Limitations you should know about</h2>
     <ul>
-      <li>This models the LTV cap and the financed upfront fee. It does not model DTI, credit, residual income, seasoning, entitlement, occupancy, unit count, county loan limits, or investor overlays.</li>
+      <li>This models the LTV cap, the financed upfront fee, a flat set of closing charges and the front-end debt ratio. It does not model back-end DTI, credit, residual income, seasoning, entitlement, unit count, county loan limits, or investor overlays.</li>
+      <li>Occupancy is assumed to be a primary residence, the property a single-family home, and VA entitlement a subsequent use. Correct them in Easy Qualifier on the files where that is wrong.</li>
       <li>Auto-detection reads labels off the page. If a page changes its layout, detection can break — rebind the field by clicking it.</li>
       <li>Values read off a screen are only as good as the data in that screen.</li>
       <li>Output is an estimate for internal screening. It is not a quote, offer, pre-approval, or commitment to lend, and should not be read to a customer as one.</li>

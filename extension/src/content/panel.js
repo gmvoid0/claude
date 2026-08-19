@@ -683,10 +683,14 @@ export class Panel {
 
     const rows = sizing.items.map((item) => {
       const amount = item.amount == null ? '—' : formatMoney(item.amount);
-      return `<div class="eq-row${item.missing ? ' gap' : ''}">`
+      // Same as the field list: the rule belongs to the whole line, note
+      // included, or it draws straight through the working underneath.
+      return '<div class="eq-rg">'
+        + `<div class="eq-row${item.missing ? ' gap' : ''}">`
         + `<span>${escapeHtml(item.label)}</span>`
         + `<b>${amount}</b></div>`
-        + (item.note ? `<div class="eq-why">${escapeHtml(item.note)}</div>` : '');
+        + (item.note ? `<div class="eq-why">${escapeHtml(item.note)}</div>` : '')
+        + '</div>';
     });
 
     if (sizing.subtotal != null) {
@@ -737,24 +741,38 @@ export class Panel {
     if (!els.eqMap) return;
     if (!rows?.length) { els.eqMap.textContent = ''; return; }
 
+    // A dot rather than a word. Seven pill-shaped badges down a fifteen-row
+    // list turned the sheet into something to decode instead of read; the
+    // meaning lives in the legend underneath, once.
     els.eqMap.innerHTML = rows.map((row) => {
       const classes = ['eq-f'];
       if (row.missing) classes.push('gap');
       if (row.required && row.missing) classes.push('need');
 
-      const marks = [];
-      if (row.kind === 'computed') marks.push('<i class="k calc">calculated</i>');
-      if (row.kind === 'assumed') marks.push('<i class="k asm">assumed</i>');
-      if (row.checkList) marks.push('<i class="k chk" title="EQ\'s exact wording is not confirmed">check wording</i>');
+      const mark = row.kind === 'computed'
+        ? '<i class="mk calc" title="Worked out by S.A.M"></i>'
+        : row.kind === 'assumed'
+          ? '<i class="mk asm" title="A standing assumption, not read off anything"></i>'
+          : '';
+      const check = row.checkList
+        ? '<i class="mk chk" title="Easy Qualifier\'s exact wording is not confirmed">?</i>'
+        : '';
 
-      return `<div class="${classes.join(' ')}">`
-        + `<span class="eq-fn">${escapeHtml(row.eq)}${row.required ? '<em>*</em>' : ''}</span>`
+      // Row and note share one bordered group. With the rule on the row
+      // itself the note hung below it and read as text crossed out.
+      return '<div class="eq-fg">'
+        + `<div class="${classes.join(' ')}">`
+        + `<span class="eq-fn">${mark}${escapeHtml(row.eq)}`
+        + `${row.required ? '<em>*</em>' : ''}${check}</span>`
         + `<b class="eq-fv">${row.value ? escapeHtml(row.value) : '&mdash;'}</b>`
-        + `</div>`
-        + (marks.length || row.note
-          ? `<div class="eq-fm">${marks.join('')}${row.note ? escapeHtml(row.note) : ''}</div>`
-          : '');
-    }).join('');
+        + '</div>'
+        + (row.note ? `<div class="eq-fm">${escapeHtml(row.note)}</div>` : '')
+        + '</div>';
+    }).join('') + '<div class="eq-key">'
+      + '<span><i class="mk calc"></i>calculated</span>'
+      + '<span><i class="mk asm"></i>assumed</span>'
+      + '<span><i class="mk chk">?</i>check the wording in EQ</span>'
+      + '</div>';
   }
 
   /**
@@ -945,9 +963,10 @@ function dtiRow(dti) {
       + (dti.maxPayment ? ` — needs a payment under ${formatMoney(dti.maxPayment)}` : '');
   }
 
+  const pill = part.pass == null ? '' : (part.pass ? 'Qualifies' : 'Over');
   return `<div class="dti-row ${verdict}">`
-    + '<span>Front-end</span>'
-    + `<b>${part.percent.toFixed(2)}%</b>`
+    + `<b>${part.percent.toFixed(2)}<small>%</small></b>`
+    + (pill ? `<span class="dti-pill">${pill}</span>` : '')
     + `<i>${escapeHtml(note)}</i></div>`;
 }
 
