@@ -14,7 +14,9 @@
  *   2. Title        $1,500
  *   3. Payoff       the mortgage balance, from the application
  *   4. Cash out     what the borrower is asking for, from the application
- *   5. Appraisal    $700
+ *   5. Appraisal    $700 — except on a VA IRRRL, which has none. A
+ *                   streamline reuses the existing valuation, so charging
+ *                   for one puts $700 on a loan that never orders it.
  *   6. Underwriting $2,000
  *   7. Add 1-6 and multiply by 1.035.
  *
@@ -64,6 +66,7 @@ export const DEFAULT_SIZING = {
  * @param {number|null} input.payoff             Mortgage balance
  * @param {number|null} input.cashOut            What the borrower wants
  * @param {number|null} [input.secondLien]       Rolled into the payoff when present
+ * @param {string|null} [input.program]          VA turns a no-cash refi into an IRRRL
  * @param {object} [rules]
  */
 export function sizeLoan({
@@ -71,6 +74,7 @@ export function sizeLoan({
   payoff = null,
   cashOut = null,
   secondLien = null,
+  program = null,
 } = {}, rules = DEFAULT_SIZING) {
   const r = { ...DEFAULT_SIZING, ...(rules ?? {}) };
 
@@ -93,6 +97,7 @@ export function sizeLoan({
     items.push({ id, label, amount: round2(amount), note });
   };
 
+
   // 1. Escrows.
   const months = Number.isFinite(r.escrowMonths) ? r.escrowMonths : 6;
   const annualEscrowed = tax == null ? null : tax + (r.insuranceAllowance ?? 0);
@@ -107,7 +112,13 @@ export function sizeLoan({
   add('payoff', 'Mortgage payoff', first, first == null ? 'from the application' : undefined);
   if (second > 0) add('secondLien', 'Second lien payoff', second);
   add('cashOut', 'Cash to borrower', cash, cash == null ? 'from the application' : undefined);
-  add('appraisal', 'Appraisal', r.appraisal);
+  // A VA refinance that takes no cash is an IRRRL, and a streamline reuses
+  // the valuation already on the loan. The line stays at zero rather than
+  // disappearing, so the agent can see the charge was dropped on purpose
+  // instead of wondering whether it was forgotten.
+  const irrrl = String(program ?? '').toUpperCase() === 'VA' && !(cash > 0);
+  add('appraisal', 'Appraisal', irrrl ? 0 : r.appraisal,
+    irrrl ? 'waived — an IRRRL reuses the existing valuation' : undefined);
   add('underwriting', 'Underwriting', r.underwriting);
 
   const complete = missing.length === 0;
@@ -127,6 +138,7 @@ export function sizeLoan({
   return {
     ok: complete,
     missing,
+    irrrl,
     items,
     subtotal,
     grossUp,

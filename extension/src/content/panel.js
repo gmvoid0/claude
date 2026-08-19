@@ -100,6 +100,8 @@ export class Panel {
       eqRows: q('[data-eq=rows]'),
       eqTaxSrc: q('[data-eq=taxsrc]'),
       eqMap: q('[data-eq=map]'),
+      dtiRows: q('[data-dti=rows]'),
+      dtiSrc: q('[data-dti=src]'),
       btnCopyEq: q('[data-act=copy-eq]'),
       advertised: q('[data-out=advertised]'),
       verdict: q('[data-out=verdict]'),
@@ -148,7 +150,7 @@ export class Panel {
     els.btnClose?.addEventListener('click', () => this.h.onClose?.());
 
     for (const key of ['propertyValue', 'firstLien', 'secondLien', 'program', 'state',
-      'annualPropertyTax']) {
+      'annualPropertyTax', 'piti']) {
       const el = this.root.querySelector(`[data-in=${key}]`);
       if (!el) continue;
       const evt = el.tagName === 'SELECT' ? 'change' : 'input';
@@ -507,6 +509,7 @@ export class Panel {
       state.tax?.source === 'typed' ? String(state.tax.amount) : '', force);
     this.renderSizing(state.sizing, state.tax);
     this.renderEqFields(state.eqFields);
+    this.renderDti(state.dti);
 
     // --- value read from a Zillow / Redfin tab
     this.renderExternal(state.external);
@@ -738,6 +741,35 @@ export class Panel {
     }).join('');
   }
 
+  /**
+   * The two ratios, each against its limit.
+   *
+   * A ratio with no limit behind it shows the number and passes no
+   * judgement, because a red flag against something nobody underwrites to
+   * kills files that would sail through.
+   */
+  renderDti(dti) {
+    const { els } = this;
+    if (!els.dtiRows) return;
+
+    els.dtiSrc.textContent = dti?.program
+      ? `${dti.program} — ${pctLimit(dti.limits.front)} front, ${pctLimit(dti.limits.back)} back`
+      : 'no programme set';
+
+    if (!dti || (dti.front.percent == null && dti.back.percent == null)) {
+      els.dtiRows.innerHTML = `<div class="dti-none">${
+        escapeHtml(dtiGap(dti))}</div>`;
+      return;
+    }
+
+    els.dtiRows.innerHTML = [
+      dtiRow('Front-end', 'housing payment alone', dti.front),
+      dtiRow('Back-end', 'plus every other monthly debt', dti.back),
+    ].join('') + (dti.warnings ?? [])
+      .map((w) => `<div class="dti-warn ${w.level === 'warn' ? 'hot' : ''}">${
+        escapeHtml(w.text)}</div>`).join('');
+  }
+
   renderBar(result) {
     const { els } = this;
     const cur = result?.currentLtv;
@@ -880,6 +912,36 @@ function clamp(n, lo, hi) {
 }
 
 /** The itemised costs, as hover text on the figure they came out of. */
+/** One ratio: the number, the limit it is judged by, and the verdict. */
+function dtiRow(label, why, part) {
+  if (part.percent == null) {
+    return `<div class="dti-row idle"><span>${label}</span>`
+      + `<b>&mdash;</b><i>${escapeHtml(why)}</i></div>`;
+  }
+  const verdict = part.pass == null ? 'none' : (part.pass ? 'ok' : 'no');
+  const note = part.limit == null
+    ? 'not tested on this programme'
+    : `${part.pass ? 'under' : 'over'} ${pctLimit(part.limit)}`
+      + `, ${part.headroom >= 0 ? '' : '-'}${Math.abs(part.headroom).toFixed(2)} pts`;
+
+  return `<div class="dti-row ${verdict}">`
+    + `<span>${label}</span>`
+    + `<b>${part.percent.toFixed(2)}%</b>`
+    + `<i>${escapeHtml(note)}</i></div>`;
+}
+
+const pctLimit = (limit) => (limit == null ? 'none' : `${(limit * 100).toFixed(0)}%`);
+
+/** Which half of the input is missing, said as an instruction. */
+function dtiGap(dti) {
+  const missing = dti?.missing ?? ['piti', 'monthlyIncome'];
+  if (missing.includes('piti') && missing.includes('monthlyIncome')) {
+    return 'Enter the PITI from Easy Qualifier and the borrower\'s monthly income.';
+  }
+  if (missing.includes('piti')) return 'Enter the PITI Easy Qualifier came back with.';
+  return 'Enter the borrower\'s gross monthly income on the application.';
+}
+
 /** What an agent would call the thing that is missing. */
 function missingLabel(key) {
   return {
@@ -1034,6 +1096,22 @@ const TEMPLATE = `
       box.
     -->
     <div class="eq-map" data-eq="map"></div>
+
+    <!--
+      Debt-to-income, the other direction. Easy Qualifier gives back a
+      payment; that payment comes back here and says whether the borrower
+      can carry it. Front-end is shown on every programme even where the
+      agency does not test one, because a borrower who cannot carry the
+      house alone will not carry it with a car note, and that is worth
+      thirty seconds rather than a credit pull.
+    -->
+    <div class="dti">
+      <label class="eq-tax">
+        <span>PITI from Easy Qualifier <i data-dti="src"></i></span>
+        <input type="text" data-in="piti" placeholder="monthly payment" inputmode="decimal" />
+      </label>
+      <div class="dti-rows" data-dti="rows"></div>
+    </div>
   </section>
 
   <!-- Value and equity side by side: the two numbers that move the answer. -->

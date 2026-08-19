@@ -1017,6 +1017,27 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 .eq-fm .k.asm  { background: rgba(255,149,0,.14); color: var(--orange-deep); }
 .eq-fm .k.chk  { background: var(--fill-2, rgba(120,120,128,.14)); color: var(--label-2); }
 
+/* --- debt-to-income --------------------------------------------------- */
+.dti { margin-top: 12px; padding-top: 10px; border-top: 0.5px solid var(--separator); }
+.dti-rows { margin-top: 8px; }
+.dti-row {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 12px; padding: 4px 0;
+}
+.dti-row span { width: 74px; flex: none; color: var(--label-2); }
+.dti-row b {
+  width: 62px; flex: none; text-align: right;
+  font-weight: 700; font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.dti-row i { flex: 1; min-width: 0; font-style: normal; font-size: 10.5px; color: var(--label-3); }
+.dti-row.ok b { color: var(--green-deep); }
+.dti-row.no b { color: var(--red); }
+.dti-row.none b, .dti-row.idle b { color: var(--label-3); }
+.dti-none { font-size: 11.5px; color: var(--label-3); padding: 4px 0; }
+.dti-warn { font-size: 10.5px; color: var(--label-3); margin-top: 6px; line-height: 1.4; }
+.dti-warn.hot { color: var(--orange-deep); }
+
 .eq-tax { display: block; margin: 12px 0 4px; }
 .eq-tax span {
   display: block;

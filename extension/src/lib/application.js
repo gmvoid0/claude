@@ -29,7 +29,10 @@ export const APPLICATION_FIELDS = [
   { key: 'cashOut',    label: 'Cash-out',        kind: 'money',   hintFrom: 'result.estimatedCashToBorrower' },
   { key: 'value',      label: 'Value',           kind: 'money',   from: 'propertyValue' },
   { key: 'payment',    label: 'Monthly payment', kind: 'money',   from: 'payment' },
-  { key: 'income',     label: 'Income',          kind: 'money' },
+  // "Monthly" out loud, because Easy Qualifier's box is monthly and a
+  // yearly figure typed here makes every debt ratio look twelve times
+  // better than it is.
+  { key: 'income',     label: 'Monthly income',  kind: 'money' },
   { key: 'monthlyDebt', label: 'Monthly debts',  kind: 'money' },
   { key: 'employment', label: 'W2 / 1099',       kind: 'choice',  options: ['W2', '1099', 'Both'] },
   // Easy Qualifier requires both and neither is on a lead screen, so they

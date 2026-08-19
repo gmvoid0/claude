@@ -20,6 +20,7 @@ import { computeEquity } from '../lib/equity.js';
 import { estimateClosingCosts, closingCostText } from '../lib/closing.js';
 import { sizeLoan, sizingText } from '../lib/sizing.js';
 import { eqFields, eqFieldsText } from '../lib/eq-fields.js';
+import { computeDti } from '../lib/dti.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
@@ -73,7 +74,7 @@ const state = {
   detected: {},          // fieldKey -> { raw, label, source }
   manual: {},            // fieldKey -> raw string typed by the agent
   overrides: {
-    closingCosts: '', ltvOverride: '', loanLimit: '', annualPropertyTax: '',
+    closingCosts: '', ltvOverride: '', loanLimit: '', annualPropertyTax: '', piti: '',
     feeExempt: false, subsequentUse: false, financeFee: true,
     valueIsAvm: false,
   },
@@ -253,9 +254,10 @@ async function persistOverride(key, value) {
 function overridesFromPrefs(prefs = {}) {
   return {
     closingCosts: prefs.defaultClosingCosts ? String(prefs.defaultClosingCosts) : '',
-    // Not a standing assumption: it is this house's tax bill and it must not
-    // survive into the next call.
+    // Not standing assumptions: one is this house's tax bill and the other
+    // is this file's payment, and neither must survive into the next call.
     annualPropertyTax: '',
+    piti: '',
     ltvOverride: prefs.ltvOverride ?? '',
     loanLimit: prefs.loanLimit ?? '',
     financeFee: prefs.financeFee !== false,
@@ -375,7 +377,11 @@ async function activate() {
         // The tax bill belongs to the property, not to the screen it was read
         // off, so it lives with the per-call overrides rather than with the
         // detected fields — and it clears with the record like they do.
-        if (field === 'annualPropertyTax') state.overrides.annualPropertyTax = value;
+        // Both belong to this call rather than to the screen they were read
+        // off, so they live with the per-call overrides and clear with the
+        // record. The PITI in particular is last call's answer to a
+        // different question.
+        if (field === 'annualPropertyTax' || field === 'piti') state.overrides[field] = value;
         else state.manual[field] = value;
         recompute();
       },
@@ -819,22 +825,34 @@ function recompute({ forceInputs = false } = {}) {
     payoff: parseMoney(application.balance?.value) ?? inputs.firstLien.num,
     cashOut: parseMoney(application.cashOut?.value),
     secondLien: inputs.secondLien.num,
+    program: inputs.program.normalized,
   }, state.rules?.sizing);
 
   const tax = taxReading(external);
   const fields = eqFields({ application, sizing, inputs });
+
+  // The other direction: Easy Qualifier gives back a payment, and that
+  // payment comes back here to say whether the borrower can carry it.
+  const dti = computeDti({
+    piti: parseMoney(state.overrides.piti),
+    monthlyIncome: parseMoney(application.income?.value),
+    monthlyDebts: parseMoney(application.monthlyDebt?.value),
+    program: inputs.program.normalized,
+  }, state.rules?.dti);
 
   state.lastResult = result;
   state.lastInputs = inputs;
   state.lastApplication = application;
   state.lastSizing = sizing;
   state.lastEqFields = fields;
+  state.lastDti = dti;
 
   state.panel.render({
     inputs,
     sizing,
     tax,
     eqFields: fields,
+    dti,
     overrides: state.overrides,
     result,
     external,

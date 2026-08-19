@@ -188,7 +188,7 @@ test('renders a readable block with every field present', () => {
   for (const field of APPLICATION_FIELDS) {
     assert.ok(text.includes(field.label), `${field.label} missing from the block`);
   }
-  assert.match(text, /Income:\s+96000/);
+  assert.match(text, /Monthly income:\s+96000/);
   assert.match(text, /W2 \/ 1099:\s+—/, 'empty fields are shown rather than dropped');
 });
 

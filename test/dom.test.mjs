@@ -1784,3 +1784,73 @@ test('the rest of the Easy Qualifier form is listed beside it', { skip }, async 
     await page.close();
   }
 });
+
+test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, async () => {
+  // The round trip: S.A.M sizes the loan, EQ prices it, and the payment
+  // comes back here to answer whether the borrower can carry it. Both
+  // ratios show; only the ones with a limit behind them carry a verdict.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const type = (sel, value) => {
+        const el = root.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+      };
+      const settle = () => new Promise((r) => setTimeout(r, 60));
+      const read = () => ({
+        rows: [...root.querySelectorAll('.dti-row')].map((row) => ({
+          label: row.querySelector('span').textContent.trim(),
+          value: row.querySelector('b').textContent.trim(),
+          note: row.querySelector('i').textContent.trim(),
+          verdict: row.className.replace('dti-row', '').trim(),
+        })),
+        empty: root.querySelector('.dti-none')?.textContent.trim() ?? null,
+        src: root.querySelector('[data-dti=src]').textContent.trim(),
+        warn: [...root.querySelectorAll('.dti-warn')].map((el) => el.textContent.trim()),
+      });
+
+      const before = read();
+      type('[data-app-field=income]', '7400');
+      await settle();
+      type('[data-app-field=monthlyDebt]', '950');
+      await settle();
+      const noPiti = read();
+
+      type('[data-in=piti]', '2417.19');
+      await settle();
+      const va = read();
+
+      // Same file, priced conventional: the tighter housing ratio bites.
+      type('[data-in=program]', 'CONV');
+      await settle();
+      return { before, noPiti, va, conv: read() };
+    });
+
+    assert.match(out.noPiti.empty, /PITI/, 'it asks for the payment rather than showing nothing');
+
+    // 2,417.19 / 7,400 = 32.66%.  (2,417.19 + 950) / 7,400 = 45.50%.
+    const [front, back] = out.va.rows;
+    assert.equal(front.label, 'Front-end');
+    assert.equal(front.value, '32.66%');
+    assert.equal(front.verdict, 'ok', 'VA holds the housing ratio at 35%');
+    assert.match(front.note, /under 35%/);
+
+    assert.equal(back.label, 'Back-end');
+    assert.equal(back.value, '45.50%');
+    assert.equal(back.verdict, 'no', 'and 45.50 is over VA\'s 45');
+    assert.match(back.note, /over 45%/);
+    assert.match(out.va.src, /VA — 35% front, 45% back/);
+
+    // Conventional holds the housing ratio at 32, so the front-end flips.
+    assert.equal(out.conv.rows[0].value, '32.66%');
+    assert.equal(out.conv.rows[0].verdict, 'no', 'over conventional\'s 32%');
+    assert.match(out.conv.src, /CONV — 32% front, 45% back/);
+  } finally {
+    await page.close();
+  }
+});

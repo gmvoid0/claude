@@ -65,6 +65,38 @@ test('a second lien is paid off too, when there is one', () => {
   assert.equal(with2nd.subtotal - without.subtotal, 40000);
 });
 
+test('a VA refinance with no cash is an IRRRL, and pays for no appraisal', () => {
+  // A streamline reuses the valuation already on the loan, so charging for
+  // one puts $700 on a file that never orders it — $725 once it is grossed
+  // up with everything else.
+  const cashOut = sizeLoan({
+    annualPropertyTax: 1733, payoff: 270900, cashOut: 96000, program: 'VA',
+  });
+  const irrrl = sizeLoan({
+    annualPropertyTax: 1733, payoff: 270900, cashOut: 0, program: 'VA',
+  });
+
+  assert.equal(cashOut.irrrl, false);
+  assert.equal(item(cashOut, 'appraisal').amount, 700);
+
+  assert.equal(irrrl.irrrl, true);
+  assert.equal(item(irrrl, 'appraisal').amount, 0, 'the line stays, at nothing');
+  assert.match(item(irrrl, 'appraisal').note, /waived/);
+  assert.equal(irrrl.finalLoanRounded, 285418);
+  assert.equal(
+    sizeLoan({ annualPropertyTax: 1733, payoff: 270900, cashOut: 0 }).finalLoanRounded - 285418,
+    725, '$700 grossed up',
+  );
+});
+
+test('only VA turns a no-cash refinance into a streamline', () => {
+  for (const program of ['FHA', 'CONV', 'USDA', null]) {
+    const r = sizeLoan({ annualPropertyTax: 1733, payoff: 270900, cashOut: 0, program });
+    assert.equal(r.irrrl, false, String(program));
+    assert.equal(item(r, 'appraisal').amount, 700, String(program));
+  }
+});
+
 test('a missing input produces no loan amount at all', () => {
   // A final loan amount that is quietly missing the escrows is worse than no
   // figure: it goes into Easy Qualifier and prices a loan that cannot close.
