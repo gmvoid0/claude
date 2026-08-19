@@ -1931,3 +1931,61 @@ test('the settings page saves the fees where the panel reads them', { skip }, as
     await page.close();
   }
 });
+
+test('a tax history that arrives after the value is still reported', { skip }, async () => {
+  // The bug behind "the escrow works one time in ten", and the one the
+  // earlier fixes did not touch. Zillow's value is in the payload and
+  // readable at once; its tax table is rendered lazily and turns up seconds
+  // later. The reporter keyed a reading on value and address alone, so the
+  // first report went out with a value and no tax — and every later one,
+  // now carrying the tax, was discarded as a duplicate of it. The figure
+  // was on screen and would never arrive.
+  const { browser, port } = await setup();
+  const page = await browser.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/zillow-property.html`);
+
+    const out = await page.evaluate(async (origin) => {
+      const { extractValuation } = await import(`${origin}/extension/src/lib/valuation.js`);
+      const loc = {
+        hostname: 'www.zillow.com',
+        href: 'https://www.zillow.com/homedetails/12345678_zpid/',
+      };
+      const sig = (v) => `${v.value}|${v.address}|${v.annualPropertyTax}`;
+
+      // Strip the payload's tax history and the rendered table, so the page
+      // starts the way a listing does before it has scrolled.
+      for (const table of document.querySelectorAll('table')) table.remove();
+      const payload = document.getElementById('__NEXT_DATA__');
+      payload.textContent = payload.textContent.replace(/,"taxHistory":\[.*?\]/, '');
+
+      const before = extractValuation(document, loc);
+
+      // Now Zillow renders it.
+      const html = '<table><thead><tr><th>Year</th><th>Property taxes</th>'
+        + '<th>Tax assessment</th></tr></thead><tbody>'
+        + '<tr><td>2024</td><td>$5,228 <span>+4.6%</span></td><td>$82,844</td></tr>'
+        + '<tr><td>2023</td><td>$4,996</td><td>$78,000</td></tr>'
+        + '</tbody></table>';
+      document.body.insertAdjacentHTML('beforeend', html);
+
+      const after = extractValuation(document, loc);
+      return {
+        before: { value: before.value, tax: before.annualPropertyTax, sig: sig(before) },
+        after: { value: after.value, tax: after.annualPropertyTax, sig: sig(after) },
+      };
+    }, `http://127.0.0.1:${port}`);
+
+    assert.equal(out.before.value, 661400, 'the value reads immediately');
+    assert.equal(out.before.tax, null, 'and the tax is not there yet');
+
+    assert.equal(out.after.value, 661400, 'the value has not moved');
+    assert.equal(out.after.tax, 5228, 'and the tax arrives on the second pass');
+
+    // The whole point: the reading has to look new, or it is thrown away.
+    assert.notEqual(out.after.sig, out.before.sig,
+      'the tax must be part of what makes a reading new');
+  } finally {
+    await page.close();
+  }
+});

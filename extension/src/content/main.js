@@ -24,7 +24,9 @@ import { computeDti } from '../lib/dti.js';
 import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
-import { extractValuation, valuationSite, detectChallenge } from '../lib/valuation.js';
+import {
+  extractValuation, extractTaxOnly, valuationSite, detectChallenge,
+} from '../lib/valuation.js';
 import { zillowSearchUrl, redfinSearchUrl } from '../lib/address.js';
 import { mergeInputs, decideExternalValue, leadAddress, carryForwardDetection, detectionSignature }
   from '../lib/merge.js';
@@ -301,6 +303,17 @@ function startValuationReporter(site) {
     } catch { /* markup changed under us; try again next tick */ }
 
     if (!found) {
+      // The tax bill is not hostage to the valuation. A page can carry a
+      // tax history and no readable estimate — an off-market home, a
+      // listing whose Zestimate is suppressed — and dropping the tax
+      // because the value did not parse is how the escrow line ends up
+      // empty on a page that is plainly showing the figure.
+      try {
+        found = extractTaxOnly(document, location);
+      } catch { /* same */ }
+    }
+
+    if (!found) {
       // No value and a bot check on screen: this tab is stuck behind a
       // human verification. Say so, so it can be put in front of a human
       // rather than expiring unseen in the background.
@@ -309,7 +322,13 @@ function startValuationReporter(site) {
     }
     challengeReported = false;
 
-    const signature = `${found.value}|${found.address}`;
+    // The tax is part of what makes a reading new. It was not, and that is
+    // the whole of the "escrow works one time in ten" report: Zillow's
+    // value is in the payload and readable immediately, its tax history is
+    // rendered lazily and arrives seconds later on scroll. The first report
+    // went out with a value and no tax, and every later one — now carrying
+    // the tax — was discarded as a duplicate of it.
+    const signature = `${found.value}|${found.address}|${found.annualPropertyTax}`;
     if (signature === lastSignature) return;
     lastSignature = signature;
 

@@ -729,10 +729,12 @@ input.warnval {
 
 /* The result card takes a tint from the answer, so the verdict is legible
    from across a desk without reading the number. */
-.result[data-tone="good"] {
-  background: linear-gradient(180deg, rgba(52,199,89,.14), rgba(52,199,89,.06));
-  border-color: rgba(52,199,89,.36);
-}
+/* Deliberately not tinted any more. A green ground here made the equity
+   card the most colourful thing on the panel, which put the eye on "is
+   there a deal" when the answer the agent is looking for is the loan
+   amount below it. The verdict pill still carries the green. A warning
+   keeps its ground, because a warning should be loud. */
+.result[data-tone="good"] { background: var(--card); }
 .result[data-tone="bad"] {
   background: linear-gradient(180deg, rgba(255,59,48,.13), rgba(255,59,48,.05));
   border-color: rgba(255,59,48,.34);
@@ -968,20 +970,25 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
    everything under it is deliberately smaller than the answer it explains.
    Sizes here run a little larger than the rest of the panel — this is the
    part that gets read out loud on a call. */
+/* The colour now sits where the answer is. One tinted surface on the panel
+   and it is the one an agent is looking for. */
 .eq {
   margin: 10px 0;
-  padding: 15px 14px 14px;
+  padding: 16px 14px 14px;
   border-radius: var(--r-card);
-  background: var(--card);
-  border: 0.5px solid var(--hairline);
+  background: linear-gradient(180deg, rgba(52,199,89,.13), rgba(52,199,89,.045));
+  border: 0.5px solid rgba(52,199,89,.34);
   box-shadow: 0 1px 2px rgba(0,0,0,.04);
 }
+/* Inset fields and rows sit on a solid ground inside the tint, so the
+   input boxes do not turn into murky green rectangles. */
+.eq .eq-tax input, .eq .eq-rows, .eq .dti-rows input { background: var(--card-solid); }
 .eq-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
 .eq-cap {
   flex: 1; min-width: 0;
   font-size: 10.5px; font-weight: 700;
   letter-spacing: .09em; text-transform: uppercase;
-  color: var(--label-3);
+  color: var(--label-2);
 }
 .btn.tiny { padding: 5px 12px; font-size: 11.5px; width: auto; }
 /* A secondary action sitting beside the answer. Solid blue there pulled the
@@ -995,7 +1002,7 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 .btn.quiet:hover { background: var(--fill-strong); }
 
 .eq-final {
-  font-size: 38px; font-weight: 700;
+  font-size: 42px; font-weight: 700;
   letter-spacing: -0.028em;
   font-variant-numeric: tabular-nums;
   line-height: 1.02;
@@ -1021,7 +1028,8 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 .eq-rows {
   margin-top: 11px;
   border-radius: var(--r-field);
-  background: var(--fill);
+  background: var(--card-solid);
+  border: 0.5px solid var(--hairline);
   padding: 3px 11px;
 }
 .eq-rg { border-bottom: 0.5px solid var(--separator); padding: 6px 0; }
@@ -1107,7 +1115,7 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 9px;
 }
 .dti-row b {
-  font-size: 27px; font-weight: 700;
+  font-size: 30px; font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1.05;

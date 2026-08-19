@@ -170,6 +170,43 @@ export function extractValuation(doc = document, loc = location) {
   };
 }
 
+/**
+ * The tax bill on its own, for a page whose value cannot be read.
+ *
+ * An off-market home, a listing with the estimate suppressed, a layout
+ * change that breaks the value pattern — none of those are reasons to lose
+ * a tax history that is sitting in plain sight. The address is still
+ * required, because a tax figure attached to the wrong property is worse
+ * than none, and the shape matches a valuation with a null value so the
+ * panel needs no second code path.
+ */
+export function extractTaxOnly(doc = document, loc = location) {
+  const site = valuationSite(loc?.hostname);
+  if (!site) return null;
+
+  const html = rawScripts(doc);
+  const tax = extractTaxHistory(doc, html);
+  if (!tax) return null;
+
+  const address = extractAddress(doc, html);
+  if (!address) return null;
+
+  return {
+    value: null,
+    valueLabel: null,
+    address,
+    site: site.site,
+    siteLabel: site.label,
+    source: tax.source,
+    url: loc?.href ?? null,
+    isAvm: false,
+    annualPropertyTax: tax.annualTax,
+    taxYear: tax.year,
+    taxAssessment: tax.assessment,
+    taxSource: tax.source,
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * Public tax history
  * ------------------------------------------------------------------ */
@@ -322,7 +359,13 @@ let scriptCache = { key: null, text: '' };
 function rawScripts(doc) {
   try {
     const scripts = doc.querySelectorAll('script:not([src])');
-    const key = `${doc.location?.href ?? ''}|${scripts.length}`;
+    // Keyed on total length, not the script count. A single-page app that
+    // grows its payload in place — which is how the property data arrives
+    // after first paint — leaves the count unchanged, and the memo would
+    // then serve a snapshot taken before the tax history existed.
+    let size = 0;
+    for (const el of scripts) size += el.textContent?.length ?? 0;
+    const key = `${doc.location?.href ?? ''}|${scripts.length}|${size}`;
     if (scriptCache.key === key) return scriptCache.text;
 
     const parts = [];

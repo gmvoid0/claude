@@ -459,7 +459,12 @@ export class Panel {
    */
   setInput(el, value, force = false) {
     if (!el) return;
-    if (!force && this.root.activeElement === el) return;
+    // Never fight an agent for a box they are typing in — but an empty box
+    // is not one they are typing in. Clicking the home-value field and
+    // waiting for Zillow used to leave it blank for good: the value landed
+    // everywhere else on the panel and the one box the agent was looking
+    // at stayed on its placeholder.
+    if (!force && this.root.activeElement === el && el.value !== '') return;
     const next = value == null ? '' : String(value);
     if (el.value !== next) el.value = next;
   }
