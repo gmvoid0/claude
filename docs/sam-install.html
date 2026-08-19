@@ -286,6 +286,12 @@
       is visible at a glance. The rest is worth having and none of it stops
       a quote.
     </p>
+    <p style="margin-top:16px">
+      The panel shows the loan amount, its working, and the debt ratio, and
+      stops there. Everything else Easy Qualifier asks for still goes on the
+      clipboard with <strong>Copy</strong> — it just no longer stands between
+      you and the two figures you read out loud.
+    </p>
     <p class="note good" style="margin-top:20px">
       These are the same four charges that separate the advertised figure
       from the take-home figure at the top of the panel. One set of numbers,
@@ -367,11 +373,11 @@
         </p>
       </div>
       <div>
-        <h3>Guess Easy Qualifier's wording</h3>
+        <h3>Read a tax figure that is not there</h3>
         <p>
-          Dropdowns whose exact EQ text has not been confirmed are marked
-          <em>check wording</em> rather than asserted. Only Loan Type is
-          confirmed from a live capture.
+          The property tax comes out of Zillow's payload, in both the plain
+          and the escaped spelling the live page actually uses. No figure
+          means no escrow line and no loan amount — never a silent zero.
         </p>
       </div>
     </div>
@@ -386,7 +392,7 @@
     <p>
       Source and full history:
       <a href="https://github.com/gmvoid0/claude/pull/2">github.com/gmvoid0/claude/pull/2</a>
-      · 317 tests.
+      · 316 tests.
     </p>
   </footer>
 
