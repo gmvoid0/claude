@@ -51,6 +51,19 @@ export const APPLICATION_FIELDS = [
 export const APPLICATION_KEYS = APPLICATION_FIELDS.map((f) => f.key);
 
 /**
+ * The seven that decide the answer.
+ *
+ * Every one of these feeds the loan amount, the debt ratio, or both, so a
+ * blank among them is the difference between a quote and a dash. The rest
+ * of the form is worth having and none of it stops the calculation, which
+ * is why these are picked out on the panel rather than left in a list of
+ * sixteen equals.
+ */
+export const KEY_FIELDS = new Set([
+  'fullName', 'balance', 'fico', 'cashOut', 'value', 'income', 'loanType',
+]);
+
+/**
  * The co-borrower.
  *
  * Only the fields that actually differ per person are here. Rate, balance,

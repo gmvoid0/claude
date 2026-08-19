@@ -1899,3 +1899,36 @@ test('a loan sized past the programme cap says so on the panel', { skip }, async
     await page.close();
   }
 });
+
+test('the seven fields the answer depends on are picked out', { skip }, async () => {
+  // A sixteen-row form where every row looks the same hides which blanks
+  // actually stop a quote. These seven feed the loan amount, the debt
+  // ratio, or both.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(() => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const rows = [...root.querySelectorAll('.app-row')];
+      const labelOf = (row) => row.querySelector('.app-label').textContent.trim();
+      const keys = rows.filter((r) => r.classList.contains('key'));
+      const plain = rows.find((r) => !r.classList.contains('key'));
+      return {
+        keys: keys.map(labelOf),
+        keyBg: getComputedStyle(keys[0]).backgroundColor,
+        plainBg: getComputedStyle(plain).backgroundColor,
+      };
+    });
+
+    assert.deepEqual(out.keys, [
+      'Full name', 'Mortgage balance', 'FICO', 'Cash-out',
+      'Value', 'Monthly income', 'Loan type',
+    ]);
+    assert.notEqual(out.keyBg, out.plainBg, 'and they sit on a different ground');
+    assert.notEqual(out.keyBg, 'rgba(0, 0, 0, 0)');
+  } finally {
+    await page.close();
+  }
+});

@@ -175,6 +175,23 @@ export const PANEL_CSS = `
   border-bottom: 0.5px solid var(--separator);
 }
 .app-row:last-child { border-bottom: none; }
+
+/* The seven the answer depends on, on a darker ground.
+   Deliberately not a colour: green already means "S.A.M filled this",
+   orange means "read but implausible", and a third meaning would turn the
+   form into a code the agent has to remember. Weight and ground, not hue.
+   The bleed matches .drawer-body's 12px so the band runs edge to edge, and
+   consecutive key fields read as one block rather than a stack of chips. */
+.app-row.key {
+  background: var(--fill-strong);
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  border-bottom-color: transparent;
+}
+.app-row.key + .app-row.key { border-top: 0.5px solid var(--separator); }
+.app-row.key .app-label { color: var(--label); }
+
 .app-label { font-size: 11.5px; color: var(--label-2); font-weight: 600; }
 
 .app-input {
