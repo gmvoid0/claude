@@ -100,7 +100,7 @@ export class Panel {
       eqNote: q('[data-eq=note]'),
       eqOver: q('[data-eq=over]'),
       eqRows: q('[data-eq=rows]'),
-      eqTaxSrc: q('[data-eq=taxsrc]'),
+      eqTaxRow: q('[data-eq=taxrow]'),
       dtiRows: q('[data-dti=rows]'),
       dtiSrc: q('[data-dti=src]'),
       btnCopyEq: q('[data-act=copy-eq]'),
@@ -635,9 +635,8 @@ export class Panel {
     const { els } = this;
     if (!els.eqFinal) return;
 
-    els.eqTaxSrc.textContent = tax?.source === 'typed' ? 'entered by hand'
-      : tax ? `${tax.year ?? ''} ${tax.source ?? ''}`.trim()
-        : 'not read yet';
+    // Hidden while Zillow is supplying it and nobody has argued with it.
+    if (els.eqTaxRow) els.eqTaxRow.hidden = !!tax && tax.source !== 'typed';
 
     if (!sizing?.items?.length) {
       els.eqFinal.textContent = '—';
@@ -652,18 +651,14 @@ export class Panel {
     // same way — but reading them back at an agent who set the constants
     // once in Settings was six rows saying the same thing every call. The
     // full working is still a keystroke away on Copy.
+    // The figure, and nothing about how it was reached. The derivation was
+    // the same sentence on every call and the constants behind it are set
+    // once in Settings; it is still on the clipboard under Copy.
     const escrow = sizing.escrowDetail;
-    els.eqRows.innerHTML = escrow
-      ? '<div class="eq-rg">'
-        + '<div class="eq-row"><span>Monthly escrow payment</span>'
-        + `<b>${formatMoney(escrow.monthly)}</b></div>`
-        + `<div class="eq-why">${formatMoney(escrow.annualPropertyTax)} tax + `
-        + `${formatMoney(escrow.insuranceAllowance)} insurance &divide; 12`
-        + `&nbsp; &middot; &nbsp;&times;${escrow.months} in the loan</div>`
-        + '</div>'
-      : '<div class="eq-rg"><div class="eq-row gap"><span>Monthly escrow payment</span>'
-        + '<b>&mdash;</b></div>'
-        + '<div class="eq-why">needs the property tax from Zillow</div></div>';
+    els.eqRows.innerHTML = '<div class="eq-row">'
+      + '<span>Monthly escrow</span>'
+      + `<b class="${escrow ? '' : 'gap'}">${escrow ? formatMoney(escrow.monthly) : '&mdash;'}</b>`
+      + '</div>';
 
     if (sizing.finalLoan == null) {
       els.eqFinal.textContent = '—';
@@ -704,7 +699,8 @@ export class Panel {
       : 'no programme set';
 
     if (!dti || dti.front.percent == null) {
-      els.dtiRows.innerHTML = `<div class="dti-none">${escapeHtml(dtiGap(dti))}</div>`;
+      els.dtiRows.innerHTML = '<div class="dti-cap">Front-end DTI</div>'
+        + '<div class="dti-row idle"><b>&mdash;</b></div>';
       return;
     }
 
@@ -886,15 +882,6 @@ function dtiRow(dti) {
 
 const pctLimit = (limit) => (limit == null ? 'none' : `${(limit * 100).toFixed(0)}%`);
 
-/** Which half of the input is missing, said as an instruction. */
-function dtiGap(dti) {
-  const missing = dti?.missing ?? ['piti', 'monthlyIncome'];
-  if (missing.includes('piti') && missing.includes('monthlyIncome')) {
-    return 'Enter the PITI from Easy Qualifier and the monthly income on the application.';
-  }
-  if (missing.includes('piti')) return 'Enter the PITI Easy Qualifier came back with.';
-  return 'Enter the gross monthly income on the application.';
-}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -1028,9 +1015,16 @@ const TEMPLATE = `
       not on the record, and an agent correcting it should be watching the
       escrow line move as they type.
     -->
-    <label class="eq-tax">
-      <span>Annual property tax <i data-eq="taxsrc"></i></span>
-      <input type="text" data-in="annualPropertyTax" placeholder="from Zillow" inputmode="decimal" />
+    <!--
+      Only on screen when it is wanted. Zillow supplies this on almost every
+      file, and a labelled input sitting there restating a figure nobody has
+      to touch was a row of furniture between the loan amount and the
+      escrow. It comes back the moment the tax is missing or has been
+      corrected by hand.
+    -->
+    <label class="eq-tax" data-eq="taxrow" hidden>
+      <span>Property tax, a year</span>
+      <input type="text" data-in="annualPropertyTax" placeholder="0" inputmode="decimal" />
     </label>
 
     <div class="eq-rows" data-eq="rows"></div>

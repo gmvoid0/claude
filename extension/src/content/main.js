@@ -25,7 +25,7 @@ import { mergeRules, normalizeState } from '../lib/rules.js';
 import { parseMoney, parsePercent, formatMoney, formatPercent } from '../lib/money.js';
 import { resolveSelector, pageKey, originKey } from '../lib/selector.js';
 import {
-  extractValuation, extractTaxOnly, valuationSite, detectChallenge,
+  extractValuation, extractTaxOnly, revealTaxHistory, valuationSite, detectChallenge,
 } from '../lib/valuation.js';
 import { zillowSearchUrl, redfinSearchUrl } from '../lib/address.js';
 import { mergeInputs, decideExternalValue, leadAddress, carryForwardDetection, detectionSignature }
@@ -322,6 +322,10 @@ function startValuationReporter(site) {
     }
     challengeReported = false;
 
+    // Nothing to read means the section has not been mounted yet, and the
+    // only thing that mounts it is a scroll.
+    if (found.annualPropertyTax == null) coaxTaxIntoView();
+
     // The tax is part of what makes a reading new. It was not, and that is
     // the whole of the "escrow works one time in ten" report: Zillow's
     // value is in the payload and readable immediately, its tax history is
@@ -351,6 +355,16 @@ function startValuationReporter(site) {
         url: location.href,
       });
     } catch { /* worker asleep or context torn down */ }
+  }
+
+  // Zillow mounts the tax history on scroll, so a page nobody has scrolled
+  // has nothing to read. Once per page, and only while it is missing.
+  let nudged = false;
+
+  function coaxTaxIntoView() {
+    if (nudged || stopped) return;
+    nudged = true;
+    revealTaxHistory(document, window).then(() => { if (!stopped) report(); });
   }
 
   const debounced = debounce(report, 400);

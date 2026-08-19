@@ -1650,7 +1650,7 @@ test('the loan amount is built from the application and the tax bill', { skip },
         rows: [...root.querySelectorAll('.eq-row')]
           .map((row) => row.textContent.replace(/\s+/g, ' ').trim()),
         why: [...root.querySelectorAll('.eq-why')].map((el) => el.textContent.trim()),
-        src: root.querySelector('[data-eq=taxsrc]').textContent.trim(),
+        taxRowHidden: root.querySelector('[data-eq=taxrow]').hidden,
       });
 
       const before = read();
@@ -1675,16 +1675,12 @@ test('the loan amount is built from the application and the tax bill', { skip },
     assert.equal(out.after.final, '$385,503');
     assert.match(out.after.note, /Loan Amount/i);
 
-    // One line under the loan amount, and it is the monthly figure — the
-    // six months that go into the loan are stated beside it rather than
-    // shown as the headline.
+    // One line under the loan amount, the monthly figure, and nothing about
+    // how it was reached — the derivation was the same sentence every call.
     const rows = out.after.rows.join(' | ');
     assert.equal(out.after.rows.length, 1, 'the itemisation is off the panel');
-    assert.match(rows, /Monthly escrow payment\$228/);
-    assert.ok(out.after.why.some((w) => /\$1,733 tax \+ \$1,000 insurance ÷ 12/.test(w)),
-      `escrow working not shown: ${JSON.stringify(out.after.why)}`);
-    assert.ok(out.after.why.some((w) => /×6 in the loan/.test(w)));
-    assert.match(out.after.src, /entered by hand/);
+    assert.match(rows, /Monthly escrow\$228/);
+    assert.deepEqual(out.after.why, [], 'and the working is not restated on screen');
 
     // The loan amount is still built from all six charges, grossed up —
     // 1,366.50 + 1,500 + 270,900 + 96,000 + 700 + 2,000, x 1.035. Only the
@@ -1717,10 +1713,9 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
         rows: [...root.querySelectorAll('.dti-row')].map((row) => ({
           value: row.querySelector('b').textContent.trim(),
           pill: row.querySelector('.dti-pill')?.textContent.trim() ?? null,
-          note: row.querySelector('i').textContent.trim(),
+          note: row.querySelector('i')?.textContent.trim() ?? null,
           verdict: row.className.replace('dti-row', '').trim(),
         })),
-        empty: root.querySelector('.dti-none')?.textContent.trim() ?? null,
         src: root.querySelector('[data-dti=src]').textContent.trim(),
         warn: [...root.querySelectorAll('.dti-warn')].map((el) => el.textContent.trim()),
       });
@@ -1740,7 +1735,7 @@ test('the payment from Easy Qualifier comes back as two debt ratios', { skip }, 
       return { before, noPiti, va, conv: read() };
     });
 
-    assert.match(out.noPiti.empty, /PITI/, 'it asks for the payment rather than showing nothing');
+    assert.equal(out.noPiti.rows[0].value, '—', 'a dash rather than a paragraph of instructions');
 
     // 2,417.19 / 7,400 = 32.66%, which clears VA's 35.
     assert.equal(out.va.rows.length, 1, 'front-end only');
@@ -1985,6 +1980,43 @@ test('a tax history that arrives after the value is still reported', { skip }, a
     // The whole point: the reading has to look new, or it is thrown away.
     assert.notEqual(out.after.sig, out.before.sig,
       'the tax must be part of what makes a reading new');
+  } finally {
+    await page.close();
+  }
+});
+
+test('a tax history Zillow has not mounted yet is scrolled into existence', { skip }, async () => {
+  // "The escrow only calculates when I manually scroll down on the Zillow
+  // page." Exactly right, and it is not a parsing problem: Zillow mounts
+  // the Public tax history when it comes near the viewport, so on a page
+  // nobody has scrolled the figure is not in the document at all. The
+  // reporter scrolls the page, which is what the agent was doing by hand,
+  // and puts the scroll position back where it found it.
+  const { browser, port } = await setup();
+  const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
+  try {
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/zillow-lazy-tax.html`);
+
+    const before = await page.evaluate(async (origin) => {
+      const { extractTaxHistory } = await import(`${origin}/extension/src/lib/valuation.js`);
+      return { tax: extractTaxHistory(document), tables: document.querySelectorAll('table').length };
+    }, `http://127.0.0.1:${port}`);
+
+    assert.equal(before.tables, 0, 'nothing is mounted on an unscrolled page');
+    assert.equal(before.tax, null, 'so there is nothing to read, however it is parsed');
+
+    const after = await page.evaluate(async (origin) => {
+      const { extractTaxHistory, revealTaxHistory } =
+        await import(`${origin}/extension/src/lib/valuation.js`);
+      const reached = await revealTaxHistory(document, window, { stepMs: 120 });
+      return { reached, tax: extractTaxHistory(document), scrollY: window.scrollY };
+    }, `http://127.0.0.1:${port}`);
+
+    assert.equal(after.reached, true);
+
+    assert.equal(after.tax.annualTax, 5228, 'the newest year, once it exists');
+    assert.equal(after.tax.year, 2024);
+    assert.equal(after.scrollY, 0, 'and the page is left where it was found');
   } finally {
     await page.close();
   }

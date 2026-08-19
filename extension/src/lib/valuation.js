@@ -171,6 +171,58 @@ export function extractValuation(doc = document, loc = location) {
 }
 
 /**
+ * Make the page render the section the tax history lives in.
+ *
+ * This is the whole of "the escrow only calculates when I manually scroll
+ * down on the Zillow page". Zillow mounts Public tax history when it comes
+ * near the viewport, so on a listing nobody has scrolled the figure is not
+ * in the document at all — there is nothing to parse and no amount of
+ * parsing finds it.
+ *
+ * So the page gets scrolled, which is exactly what the agent was doing by
+ * hand. It aims at the heading when one is already there, otherwise steps
+ * down the page, checks after every step, stops the moment the figure
+ * appears, and puts the scroll position back where it found it. The caller
+ * runs it once per page and only while the tax is missing: a window that
+ * scrolls itself repeatedly under someone reading it is worse than a
+ * missing escrow line.
+ *
+ * @returns {Promise<boolean>} whether a tax history exists at the end
+ */
+export async function revealTaxHistory(doc = document, win = window, { stepMs = 400 } = {}) {
+  if (extractTaxHistory(doc)) return true;
+
+  const wasAt = win.scrollY ?? 0;
+  const pause = () => new Promise((resolve) => { win.setTimeout(resolve, stepMs); });
+  let found = false;
+
+  try {
+    const heading = [...doc.querySelectorAll('h1,h2,h3,h4')]
+      .find((h) => /tax history/i.test(h.textContent ?? ''));
+    if (heading) {
+      heading.scrollIntoView({ block: 'center' });
+      await pause();
+      found = !!extractTaxHistory(doc);
+    }
+
+    if (!found) {
+      const height = doc.documentElement?.scrollHeight ?? 0;
+      for (const fraction of [0.4, 0.6, 0.8, 0.95]) {
+        win.scrollTo(0, height * fraction);
+        await pause();
+        if (extractTaxHistory(doc)) { found = true; break; }
+      }
+    }
+  } catch { /* a hostile or torn-down document */ }
+
+  try {
+    win.scrollTo(0, wasAt);
+  } catch { /* nothing to restore to */ }
+
+  return found;
+}
+
+/**
  * The tax bill on its own, for a page whose value cannot be read.
  *
  * An off-market home, a listing with the estimate suppressed, a layout

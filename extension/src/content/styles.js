@@ -982,7 +982,7 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 }
 /* Inset fields and rows sit on a solid ground inside the tint, so the
    input boxes do not turn into murky green rectangles. */
-.eq .eq-tax input, .eq .eq-rows, .eq .dti-rows input { background: var(--card-solid); }
+.eq .eq-tax input, .eq .dti input { background: var(--card-solid); }
 .eq-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
 .eq-cap {
   flex: 1; min-width: 0;
@@ -1025,20 +1025,20 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 
 /* The working. A grouped inset list, the way the rest of the panel does
    lists, rather than a run of loose rows. */
-.eq-rows {
-  margin-top: 11px;
-  border-radius: var(--r-field);
-  background: var(--card-solid);
-  border: 0.5px solid var(--hairline);
-  padding: 3px 11px;
-}
-.eq-rg { border-bottom: 0.5px solid var(--separator); padding: 6px 0; }
-.eq-rg:last-child { border-bottom: none; }
+/* A result, not a field. It sat on a white ground and read as another
+   input box directly under the one above it. */
+.eq-rows { margin-top: 12px; }
 .eq-row {
   display: flex; align-items: baseline; gap: 10px;
-  font-size: 12.5px;
-  color: var(--label);
+  font-size: 12.5px; font-weight: 600;
+  color: var(--label-2);
 }
+.eq-row > span { flex: 1; min-width: 0; }
+.eq-row > b {
+  font-size: 18px; font-weight: 700; color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+.eq-row > b.gap { color: var(--label-3); font-weight: 600; }
 .eq-row span { flex: 1; min-width: 0; }
 .eq-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .eq-row.gap { color: var(--orange-deep); }
@@ -1101,8 +1101,8 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 .eq-key .mk { margin-right: 5px; }
 
 /* --- debt-to-income --------------------------------------------------- */
-.dti { margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--separator); }
-.dti-rows { margin-top: 9px; }
+.dti { margin-top: 14px; }
+.dti-rows { margin-top: 7px; }
 /* Sentence case, like every other label in this card. Only the card header
    is uppercase — three label idioms in one column was most of why the
    right-hand side read as complicated. */
@@ -1136,11 +1136,10 @@ details.adv[open] > summary { border-bottom: 0.5px solid var(--separator); margi
 .dti-row.no b { color: var(--red-deep); }
 .dti-row.no .dti-pill { background: rgba(255,59,48,.13); color: var(--red-deep); }
 .dti-row.none b, .dti-row.idle b { color: var(--label-3); }
-.dti-none { font-size: 12px; color: var(--label-3); padding: 4px 0; line-height: 1.4; }
 .dti-warn { font-size: 11px; color: var(--label-3); margin-top: 8px; line-height: 1.4; }
 .dti-warn.hot { color: var(--orange-deep); }
 
-.eq-tax { display: block; margin: 13px 0 4px; }
+.eq-tax { display: block; margin: 12px 0 0; }
 .eq-tax span {
   display: block;
   font-size: 11px; font-weight: 600;
