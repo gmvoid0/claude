@@ -1813,7 +1813,7 @@ test('the seven fields the answer depends on are picked out', { skip }, async ()
       const root = document.getElementById('__sam_panel_host__').shadowRoot;
       const rows = [...root.querySelectorAll('.app-row')];
       const labelOf = (row) => row.querySelector('.app-label').textContent.trim();
-      const keys = rows.filter((r) => r.classList.contains('key'));
+      const keys = rows.filter((r) => r.classList.contains('key') && !r.hidden);
       const plain = rows.find((r) => !r.classList.contains('key'));
       return {
         keys: keys.map(labelOf),
@@ -1822,6 +1822,8 @@ test('the seven fields the answer depends on are picked out', { skip }, async ()
       };
     });
 
+    // SSI and Pension are key fields too, and hidden until the borrower is
+    // retired — at which point they replace Monthly income in this list.
     assert.deepEqual(out.keys, [
       'Full name', 'Mortgage balance', 'FICO', 'Cash-out',
       'Value', 'Monthly income', 'Loan type',
@@ -2087,6 +2089,74 @@ test('the escrow figure is the field, and typing over it moves the loan amount',
     assert.equal(out.at400, '$386,573');
     assert.equal(386573 - 385504, 1069, 'the rounded pair differ by the grossed-up gap');
     assert.equal(out.withSign, out.at400, 'a typed dollar sign changes nothing');
+  } finally {
+    await page.close();
+  }
+});
+
+test('picking Retired swaps the income box for SSI and a pension', { skip }, async () => {
+  // Two cheques rather than one income, and an underwriter wants them
+  // apart. They take the place of the income box rather than sitting
+  // beside it, so the form only ever asks for what this borrower has.
+  const { browser } = await setup();
+  const page = await browser.newPage();
+  try {
+    await bootPanel(page, 'agent-screen.html');
+
+    const out = await page.evaluate(async () => {
+      const root = document.getElementById('__sam_panel_host__').shadowRoot;
+      const set = (sel, value) => {
+        const el = root.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+      };
+      const settle = () => new Promise((r) => setTimeout(r, 60));
+      const shownRows = () => [...root.querySelectorAll('.app-row')]
+        .filter((row) => !row.hidden)
+        .map((row) => row.querySelector('.app-label').textContent.trim());
+      const dti = () => root.querySelector('.dti-row b')?.textContent.trim() ?? null;
+
+      set('[data-in=propertyValue]', '400000');
+      await settle();
+      set('[data-in=monthlyEscrow]', '228');
+      await settle();
+      set('[data-in=piti]', '2417.19');
+      await settle();
+
+      const working = shownRows();
+      const options = [...root.querySelector('[data-app-field=employment]').options]
+        .map((o) => o.value);
+
+      set('[data-app-field=employment]', 'Retired');
+      await settle();
+      const retired = shownRows();
+
+      set('[data-app-field=ssi]', '2100');
+      await settle();
+      set('[data-app-field=pension]', '1850');
+      await settle();
+      const combined = dti();
+
+      // Back to working: the two boxes go away again.
+      set('[data-app-field=employment]', 'W2');
+      await settle();
+      return { working, options, retired, combined, backToWorking: shownRows() };
+    });
+
+    assert.ok(out.options.includes('Retired'), 'the option is on the dropdown');
+
+    assert.ok(out.working.includes('Monthly income'));
+    assert.ok(!out.working.includes('SSI'), 'and the retired boxes stay out of the way');
+    assert.ok(!out.working.includes('Pension'));
+
+    assert.ok(out.retired.includes('SSI'));
+    assert.ok(out.retired.includes('Pension'));
+    assert.ok(!out.retired.includes('Monthly income'), 'swapped, not added');
+
+    // 2,100 + 1,850 = 3,950. The payment is 2,417.19, so 61.19%.
+    assert.equal(out.combined, '61.19%');
+
+    assert.deepEqual(out.backToWorking, out.working, 'and it goes back');
   } finally {
     await page.close();
   }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   APPLICATION_FIELDS, APPLICATION_KEYS, KEY_FIELDS, CO_BORROWER_KEYS, SAVE_THRESHOLD,
+  isRetired, monthlyIncome,
   buildApplication, filledCount, isWorthSaving, toPlain, toText,
 } from '../extension/src/lib/application.js';
 import { mergeInputs } from '../extension/src/lib/merge.js';
@@ -45,16 +46,18 @@ test('the field list is exactly what was specified', () => {
   assert.deepEqual(APPLICATION_KEYS, [
     'fullName',
     'rate', 'balance', 'fico', 'cashOut', 'value', 'payment',
-    'income', 'employment', 'loanType', 'disability', 'address', 'phone',
+    'income', 'ssi', 'pension', 'employment',
+    'loanType', 'disability', 'address', 'phone',
   ]);
-  assert.equal(APPLICATION_FIELDS.length, 13);
+  assert.equal(APPLICATION_FIELDS.length, 15);
 });
 
 test('the seven that decide the answer are named', () => {
   // Each one feeds the loan amount, the debt ratio, or both, so a blank
   // among them is the difference between a quote and a dash.
   assert.deepEqual([...KEY_FIELDS], [
-    'fullName', 'balance', 'fico', 'cashOut', 'value', 'income', 'loanType',
+    'fullName', 'balance', 'fico', 'cashOut', 'value',
+    'income', 'ssi', 'pension', 'loanType',
   ]);
   for (const key of KEY_FIELDS) {
     assert.ok(APPLICATION_KEYS.includes(key), `${key} is not on the form`);
@@ -327,4 +330,53 @@ test('no name anywhere leaves the field empty rather than guessing', () => {
   const field = nameFrom({ city: { raw: 'ROCKWOOD', source: 'auto' } });
   assert.equal(field.value, '');
   assert.equal(field.source, 'none');
+});
+
+/* --- a retired borrower ------------------------------------------------- */
+
+test('retired swaps the income box for SSI and a pension', () => {
+  // Two cheques, not one income, and an underwriter wants them apart. The
+  // rows take the place of the income box rather than sitting beside it.
+  const income = APPLICATION_FIELDS.find((f) => f.key === 'income');
+  const ssi = APPLICATION_FIELDS.find((f) => f.key === 'ssi');
+  const pension = APPLICATION_FIELDS.find((f) => f.key === 'pension');
+
+  assert.equal(income.hideWhenRetired, true);
+  assert.equal(ssi.retiredOnly, true);
+  assert.equal(pension.retiredOnly, true);
+  assert.ok(APPLICATION_FIELDS.find((f) => f.key === 'employment').options.includes('Retired'));
+
+  // And they sit where the income box was, not at the end of the form.
+  assert.equal(APPLICATION_KEYS.indexOf('ssi'), APPLICATION_KEYS.indexOf('income') + 1);
+});
+
+test('the two cheques add up to one income for the debt ratio', () => {
+  const app = (fields) => Object.fromEntries(
+    Object.entries(fields).map(([k, v]) => [k, { value: v }]),
+  );
+
+  assert.equal(monthlyIncome(app({ employment: 'W2', income: '7400' })), 7400);
+  assert.equal(monthlyIncome(app({ employment: 'Retired', ssi: '2,100', pension: '$1,850' })), 3950);
+
+  // One of the two on its own is still an income.
+  assert.equal(monthlyIncome(app({ employment: 'Retired', ssi: '2100' })), 2100);
+  assert.equal(monthlyIncome(app({ employment: 'Retired', pension: '1850' })), 1850);
+
+  // Neither is not zero — it is unknown, and a ratio against zero income is
+  // not a ratio.
+  assert.equal(monthlyIncome(app({ employment: 'Retired' })), null);
+
+  // The income box is ignored once they are retired, so a figure left over
+  // from before the answer changed cannot leak into the ratio.
+  assert.equal(monthlyIncome(app({ employment: 'Retired', income: '7400', ssi: '2100' })), 2100);
+});
+
+test('isRetired is not fooled by case or spacing', () => {
+  for (const value of ['Retired', 'retired', ' RETIRED ']) {
+    assert.equal(isRetired({ employment: { value } }), true, value);
+  }
+  for (const value of ['W2', '1099', '', undefined]) {
+    assert.equal(isRetired({ employment: { value } }), false, String(value));
+  }
+  assert.equal(isRetired(null), false);
 });

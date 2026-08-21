@@ -35,7 +35,7 @@ import {
   getRuleOverrides, getPrefs, getPanelPos, setPanelPos, getPanelSize, setPanelSize, setPrefs,
 } from '../lib/settings.js';
 import {
-  buildApplication, filledCount, isWorthSaving, toText, toPlain,
+  buildApplication, filledCount, isWorthSaving, monthlyIncome, toText, toPlain,
 } from '../lib/application.js';
 import { saveApplication } from '../lib/settings.js';
 import { renderDocument } from '../lib/document.js';
@@ -875,7 +875,8 @@ function recompute({ forceInputs = false } = {}) {
   // payment comes back here to say whether the borrower can carry it.
   const dti = computeDti({
     piti: parseMoney(state.overrides.piti),
-    monthlyIncome: parseMoney(application.income?.value),
+    // One box for someone working, SSI plus a pension for someone retired.
+    monthlyIncome: monthlyIncome(application),
     program: inputs.program.normalized,
   }, state.rules?.dti);
 

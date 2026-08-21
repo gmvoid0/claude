@@ -8,7 +8,9 @@
  */
 
 import { formatMoney, formatPercent } from '../lib/money.js';
-import { APPLICATION_FIELDS, CO_BORROWER_FIELDS, KEY_FIELDS } from '../lib/application.js';
+import {
+  APPLICATION_FIELDS, CO_BORROWER_FIELDS, KEY_FIELDS, isRetired,
+} from '../lib/application.js';
 import { PANEL_CSS } from './styles.js';
 import { PANEL_HOST_ID as HOST_ID } from '../lib/constants.js';
 
@@ -385,8 +387,11 @@ export class Panel {
     for (const field of fields) {
       const row = document.createElement('label');
       // The seven that decide the answer sit on a darker ground, so an agent
-      // scanning a sixteen-row form sees which blanks actually stop a quote.
+      // scanning the form sees which blanks actually stop a quote.
       row.className = `app-row${KEY_FIELDS.has(field.key) ? ' key' : ''}`;
+      row.dataset.appRow = field.key;
+      if (field.retiredOnly) row.dataset.when = 'retired';
+      if (field.hideWhenRetired) row.dataset.when = 'working';
 
       const label = document.createElement('span');
       label.className = 'app-label';
@@ -425,6 +430,14 @@ export class Panel {
     this.els.coToggle.checked = !!coBorrower;
     this.els.coFields.hidden = !coBorrower;
     this.els.coNote.hidden = !coBorrower;
+
+    // A retired borrower gets SSI and Pension where the single income box
+    // was. Swapped rather than added, so the form asks for what this
+    // borrower actually has and nothing else.
+    const retired = isRetired(application);
+    for (const row of this.root.querySelectorAll('[data-when]')) {
+      row.hidden = row.dataset.when === 'retired' ? !retired : retired;
+    }
 
     const shown = coBorrower ? [...APPLICATION_FIELDS, ...CO_BORROWER_FIELDS] : APPLICATION_FIELDS;
     for (const field of shown) {

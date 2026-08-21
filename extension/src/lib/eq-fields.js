@@ -29,6 +29,7 @@
  */
 
 import { parseMoney } from './money.js';
+import { monthlyIncome } from './application.js';
 
 /** EQ's own words for the loan types, from the live capture. */
 const LOAN_TYPE = {
@@ -118,7 +119,16 @@ export function eqFields({ application = {}, sizing = null, inputs = {} } = {}) 
     required: true, note: 'sets the county and state',
   });
   add('creditScore', 'Qualifying Credit Score', app('fico'), { required: true });
-  add('income', 'Borrower Income', money(app('income')));
+  // Easy Qualifier has one income box, so a retired borrower's two cheques
+  // are added on the way across — with the split named, because that is the
+  // first thing anyone looking at the file will ask about.
+  const income = monthlyIncome(application);
+  add('income', 'Borrower Income', money(income), {
+    note: app('ssi') || app('pension')
+      ? [app('ssi') && `${app('ssi')} SSI`, app('pension') && `${app('pension')} pension`]
+        .filter(Boolean).join(' + ')
+      : undefined,
+  });
 
   // The list stops here on purpose. Monthly debt, the annual taxes and
   // insurance, and the employment dropdown all sit at zero or at their

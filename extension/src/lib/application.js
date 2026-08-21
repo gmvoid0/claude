@@ -32,8 +32,15 @@ export const APPLICATION_FIELDS = [
   // "Monthly" out loud, because Easy Qualifier's box is monthly and a
   // yearly figure typed here makes every debt ratio look twelve times
   // better than it is.
-  { key: 'income',     label: 'Monthly income',  kind: 'money' },
-  { key: 'employment', label: 'W2 / 1099',       kind: 'choice',  options: ['W2', '1099', 'Both'] },
+  { key: 'income',     label: 'Monthly income',  kind: 'money', hideWhenRetired: true },
+  // A retired borrower does not have one income, they have two cheques, and
+  // an underwriter wants them apart. They take the place of the single
+  // income box rather than sitting beside it, so the form asks for what
+  // this borrower actually has and nothing else.
+  { key: 'ssi',        label: 'SSI',             kind: 'money', retiredOnly: true },
+  { key: 'pension',    label: 'Pension',         kind: 'money', retiredOnly: true },
+  { key: 'employment', label: 'W2 / 1099',       kind: 'choice',
+    options: ['W2', '1099', 'Both', 'Retired'] },
   { key: 'loanType',   label: 'Loan type',       kind: 'choice',  options: ['VA', 'FHA', 'CONV', 'USDA'], from: 'program' },
   { key: 'disability', label: 'Disability %',    kind: 'percent' },
   { key: 'address',    label: 'Address',         kind: 'text',    from: 'address' },
@@ -52,8 +59,30 @@ export const APPLICATION_KEYS = APPLICATION_FIELDS.map((f) => f.key);
  * sixteen equals.
  */
 export const KEY_FIELDS = new Set([
-  'fullName', 'balance', 'fico', 'cashOut', 'value', 'income', 'loanType',
+  'fullName', 'balance', 'fico', 'cashOut', 'value', 'income', 'ssi', 'pension', 'loanType',
 ]);
+
+/** Whether this borrower is retired, which changes what the form asks for. */
+export function isRetired(application) {
+  return String(application?.employment?.value ?? '').trim().toLowerCase() === 'retired';
+}
+
+/**
+ * The gross monthly income the debt ratio is measured against.
+ *
+ * One box for someone working, two added together for someone retired.
+ * Either way it is one number by the time it reaches the ratio, because a
+ * borrower with a pension and a social-security cheque has an income; they
+ * just do not have a payslip.
+ */
+export function monthlyIncome(application) {
+  if (!isRetired(application)) return parseMoney(application?.income?.value);
+
+  const ssi = parseMoney(application?.ssi?.value);
+  const pension = parseMoney(application?.pension?.value);
+  if (ssi == null && pension == null) return null;
+  return (ssi ?? 0) + (pension ?? 0);
+}
 
 /**
  * The co-borrower.
