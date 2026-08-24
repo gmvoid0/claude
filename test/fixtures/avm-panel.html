@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Agent screen with an AVM side panel</title>
+  <style>
+    body { font: 13px Arial, sans-serif; background: #d4d0c8; margin: 8px; }
+    td { padding: 2px 4px; }
+    td.lbl { text-align: right; white-space: nowrap; }
+    input { font: 13px Arial; }
+  </style>
+</head>
+<body>
+
+<!--
+  The real working setup: a dialer form supplying the mortgage balance, and a
+  *separate* extension's panel supplying the home value from an AVM.
+
+  The AVM card is mounted in an open shadow root, which is how injected
+  panels are usually isolated, and its value is plain text with the label
+  stacked above it and a trademark symbol attached ("Zestimate®"). None of
+  the light-DOM strategies reach it — only shadow traversal plus geometric
+  labelling does.
+
+  It also contains decoys that must not be mistaken for the home value:
+  bed/bath/sqft figures, and a monthly refinance payment.
+-->
+
+<div>RECORD ID: 7164344</div>
+
+<table>
+  <tr>
+    <td class="lbl">Address1:</td>
+    <td><input type="text" name="address1" size="30" value="809 SE 37TH ST" /></td>
+    <td class="lbl">City:</td>
+    <td><input type="text" name="city" value="BATTLE GROUND" /></td>
+    <td class="lbl">State:</td>
+    <td><input type="text" name="state" size="4" value="WA" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Mortgage Balance:</td>
+    <td><input type="text" name="vendor_lead_code" value="412500" /></td>
+    <td class="lbl">Loan Type:</td>
+    <td><input type="text" name="comments_b" value="VA" /></td>
+    <td class="lbl">PostCode:</td>
+    <td><input type="text" name="postal_code" value="98604" /></td>
+  </tr>
+</table>
+
+<div id="assistant-host"></div>
+
+<script>
+  const host = document.getElementById('assistant-host');
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = `
+    <style>
+      .card {
+        position: fixed; right: 20px; top: 60px; width: 300px;
+        background: #fff; border: 1px solid #ccc; padding: 14px;
+        font: 13px Arial, sans-serif;
+      }
+      .brand { font-size: 12px; color: #555; margin-bottom: 2px; }
+      .price { font-size: 26px; font-weight: 800; margin-bottom: 8px; }
+      .facts { color: #555; margin-bottom: 6px; }
+      .addr { margin-bottom: 8px; }
+      .refi { color: #333; }
+    </style>
+    <div class="card">
+      <div>Source: RMLS (OR)</div>
+      <div>Off market</div>
+      <div class="brand">Zestimate&reg;</div>
+      <div class="price">$661,400</div>
+      <div class="facts"><span>3 beds</span> <span>2 baths</span> <span>2,243 sqft</span></div>
+      <div class="addr">809 SE 37th St, Battle Ground, WA 98604</div>
+      <div class="refi">Est. refi payment: $4,027/mo</div>
+    </div>
+  `;
+</script>
+</body>
+</html>

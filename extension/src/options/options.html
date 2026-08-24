@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>S.A.M — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+<main>
+  <h1>S.A.M settings</h1>
+  <p class="lede">
+    Everything is stored locally in this browser. No lead data is saved and
+    nothing is sent anywhere.
+  </p>
+
+  <section>
+    <h2>LTV caps</h2>
+    <p class="help">
+      Defaults are the common agency maximums for a cash-out refinance on an
+      owner-occupied one-unit property. Lender and investor overlays are often
+      tighter — set yours here.
+    </p>
+    <table id="programs">
+      <thead>
+        <tr>
+          <th>Program</th>
+          <th>Max LTV</th>
+          <th>Texas</th>
+          <th>Upfront fee</th>
+          <th>Subsequent use</th>
+          <th>Fee inside cap</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="help">
+      <b>Fee inside cap</b> — on VA the funding fee is financed <i>within</i> the
+      100% ceiling, so the base loan is reduced to make room for it. On FHA the
+      1.75% UFMIP stacks <i>on top of</i> the 80% base loan. Leave these as they
+      are unless your investor treats them differently.
+    </p>
+  </section>
+
+  <section>
+    <h2>Screening</h2>
+    <div class="field">
+      <label for="threshold">Minimum cash-out worth pursuing</label>
+      <input type="text" id="threshold" inputmode="decimal" />
+      <span class="help">Drives the green/red verdict on the panel.</span>
+    </div>
+    <div class="field">
+      <label for="closingCosts">Fixed closing-cost override</label>
+      <input type="text" id="closingCosts" inputmode="decimal" placeholder="0" />
+      <span class="help">
+        A flat figure used instead of the itemised estimate below. Leave at 0
+        to let the estimate do the work.
+      </span>
+    </div>
+    <div class="field">
+      <label for="avmHaircut">Automated-valuation haircut</label>
+      <input type="text" id="avmHaircut" inputmode="decimal" placeholder="0%" />
+      <span class="help">
+        Applied only when the value was read from an automated estimate —
+        a Zestimate, a Redfin estimate, any AVM — never to a figure typed in
+        by hand. An AVM is not an appraisal, and at high LTV a few percent of
+        error decides whether a deal exists. Screening a little below the
+        headline number keeps leads from being qualified on a value the
+        appraisal will not support. 5% is a reasonable starting point; 0
+        takes the estimate at face value.
+      </span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Fees &amp; the loan amount</h2>
+    <p class="help">
+      The four charges every file carries, and the gross-up that turns them
+      into the figure typed into Easy Qualifier's Loan Amount box. These same
+      four are what separate the advertised figure from the take-home figure
+      on the panel — one set of numbers, so the two halves cannot disagree.
+    </p>
+    <p class="help">
+      <b>These are your floor's numbers, not the law.</b> Title work is not
+      $1,500 everywhere and an underwriting fee is a lender's choice.
+    </p>
+
+    <label class="check"><input type="checkbox" id="estimateClosingCosts" />
+      Take the charges out of the take-home figure
+      <span class="help">
+        Off means zero costs are assumed and the two figures on the panel read
+        the same, which flatters every deal. Typing a figure into the override
+        above wins either way.
+      </span>
+    </label>
+
+    <div class="two-up">
+      <div class="field">
+        <label for="titleFees">Title fees</label>
+        <input type="text" id="titleFees" inputmode="decimal" />
+      </div>
+      <div class="field">
+        <label for="appraisal">Appraisal</label>
+        <input type="text" id="appraisal" inputmode="decimal" />
+        <span class="help">Waived automatically on a VA IRRRL, which reuses the existing valuation.</span>
+      </div>
+      <div class="field">
+        <label for="underwriting">Underwriting</label>
+        <input type="text" id="underwriting" inputmode="decimal" />
+      </div>
+      <div class="field">
+        <label for="grossUp">Gross-up</label>
+        <input type="text" id="grossUp" inputmode="decimal" />
+        <span class="help">
+          1.035 adds 3.5% to the total. 1 leaves it alone.
+        </span>
+      </div>
+      <div class="field">
+        <label for="insuranceAllowance">Insurance allowance, a year</label>
+        <input type="text" id="insuranceAllowance" inputmode="decimal" />
+        <span class="help">
+          Added to the property tax read off Zillow before the year is
+          halved. A flat figure rather than a rate on the value, so an agent
+          gets the same answer the person beside them would give.
+        </span>
+      </div>
+      <div class="field">
+        <label for="escrowMonths">Escrow months</label>
+        <input type="text" id="escrowMonths" inputmode="decimal" />
+        <span class="help">Six of twelve is half a year of taxes and insurance.</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Front-end DTI</h2>
+    <p class="help">
+      The housing payment against gross monthly income. Type the PITI Easy
+      Qualifier came back with and the panel judges it against the limit for
+      that programme. Leave one blank to show the ratio without a verdict —
+      useful where nobody underwrites to a housing ratio at all.
+    </p>
+    <div class="two-up">
+      <div class="field">
+        <label for="dtiVA">VA</label>
+        <input type="text" id="dtiVA" inputmode="decimal" />
+      </div>
+      <div class="field">
+        <label for="dtiFHA">FHA</label>
+        <input type="text" id="dtiFHA" inputmode="decimal" />
+      </div>
+      <div class="field">
+        <label for="dtiCONV">Conventional</label>
+        <input type="text" id="dtiCONV" inputmode="decimal" />
+      </div>
+      <div class="field">
+        <label for="dtiUSDA">USDA</label>
+        <input type="text" id="dtiUSDA" inputmode="decimal" />
+      </div>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>Standing assumptions</h2>
+    <p class="help">
+      Applied automatically to every call, so nobody has to remember to set
+      them. Change one and it takes effect on the record already on screen.
+    </p>
+    <div class="two-up">
+      <div class="field">
+        <label for="ltvOverride">LTV override</label>
+        <input type="text" id="ltvOverride" inputmode="decimal" placeholder="auto" />
+        <span class="help">Blank uses each program's maximum. Set it to cap every program at one number.</span>
+      </div>
+      <div class="field">
+        <label for="loanLimit">Loan limit</label>
+        <input type="text" id="loanLimit" inputmode="decimal" placeholder="none" />
+        <span class="help">A county or investor ceiling on the base loan. Blank means none.</span>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="autoLookup" />
+      Start the home-value lookup automatically
+      <span class="help">
+        Opens the lookup in a background tab the moment the address is read,
+        instead of waiting for you to click, and closes it once a value comes
+        back. The point is timing — the figure is usually there before you
+        need it. It is the same page you would open by hand, in your own
+        browser session. Leave it off if you would rather not have tabs
+        opening on their own, or if the site starts refusing the traffic.
+      </span>
+    </label>
+    <label class="check"><input type="checkbox" id="financeFee" />
+      Finance the upfront fee into the loan
+      <span class="help">
+        On for every file on this floor. Off means the VA funding fee or FHA
+        UFMIP is paid at closing, out of the borrower's proceeds.
+      </span>
+    </label>
+
+    <label class="check"><input type="checkbox" id="subsequentUse" />
+      VA subsequent use
+      <span class="help">
+        On by default, and it matches the VA Use Type set in Easy Qualifier.
+        Worth 1.15 points of funding fee — 2.15% first use against 3.30%
+        after — so a mismatch between here and EQ is thousands of dollars in
+        the direction that flatters the quote.
+      </span>
+    </label>
+
+    <label class="check"><input type="checkbox" id="feeExempt" />
+      VA funding fee waived
+      <span class="help">
+        Only for a floor writing exempt files as a rule. A disability rating
+        typed on the application does <b>not</b> flip this on its own — a
+        rating is not by itself an exemption, and inferring one quoted a fee
+        those files would be charged.
+      </span>
+    </label>
+
+    <label class="check"><input type="checkbox" id="valueIsAvm" />
+      Treat the home value as an estimate
+      <span class="help">
+        Applies the haircut above to any value, not only ones read off
+        Zillow or Redfin.
+      </span>
+    </label>
+
+    <p class="help">
+      These four used to sit on the panel. They are a shop's policy rather
+      than a per-borrower choice, and four switches nobody touches during a
+      call were four rows standing between the agent and the answer.
+    </p>
+  </section>
+
+  <section>
+    <h2>Behaviour</h2>
+    <label class="check"><input type="checkbox" id="resetValueOnNewRecord" />
+      Clear the typed home value when the record changes
+      <span class="help">Strongly recommended on a dialer — otherwise the previous caller's value carries into the next call.</span>
+    </label>
+    <label class="check"><input type="checkbox" id="showLookupLinks" />
+      Show value-lookup links built from the scraped address
+    </label>
+    <label class="check"><input type="checkbox" id="miniBrowser" />
+      Offer the property preview window
+      <span class="help">
+        Puts a "Preview on Zillow" button on the panel. It opens a small
+        browser window beside the dialer showing the lead's address, and
+        follows each new record without taking focus. It is an ordinary
+        window in your own browser session, not an embedded frame — Zillow
+        refuses to be embedded, and working around that is not something this
+        extension does.
+      </span>
+    </label>
+    <label class="check"><input type="checkbox" id="miniBrowserAuto" />
+      Open the preview automatically
+      <span class="help">
+        The property is on screen before you think to ask for it, rather than
+        after a click. Closing the window stops it opening on its own again
+        until you press the button — shutting it once should be enough.
+      </span>
+    </label>
+    <label class="check"><input type="checkbox" id="readValuationSites" />
+      Pull the home value from Zillow / Redfin tabs you open
+      <span class="help">
+        Reads the value and property address from a Zillow or Redfin page you
+        have open, and offers it to the panel. It only ever reads a page you
+        loaded yourself — nothing is fetched or crawled in the background.
+        The value is filled in automatically only when the address is an exact
+        match for the lead on screen; otherwise it is shown as a suggestion
+        with the address, for you to accept. Stays off entirely until you have
+        enabled at least one site.
+      </span>
+    </label>
+    <label class="check"><input type="checkbox" id="startCollapsed" />
+      Start the panel collapsed
+    </label>
+    <div class="field">
+      <label for="pollMs">Refresh interval (ms)</label>
+      <input type="text" id="pollMs" inputmode="numeric" />
+      <span class="help">
+        How often the page is re-read. 400ms is responsive without being
+        noticeable. Set 0 to rely on page events only — faster, but misses
+        screens that fill fields programmatically.
+      </span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Enabled sites</h2>
+    <ul id="sites" class="list"><li class="empty">None yet.</li></ul>
+  </section>
+
+  <section>
+    <h2>Bound fields</h2>
+    <p class="help">Fields you pinned by clicking, per page.</p>
+    <ul id="bindings" class="list"><li class="empty">None yet.</li></ul>
+  </section>
+
+  <div class="bar">
+    <button id="save" class="btn">Save</button>
+    <button id="reset" class="btn ghost">Restore defaults</button>
+    <span id="status" class="status"></span>
+  </div>
+
+  <section class="fineprint">
+    <h2>Limitations you should know about</h2>
+    <ul>
+      <li>This models the LTV cap, the financed upfront fee, a flat set of closing charges and the front-end debt ratio. It does not model back-end DTI, credit, residual income, seasoning, entitlement, unit count, county loan limits, or investor overlays.</li>
+      <li>Occupancy is assumed to be a primary residence, the property a single-family home, and VA entitlement a subsequent use. Correct them in Easy Qualifier on the files where that is wrong.</li>
+      <li>Auto-detection reads labels off the page. If a page changes its layout, detection can break — rebind the field by clicking it.</li>
+      <li>Values read off a screen are only as good as the data in that screen.</li>
+      <li>Output is an estimate for internal screening. It is not a quote, offer, pre-approval, or commitment to lend, and should not be read to a customer as one.</li>
+    </ul>
+  </section>
+</main>
+<script type="module" src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>1380 Karnak Rd, Karnak, IL 62956 | Zillow</title>
+  <meta property="og:title" content="1380 Karnak Rd, Karnak, IL 62956 | Zillow" />
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    .filler { height: 2400px; padding: 20px; }
+  </style>
+</head>
+<body>
+
+<!--
+  Zillow as it actually behaves, and the whole of "the escrow only
+  calculates when I manually scroll down".
+
+  The Public tax history section is not in the document at all until it
+  comes near the viewport. No amount of parsing finds a figure that has not
+  been mounted, and the payload on this kind of listing does not carry the
+  history either — so the only thing that produces it is a scroll, which is
+  exactly what the agent was doing by hand.
+-->
+
+<h1>1380 Karnak Rd, Karnak, IL 62956</h1>
+<div class="summary"><div>Zestimate&reg;</div><div>$363,400</div></div>
+
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SingleFamilyResidence",
+ "address":{"@type":"PostalAddress","streetAddress":"1380 Karnak Rd",
+ "addressLocality":"Karnak","addressRegion":"IL","postalCode":"62956"}}
+</script>
+
+<div class="filler">Neighborhood, schools, photos — everything Zillow puts between
+  the header and the tax history.</div>
+
+<div id="lazy"></div>
+
+<script>
+  // Mount when it nears the viewport, which is what Zillow does.
+  var mounted = false;
+  function maybeMount() {
+    if (mounted) return;
+    var slot = document.getElementById('lazy');
+    if (slot.getBoundingClientRect().top > window.innerHeight * 1.5) return;
+    mounted = true;
+    slot.innerHTML =
+      '<h2>Public tax history</h2>' +
+      '<table><thead><tr><th>Year</th><th>Property taxes</th><th>Tax assessment</th></tr></thead>' +
+      '<tbody>' +
+      '<tr><td>2024</td><td>$5,228 <span>+4.6%</span></td><td>$82,844</td></tr>' +
+      '<tr><td>2023</td><td>$4,996 <span>-1.2%</span></td><td>$78,000</td></tr>' +
+      '<tr><td>2022</td><td>$5,057 <span>-11.1%</span></td><td>$78,000</td></tr>' +
+      '</tbody></table>';
+  }
+  window.addEventListener('scroll', maybeMount, { passive: true });
+  maybeMount();
+</script>
+
+</body>
+</html>

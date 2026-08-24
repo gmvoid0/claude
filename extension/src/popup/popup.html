@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>S.A.M</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>S.A.M</h1>
+    <span class="ver">0.1.0</span>
+  </header>
+
+  <section class="site">
+    <div class="origin" id="origin">—</div>
+    <label class="toggle">
+      <input type="checkbox" id="enabled" />
+      <span>Run on this site</span>
+    </label>
+    <p class="note" id="note">
+      The panel stays off until you turn it on here. Nothing is read from a
+      page until you do.
+    </p>
+  </section>
+
+  <section class="summary" id="summary" hidden>
+    <div class="line"><span>Cash out</span><b id="s-cash">—</b></div>
+    <div class="line"><span>Max loan</span><b id="s-loan">—</b></div>
+    <div class="line"><span>Current LTV</span><b id="s-ltv">—</b></div>
+    <div class="line"><span>Program</span><b id="s-prog">—</b></div>
+  </section>
+
+  <section class="actions">
+    <button id="focus" class="btn">Focus home value</button>
+    <button id="options" class="btn ghost">Rules &amp; settings</button>
+  </section>
+
+  <footer>
+    Estimate only. Not a quote, offer, or commitment to lend.
+  </footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

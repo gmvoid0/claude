@@ -1,0 +1,1580 @@
+<title>Easy Qualifier Probe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;1,400&display=swap" />
+
+<style>
+  /* ------------------------------------------------------------------
+     Palette lifted from S.A.M's own panel, on purpose: the black box the
+     agent is told to look for in step 4 is #1c1c1e with an #0a84ff button,
+     and this page shows it in exactly those colours so "look for this"
+     needs no further explanation.
+     ------------------------------------------------------------------ */
+  :root {
+    --paper:    #f1f3f6;
+    --card:     #ffffff;
+    --ink:      #16181c;
+    --body:     #33383f;
+    --muted:    #6c737d;
+    --hair:     #dfe3e9;
+    --accent:   #0a5fd6;
+    --accent-2: #e8effb;
+    --good:     #1c7f3c;
+    --good-2:   #e4f4e9;
+    --warn:     #8a5300;
+    --warn-2:   #fdf1de;
+
+    /* The console facsimile keeps one look in both themes — it is a picture
+       of a fixed thing, not a surface of this page. */
+    --probe-bg:  #1c1c1e;
+    --probe-fg:  #ffffff;
+    --probe-dim: #98989f;
+    --probe-rule:#2c2c2e;
+    --probe-key: #0a84ff;
+    --probe-ok:  #30d158;
+
+    --measure: 68ch;
+    --r: 10px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:    #101216;
+      --card:     #191c21;
+      --ink:      #f2f4f7;
+      --body:     #c8cdd4;
+      --muted:    #8b939d;
+      --hair:     #282d34;
+      --accent:   #64a6ff;
+      --accent-2: #17273c;
+      --good:     #5cd07d;
+      --good-2:   #16301f;
+      --warn:     #f0b45c;
+      --warn-2:   #33260f;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:    #101216;
+    --card:     #191c21;
+    --ink:      #f2f4f7;
+    --body:     #c8cdd4;
+    --muted:    #8b939d;
+    --hair:     #282d34;
+    --accent:   #64a6ff;
+    --accent-2: #17273c;
+    --good:     #5cd07d;
+    --good-2:   #16301f;
+    --warn:     #f0b45c;
+    --warn-2:   #33260f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--body);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+  }
+
+  /* --- header ---------------------------------------------------------- */
+
+  header { display: flex; flex-direction: column; gap: 14px; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(30px, 5.4vw, 42px);
+    line-height: 1.1;
+    letter-spacing: -0.022em;
+    font-weight: 600;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-family: "IBM Plex Serif", Georgia, serif;
+    font-size: 17.5px;
+    line-height: 1.6;
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--body);
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin-top: 4px;
+  }
+  .facts span {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--hair);
+    color: var(--muted);
+  }
+
+  /* --- the console card, which is the whole point of the page ---------- */
+
+  .grab {
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--probe-bg);
+    /* A hairline as well as a shadow: on a dark ground the shadow alone does
+       not separate a dark card from the page behind it. */
+    border: 1px solid var(--probe-rule);
+    box-shadow: 0 14px 40px rgba(10, 15, 25, 0.22);
+  }
+
+  .grab-hd {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--probe-rule);
+  }
+  .dots { display: flex; gap: 6px; }
+  .dots i {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--probe-rule);
+  }
+  .fname {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--probe-dim);
+    flex: 1;
+  }
+
+  #copy {
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--probe-key);
+    border: 0;
+    border-radius: 8px;
+    padding: 9px 18px;
+    cursor: pointer;
+    transition: background 140ms ease, transform 90ms ease;
+  }
+  #copy:hover { background: #2b95ff; }
+  #copy:active { transform: translateY(1px); }
+  #copy:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  #copy.done { background: var(--probe-ok); color: #08210f; }
+
+  #script {
+    display: block;
+    width: 100%;
+    height: 340px;
+    resize: vertical;
+    border: 0;
+    padding: 16px 18px;
+    background: transparent;
+    color: #d7dae0;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    line-height: 1.65;
+    white-space: pre;
+    overflow: auto;
+    tab-size: 2;
+  }
+  #script:focus-visible { outline: 2px solid var(--probe-key); outline-offset: -2px; }
+
+  .grab-ft {
+    padding: 11px 16px 14px;
+    border-top: 1px solid var(--probe-rule);
+    font-size: 12.5px;
+    color: var(--probe-dim);
+    margin: 0;
+  }
+
+  /* --- steps ----------------------------------------------------------- */
+
+  h2 {
+    margin: 0 0 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  ol.steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    counter-reset: step;
+  }
+  ol.steps > li {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 0 16px;
+    align-items: start;
+    counter-increment: step;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    grid-column: 1;
+    grid-row: 1;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 34px;
+    text-align: center;
+    height: 34px;
+    border-radius: 9px;
+    color: var(--accent);
+    background: var(--accent-2);
+    font-variant-numeric: tabular-nums;
+  }
+  ol.steps h3 {
+    margin: 5px 0 6px;
+    font-size: 17.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  ol.steps p { margin: 0 0 10px; max-width: var(--measure); }
+  ol.steps p:last-child { margin-bottom: 0; }
+  /* Pseudo-elements are not matched by the child selector, so this puts every
+     real child in the text column and leaves ::before alone in the gutter. */
+  ol.steps > li > * { grid-column: 2; }
+  ol.steps ul {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    max-width: var(--measure);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  ol.steps li li::marker { color: var(--muted); }
+
+  kbd {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-bottom-width: 2px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.88em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--accent-2);
+    color: var(--accent);
+  }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  .gotcha {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    margin: 12px 0 0;
+    padding: 13px 15px;
+    border-radius: var(--r);
+    background: var(--warn-2);
+    color: var(--warn);
+    font-size: 14.5px;
+    line-height: 1.5;
+    max-width: var(--measure);
+  }
+  .gotcha b { font-weight: 600; }
+  .gotcha .mark {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 500;
+  }
+
+  /* A picture of the box they are told to look for, in its own colours. */
+  .probe {
+    margin: 14px 0 0;
+    width: 258px;
+    max-width: 100%;
+    padding: 13px;
+    border-radius: 13px;
+    background: var(--probe-bg);
+    color: var(--probe-fg);
+    border: 1px solid var(--probe-rule);
+    box-shadow: 0 10px 30px rgba(10, 15, 25, 0.24);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .probe .t { font-weight: 600; font-size: 13.5px; }
+  .probe .s { color: var(--probe-dim); font-size: 11px; margin-top: 2px; }
+  .probe .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 23px; font-weight: 500; margin-top: 9px;
+    font-variant-numeric: tabular-nums;
+  }
+  .probe .n em { font-style: normal; font-size: 11.5px; color: var(--probe-dim); }
+  .probe .btn {
+    margin-top: 10px; padding: 8px; border-radius: 8px;
+    background: var(--probe-key); text-align: center;
+    font-size: 12.5px; font-weight: 600;
+  }
+
+  /* --- what it reads / never reads ------------------------------------- */
+
+  .ledger {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px 36px;
+  }
+  .ledger h3 {
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--hair);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+  .ledger .yes h3 { color: var(--good); }
+  .ledger .no h3 { color: var(--muted); }
+  .ledger ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    font-size: 15px;
+  }
+  .ledger li {
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    gap: 9px;
+  }
+  .ledger .m {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .ledger .yes .m { color: var(--good); }
+  .ledger .no .m { color: var(--muted); }
+
+  .assur {
+    margin: 26px 0 0;
+    padding: 16px 18px;
+    border-radius: var(--r);
+    background: var(--card);
+    border: 1px solid var(--hair);
+    font-family: "IBM Plex Serif", Georgia, serif;
+    font-size: 15.5px;
+    line-height: 1.6;
+    max-width: var(--measure);
+  }
+
+  /* --- troubleshooting -------------------------------------------------- */
+
+  dl.trouble { margin: 0; display: flex; flex-direction: column; gap: 18px; }
+  dl.trouble dt {
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 15.5px;
+  }
+  dl.trouble dd {
+    margin: 4px 0 0;
+    max-width: var(--measure);
+    font-size: 15px;
+  }
+
+  footer {
+    border-top: 1px solid var(--hair);
+    padding-top: 22px;
+    font-size: 14.5px;
+    color: var(--muted);
+    max-width: var(--measure);
+  }
+  footer b { color: var(--ink); font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  @media (max-width: 520px) {
+    .page { padding: 40px 18px 72px; gap: 36px; }
+    ol.steps > li { grid-template-columns: 28px 1fr; gap: 0 12px; }
+    ol.steps > li::before { height: 28px; line-height: 28px; font-size: 12px; }
+  }
+</style>
+
+<div class="page">
+
+  <header>
+    <div class="eyebrow">S.A.M · field mapping</div>
+    <h1>Map Easy Qualifier</h1>
+    <p class="lede">
+      I can't see Easy Qualifier — it sits behind your broker login — so I have
+      no way to learn what its fields are called. This script reads the
+      <em>names</em> of the boxes on screen and hands them back to me. Then S.A.M
+      can drop a finished application straight into EQ.
+    </p>
+    <p class="lede">
+      Your first run brought back all seventy fields. What it missed was what's
+      <em>inside</em> the dropdowns, because a dropdown holds nothing until it's
+      opened — so there's a button for that now, and the run takes half as long.
+    </p>
+    <div class="facts">
+      <span>~5 minutes</span>
+      <span>no code knowledge</span>
+      <span>one paste back to me</span>
+    </div>
+  </header>
+
+  <section class="grab">
+    <div class="grab-hd">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="fname">eq-probe.js</span>
+      <button id="copy" type="button">Copy script</button>
+    </div>
+    <textarea id="script" readonly spellcheck="false" aria-label="The probe script">/**
+ * S.A.M — UWM Easy Qualifier field probe
+ * =====================================
+ *
+ * Paste this into the browser console while you are sitting on Easy
+ * Qualifier. It reads the *shape* of the screen — which fields exist, what
+ * they are called, what a dropdown offers — so S.A.M can learn where to put
+ * an application. Then you press one button and paste the result back.
+ *
+ * What it reads:
+ *   - field labels, names, ids, test ids, roles and types
+ *   - the option lists inside dropdowns (VA / FHA / Conventional, occupancy,
+ *     property type, and so on) — these are the map, and the whole point
+ *   - whether a field is required, disabled, or already has something in it
+ *
+ * What it never reads:
+ *   - anything you typed. Not the borrower's name, not an income figure,
+ *     not a rate. Each field is reported as filled or empty, nothing more.
+ *   - passwords. Those fields are skipped outright, along with file inputs.
+ *   - cookies, tokens, localStorage, session storage, request headers, or
+ *     anything else that could stand in for your login.
+ *   - pricing. No rate, no fee, no result is captured or kept.
+ *
+ * What it never does:
+ *   - send anything anywhere. There is no network call in this file at all.
+ *     What it collects sits in this one browser tab until you press Copy,
+ *     and dies when you close the tab.
+ *   - fill in a field, choose an option, or submit anything.
+ *
+ * One button does touch the page, and it says so: "Read all dropdown lists"
+ * clicks each dropdown open, reads what is inside, and presses Escape. It
+ * selects nothing, and it checks the field before and after to prove the
+ * selection did not move — if one ever does, it says so on the box rather
+ * than carrying on quietly. Everything else only looks.
+ *
+ * You can read every line of it before you run it. That is the idea.
+ */
+
+(() =&gt; {
+  'use strict';
+
+  const VERSION = 2;
+  const MAX_SCREENS = 40;
+  const MAX_OPTIONS = 80;
+
+  if (window.__samEqProbe) {
+    window.__samEqProbe.show();
+    console.log('%cS.A.M probe is already running — look bottom-right.', 'color:#0a84ff;font-weight:600');
+    return;
+  }
+
+  /* ================================================================== *
+   * Reading the page
+   * ================================================================== */
+
+  const FIELD_SELECTOR = [
+    'input:not([type=hidden])',
+    'select',
+    'textarea',
+    '[role=combobox]',
+    '[role=spinbutton]',
+    '[role=switch]',
+    '[contenteditable=true]',
+  ].join(',');
+
+  // Nothing useful lives in these, and a password box is not ours to look at.
+  const SKIP_TYPES = new Set(['submit', 'button', 'reset', 'image', 'file', 'password']);
+
+  const text = (el) =&gt; (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const trim = (s, n = 160) =&gt; (s &amp;&amp; s.length &gt; n ? `${s.slice(0, n)}…` : s);
+
+  function visible(el) {
+    if (!el || !el.isConnected) return false;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 &amp;&amp; rect.height === 0) return false;
+    const style = getComputedStyle(el);
+    return style.visibility !== 'hidden' &amp;&amp; style.display !== 'none';
+  }
+
+  /** Ids that a framework invented this render are useless as selectors. */
+  function looksGenerated(id) {
+    return !id
+      || /^(mui-|:r|radix-|headlessui-|react-aria-|ember|ng-|cdk-|__)/i.test(id)
+      || /\d{4,}$/.test(id)
+      || /^[a-f0-9]{8,}$/i.test(id)
+      || id.length &gt; 60;
+  }
+
+  function esc(value) {
+    if (window.CSS &amp;&amp; CSS.escape) return CSS.escape(value);
+    return String(value).replace(/["\\]/g, '\\$&amp;');
+  }
+
+  /**
+   * A dropdown's partner input.
+   *
+   * Easy Qualifier builds every dropdown as a &lt;div role=combobox id="X"&gt; with
+   * an &lt;input name="X"&gt; beside it holding the chosen text. Finding that
+   * partner is how the fill engine will read a dropdown back — and how the
+   * label below gets cleaned.
+   */
+  function mirrorFor(el) {
+    const id = el.getAttribute('id');
+    if (!id || el.tagName === 'INPUT') return null;
+    return document.querySelector(`input[name="${esc(id)}"]`);
+  }
+
+  /** The other direction: the dropdown a mirror input belongs to. */
+  function comboFor(el) {
+    if (el.tagName !== 'INPUT') return null;
+    const name = el.getAttribute('name');
+    const combo = name ? document.getElementById(name) : null;
+    return combo &amp;&amp; combo.getAttribute('role') === 'combobox' ? combo : null;
+  }
+
+  /**
+   * Strip a field's own contents out of its label.
+   *
+   * EQ renders the selected value *into* the combobox's accessible name, so
+   * the first run of this probe brought back labels reading "Loan Officer
+   * *Joe ShenaLoan Officer". That is someone's name arriving through the one
+   * channel this thing promised not to use. Whatever the field holds is
+   * removed from every label before anything is recorded.
+   */
+  function tidyLabel(value, hidden) {
+    let out = String(value ?? '');
+    for (const secret of hidden) {
+      // Three characters is the floor. Stripping a short code out as a plain
+      // substring turns a radio button's value of "PRIM" into a label
+      // reading "ary Residence".
+      if (secret &amp;&amp; secret.length &gt;= 3) out = out.split(secret).join(' ');
+    }
+    out = out.replace(/\s+/g, ' ').replace(/\s*\*\s*/g, ' ').trim()
+      .replace(/[:\u00a0]+$/, '').trim();
+    // "Loan Purpose Loan Purpose" is one label read twice, not two labels.
+    const doubled = out.match(/^(.+?)\s*\1$/);
+    return doubled ? doubled[1].trim() : out;
+  }
+
+  /**
+   * The label a person would say out loud for this box. Several sources are
+   * tried in the order they are trustworthy; every one that hit is kept, so
+   * a bad first guess is recoverable without asking you to run this again.
+   */
+  function labelsFor(el, hidden = []) {
+    const found = [];
+    const push = (source, value) =&gt; {
+      const clean = tidyLabel(value, hidden);
+      if (clean &amp;&amp; clean.length &lt; 120) found.push({ source, text: clean });
+    };
+
+    if (el.id &amp;&amp; !looksGenerated(el.id)) {
+      for (const l of document.querySelectorAll(`label[for="${esc(el.id)}"]`)) push('for', text(l));
+    }
+    const by = el.getAttribute('aria-labelledby');
+    if (by) {
+      const parts = by.split(/\s+/).map((id) =&gt; document.getElementById(id)).filter(Boolean);
+      if (parts.length) push('aria-labelledby', parts.map(text).join(' '));
+    }
+    push('aria-label', el.getAttribute('aria-label'));
+
+    const wrap = el.closest('label');
+    if (wrap) {
+      const clone = wrap.cloneNode(true);
+      for (const control of clone.querySelectorAll('input,select,textarea')) control.remove();
+      push('wrapping-label', text(clone));
+    }
+
+    // A label sitting beside the box, which is how most of these are built.
+    let node = el;
+    for (let depth = 0; depth &lt; 4 &amp;&amp; node; depth += 1) {
+      const prev = node.previousElementSibling;
+      if (prev &amp;&amp; !prev.querySelector(FIELD_SELECTOR)) {
+        const t = text(prev);
+        if (t &amp;&amp; t.length &lt; 80) { push(`sibling-${depth}`, t); break; }
+      }
+      node = node.parentElement;
+    }
+
+    push('placeholder', el.getAttribute('placeholder'));
+    push('title', el.getAttribute('title'));
+
+    // A table cell takes its meaning from the column header above it.
+    const cell = el.closest('td,th');
+    if (cell) {
+      const row = cell.closest('tr');
+      const table = cell.closest('table');
+      const index = row ? [...row.children].indexOf(cell) : -1;
+      const head = table?.querySelector('thead tr');
+      if (head &amp;&amp; index &gt;= 0 &amp;&amp; head.children[index]) push('column', text(head.children[index]));
+    }
+
+    // Trust order decides, with one exception. EQ glues its labels together
+    // out of several nodes, so the most trusted source can come back reading
+    // "Property CountyProperty CountyAnnual AMI = $144,000" while a plain
+    // sibling says "Property County". When the winner swallows a shorter
+    // candidate whole and is half again as long, the shorter one is the
+    // label and the rest is furniture.
+    const top = found[0];
+    if (top) {
+      const tighter = found.slice(1).find((l) =&gt; l.text.length &gt;= 4
+        &amp;&amp; top.text.length &gt; l.text.length * 1.5
+        &amp;&amp; top.text.includes(l.text));
+      if (tighter) return [tighter, ...found.filter((l) =&gt; l !== tighter)];
+    }
+    return found;
+  }
+
+  /** The heading this field sits under — EQ is a wizard, sections matter. */
+  function sectionFor(el) {
+    let node = el;
+    while (node &amp;&amp; node !== document.body) {
+      const container = node.parentElement;
+      if (!container) break;
+      for (const sibling of [...container.children]) {
+        if (sibling === node) break;
+        if (/^(H[1-6]|LEGEND)$/.test(sibling.tagName) || sibling.getAttribute?.('role') === 'heading') {
+          const t = text(sibling);
+          if (t) return trim(t, 80);
+        }
+      }
+      node = container;
+    }
+    return null;
+  }
+
+  /** Every way we might find this element again, best first. */
+  function selectorsFor(el) {
+    const out = [];
+    const tag = el.tagName.toLowerCase();
+    if (el.id &amp;&amp; !looksGenerated(el.id)) out.push(`#${esc(el.id)}`);
+    const name = el.getAttribute('name');
+    if (name) out.push(`${tag}[name="${name}"]`);
+    for (const attr of ['data-testid', 'data-test', 'data-test-id', 'data-qa', 'data-cy',
+      'data-automation-id', 'data-id', 'formcontrolname', 'ng-reflect-name', 'data-field']) {
+      const v = el.getAttribute(attr);
+      if (v &amp;&amp; v.length &lt; 80) out.push(`[${attr}="${v}"]`);
+    }
+    const aria = el.getAttribute('aria-label');
+    if (aria &amp;&amp; aria.length &lt; 60) out.push(`${tag}[aria-label="${aria}"]`);
+    // A positional path is a last resort — it breaks the moment the page
+    // reflows — so it is only worth carrying when nothing better exists.
+    if (!out.length) out.push(domPath(el));
+    return [...new Set(out)];
+  }
+
+  function domPath(el) {
+    const parts = [];
+    let node = el;
+    while (node &amp;&amp; node.nodeType === 1 &amp;&amp; parts.length &lt; 8 &amp;&amp; node !== document.body) {
+      const tag = node.tagName.toLowerCase();
+      const parent = node.parentElement;
+      if (!parent) { parts.unshift(tag); break; }
+      const same = [...parent.children].filter((c) =&gt; c.tagName === node.tagName);
+      parts.unshift(same.length &gt; 1 ? `${tag}:nth-of-type(${same.indexOf(node) + 1})` : tag);
+      node = parent;
+    }
+    return parts.join(' &gt; ');
+  }
+
+  /**
+   * What a dropdown offers. This is the part that matters most: S.A.M knows
+   * a file is VA, but only EQ knows whether it calls that "VA", "Veterans
+   * Affairs" or "3".
+   */
+  function optionsFor(el) {
+    let list = null;
+
+    if (el.tagName === 'SELECT') {
+      list = [...el.options].map((o) =&gt; ({ value: o.value, text: text(o) }));
+    } else {
+      const owned = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
+      const box = owned ? document.getElementById(owned) : null;
+      const nodes = box ? [...box.querySelectorAll('[role=option]')] : [];
+      if (nodes.length) {
+        list = nodes.map((o) =&gt; ({
+          value: o.getAttribute('data-value') ?? o.getAttribute('value') ?? null,
+          text: text(o),
+        }));
+      }
+    }
+
+    if (!list || !list.length) return null;
+    const total = list.length;
+    const kept = list.slice(0, MAX_OPTIONS).map((o) =&gt; (o.value === o.text || o.value == null ? o.text : o));
+    return total &gt; MAX_OPTIONS ? { total, truncated: true, list: kept } : { total, list: kept };
+  }
+
+  /**
+   * Whether the box formats what you type — a currency mask has to be filled
+   * differently from a plain number box, and getting that wrong is the usual
+   * reason an automated fill silently puts 400000 into a field that then
+   * reads $4.00.
+   *
+   * This looks at the field's own value to decide, and reports only the
+   * yes/no. The value itself never leaves the page.
+   */
+  function looksMasked(el) {
+    const value = typeof el.value === 'string' ? el.value : '';
+    if (/[$,%]/.test(value)) return true;
+    const hint = `${el.className} ${el.getAttribute('data-mask') ?? ''}`;
+    return /mask|currency|money|percent|numeral|cleave/i.test(hint);
+  }
+
+  function describe(el) {
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (SKIP_TYPES.has(type)) return null;
+
+    const value = typeof el.value === 'string' ? el.value : '';
+    const mirror = mirrorFor(el);
+    const combo = comboFor(el);
+
+    // A tick box's value is a code, not the words beside it, so nothing is
+    // stripped from those labels; everywhere else the value is what EQ
+    // renders into the label, and has to come out of it.
+    const hidden = type === 'radio' || type === 'checkbox'
+      ? []
+      : [value, mirror?.value, combo &amp;&amp; el.value, el.textContent?.trim()];
+
+    // A mirror input is nameless on its own — it takes its meaning from the
+    // dropdown that writes into it.
+    const labels = labelsFor(combo ?? el, hidden);
+    const options = optionsFor(el);
+
+    const record = {
+      label: labels[0]?.text ?? null,
+      labelSource: labels[0]?.source ?? null,
+      // Only the ones that disagree with the first: a label found four ways
+      // and agreeing four times is four times the paste for no information.
+      otherLabels: labels.slice(1)
+        .filter((l) =&gt; l.text !== labels[0]?.text)
+        .slice(0, 3)
+        .map((l) =&gt; `${l.source}: ${l.text}`),
+      section: sectionFor(el),
+
+      tag: el.tagName.toLowerCase(),
+      type: type || null,
+      role: el.getAttribute('role'),
+      name: el.getAttribute('name'),
+      id: el.id &amp;&amp; !looksGenerated(el.id) ? el.id : null,
+      selectors: selectorsFor(el),
+
+      inputMode: el.getAttribute('inputmode'),
+      pattern: el.getAttribute('pattern'),
+      maxLength: el.maxLength &gt; 0 &amp;&amp; el.maxLength &lt; 500 ? el.maxLength : null,
+      min: el.getAttribute('min'),
+      max: el.getAttribute('max'),
+      step: el.getAttribute('step'),
+
+      // The input this dropdown writes into, which is where its value is read
+      // back from. EQ names it after the combobox's own id.
+      mirror: mirror ? `input[name="${mirror.getAttribute('name')}"]` : null,
+      mirrorOf: combo ? `#${combo.getAttribute('id')}` : null,
+
+      required: el.required || el.getAttribute('aria-required') === 'true' || null,
+      disabled: el.disabled || el.getAttribute('aria-disabled') === 'true' || null,
+      readOnly: el.readOnly || null,
+      masked: looksMasked(el) || null,
+
+      // State, never content.
+      filled: value.trim().length &gt; 0 || null,
+      options,
+    };
+
+    return compact(record);
+  }
+
+  /** Radio buttons are one question, not five fields. */
+  function groupRadios(elements) {
+    const groups = new Map();
+    const rest = [];
+    for (const el of elements) {
+      const type = (el.getAttribute('type') || '').toLowerCase();
+      const name = el.getAttribute('name');
+      if (type === 'radio' &amp;&amp; name) {
+        if (!groups.has(name)) groups.set(name, []);
+        groups.get(name).push(el);
+      } else {
+        rest.push(el);
+      }
+    }
+    return { groups, rest };
+  }
+
+  function describeRadioGroup(name, elements) {
+    const first = elements[0];
+    const labels = labelsFor(first);
+    return compact({
+      label: sectionFor(first) ?? labels[0]?.text ?? name,
+      labelSource: 'radio-group',
+      section: sectionFor(first),
+      tag: 'input',
+      type: 'radio',
+      name,
+      selectors: [`input[name="${name}"]`],
+      options: {
+        total: elements.length,
+        list: elements.map((el) =&gt; {
+          const own = labelsFor(el)[0]?.text ?? null;
+          const value = el.getAttribute('value');
+          return own &amp;&amp; own !== value ? { value, text: own } : (value ?? own);
+        }),
+      },
+      required: first.required || null,
+    });
+  }
+
+  /**
+   * Options belonging to a dropdown that is open right now but not wired to
+   * its control with aria-controls. Recorded loose and stitched up later.
+   */
+  function looseOptions() {
+    const boxes = [...document.querySelectorAll('[role=listbox],[role=menu]')].filter(visible);
+    return boxes.map((box) =&gt; {
+      const nodes = [...box.querySelectorAll('[role=option],[role=menuitem]')];
+      return compact({
+        listbox: box.id || box.className?.slice?.(0, 60) || null,
+        near: trim(text(box.parentElement?.previousElementSibling ?? box.previousElementSibling), 60),
+        options: nodes.slice(0, MAX_OPTIONS).map((o) =&gt; text(o)).filter(Boolean),
+        total: nodes.length,
+      });
+    }).filter((b) =&gt; b.options?.length);
+  }
+
+  function framework() {
+    const marks = [];
+    const body = document.body;
+    if (document.querySelector('[ng-version]')) {
+      marks.push(`angular ${document.querySelector('[ng-version]').getAttribute('ng-version')}`);
+    }
+    if (Object.keys(body ?? {}).some((k) =&gt; k.startsWith('__react'))
+      || document.querySelector('[data-reactroot]')
+      || [...document.querySelectorAll('div')].slice(0, 40)
+        .some((d) =&gt; Object.keys(d).some((k) =&gt; k.startsWith('__react')))) marks.push('react');
+    if (document.querySelector('[data-v-app]') || window.__VUE__) marks.push('vue');
+    if (window.jQuery) marks.push(`jquery ${window.jQuery.fn?.jquery ?? ''}`.trim());
+    return marks.length ? marks : ['unknown'];
+  }
+
+  /* ================================================================== *
+   * Capture
+   * ================================================================== */
+
+  const store = {
+    version: VERSION,
+    capturedAt: new Date().toISOString(),
+    // Path only. Query *keys* are kept because they name the screen; their
+    // values are dropped because they can carry a loan or borrower id.
+    site: `${location.origin}${location.pathname}`,
+    framework: framework(),
+    screens: [],
+  };
+
+  function signature() {
+    const parts = [];
+    for (const el of document.querySelectorAll(FIELD_SELECTOR)) {
+      if (!visible(el)) continue;
+      parts.push(`${el.tagName}:${el.getAttribute('name') ?? ''}:${el.getAttribute('type') ?? ''}`);
+    }
+    return parts.sort().join('|');
+  }
+
+  let lastSignature = '';
+  const seen = new Set();
+
+  /**
+   * What this screen is called. A wizard usually keeps one page-level h1 and
+   * changes an h2 underneath it, so both are taken — the h1 alone would name
+   * every step identically.
+   */
+  function headingFor() {
+    const seen = [];
+    for (const h of document.querySelectorAll('h1,h2,[role=heading],legend')) {
+      if (!visible(h)) continue;
+      const t = trim(text(h), 60);
+      if (t &amp;&amp; !seen.includes(t)) seen.push(t);
+      if (seen.length === 2) break;
+    }
+    return seen.join(' — ') || null;
+  }
+
+  function capture(manual = false) {
+    if (store.screens.length &gt;= MAX_SCREENS) return { skipped: 'limit reached' };
+
+    const sig = signature();
+    if (!manual &amp;&amp; sig === lastSignature) return { skipped: 'no change' };
+    if (!sig &amp;&amp; !manual) return { skipped: 'no fields' };
+    lastSignature = sig;
+
+    const all = [...document.querySelectorAll(FIELD_SELECTOR)].filter(visible);
+    const { groups, rest } = groupRadios(all);
+
+    const fields = rest.map(describe).filter(Boolean);
+    for (const [name, elements] of groups) fields.push(describeRadioGroup(name, elements));
+
+    const heading = headingFor();
+    const screen = compact({
+      screen: store.screens.length + 1,
+      heading,
+      path: location.pathname,
+      queryKeys: [...new URLSearchParams(location.search).keys()],
+      hash: location.hash ? location.hash.split('?')[0] : null,
+      at: new Date().toISOString(),
+      fieldCount: fields.length,
+      fields,
+      openLists: looseOptions(),
+    });
+
+    // The same screen captured twice with one more dropdown open is worth
+    // keeping; the same screen captured twice unchanged is not.
+    if (!manual &amp;&amp; seen.has(sig)) return { skipped: 'seen' };
+    seen.add(sig);
+
+    store.screens.push(screen);
+    render();
+    return { captured: fields.length };
+  }
+
+  function compact(obj) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v == null || v === false || v === '') continue;
+      if (Array.isArray(v) &amp;&amp; !v.length) continue;
+      out[k] = v;
+    }
+    return out;
+  }
+
+  /* ================================================================== *
+   * Opening the dropdowns
+   *
+   * This is the one part of the probe that touches the page, and it is on a
+   * button of its own for that reason. The first run brought back every
+   * field on Easy Qualifier and almost none of the option lists, because a
+   * React dropdown does not put its options in the document until it is
+   * opened — and opening one does not change the set of fields, so nothing
+   * triggered a capture. Asking someone to hand-open twenty dropdowns at
+   * exactly the right moment is not a plan.
+   *
+   * So: click each one open, read the list, press Escape. It never picks an
+   * option, and it reads the paired input before and after to prove the
+   * selection did not move. Anything that did move is reported rather than
+   * quietly swallowed.
+   * ================================================================== */
+
+  const wait = (ms) =&gt; new Promise((resolve) =&gt; setTimeout(resolve, ms));
+
+  function openLists() {
+    return new Set([...document.querySelectorAll('[role=listbox],[role=menu]')].filter(visible));
+  }
+
+  function close(combo) {
+    for (const type of ['keydown', 'keyup']) {
+      combo.dispatchEvent(new KeyboardEvent(type, {
+        key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+        bubbles: true, cancelable: true, composed: true,
+      }));
+    }
+  }
+
+  async function readDropdowns() {
+    const combos = [...document.querySelectorAll('[role=combobox]')].filter(visible);
+    const found = [];
+    let moved = 0;
+
+    for (let i = 0; i &lt; combos.length; i += 1) {
+      const combo = combos[i];
+      const id = combo.getAttribute('id') ?? null;
+      const mirror = mirrorFor(combo);
+      const before = mirror ? mirror.value : null;
+      const label = labelsFor(combo, [before, combo.textContent?.trim()])[0]?.text ?? id;
+
+      say(`Reading ${i + 1} of ${combos.length}: ${label ?? 'dropdown'}`, true);
+
+      if (combo.getAttribute('aria-disabled') === 'true' || combo.hasAttribute('disabled')) {
+        found.push({ id, label, disabled: true });
+        continue;
+      }
+
+      const already = openLists();
+      combo.click();
+      await wait(320);
+
+      // Whichever listbox this click brought into the document.
+      const owned = combo.getAttribute('aria-controls') || combo.getAttribute('aria-owns');
+      const box = (owned &amp;&amp; document.getElementById(owned))
+        ?? [...openLists()].find((el) =&gt; !already.has(el))
+        ?? null;
+
+      const nodes = box ? [...box.querySelectorAll('[role=option],[role=menuitem]')] : [];
+      const list = nodes.slice(0, MAX_OPTIONS).map((node) =&gt; {
+        const value = node.getAttribute('data-value') ?? node.getAttribute('value')
+          ?? node.getAttribute('id') ?? null;
+        const t = text(node);
+        return value == null || value === t ? t : { value, text: t };
+      }).filter((o) =&gt; o &amp;&amp; (typeof o !== 'object' || o.text));
+
+      close(combo);
+      await wait(140);
+      if ([...openLists()].some((el) =&gt; !already.has(el))) {
+        combo.click();          // toggle it shut if Escape was not enough
+        await wait(140);
+      }
+
+      const after = mirror ? mirror.value : null;
+      if (before !== after) moved += 1;
+
+      found.push(compact({
+        id,
+        label,
+        mirror: mirror ? `input[name="${mirror.getAttribute('name')}"]` : null,
+        total: nodes.length,
+        options: list,
+        // Loud, not silent: a probe that moved someone's scenario has to say so.
+        selectionChanged: before !== after ? true : undefined,
+        empty: nodes.length ? undefined : true,
+      }));
+    }
+
+    store.dropdowns = found;
+    const withOptions = found.filter((f) =&gt; f.options?.length).length;
+    render();
+    say(moved
+      ? `${withOptions} lists read — ${moved} selection(s) moved, check the form`
+      : `${withOptions} of ${combos.length} lists read, nothing was changed`);
+    return found;
+  }
+
+  /* ================================================================== *
+   * The results, as a shape rather than a price
+   *
+   * Where the rate and the payment come out matters; what they say today
+   * does not, and the rule this was built to is that pricing is never
+   * cached or carried anywhere. So the labels come back verbatim and every
+   * digit in a result is replaced with a hash before it is recorded.
+   * ================================================================== */
+
+  const shapeOf = (value) =&gt; trim(String(value ?? '').replace(/\d/g, '#'), 60);
+
+  function readResults() {
+    const blocks = [];
+
+    for (const table of document.querySelectorAll('table,[role=table],[role=grid]')) {
+      if (!visible(table)) continue;
+      const headers = [...table.querySelectorAll('thead th,[role=columnheader]')]
+        .map((cell) =&gt; text(cell)).filter(Boolean);
+      const rows = [...table.querySelectorAll('tbody tr,[role=row]')].slice(0, 4)
+        .map((row) =&gt; [...row.children].map((cell) =&gt; shapeOf(text(cell))))
+        .filter((row) =&gt; row.length);
+      if (!headers.length &amp;&amp; !rows.length) continue;
+      blocks.push(compact({
+        kind: 'table', selector: selectorsFor(table)[0], heading: headingFor(),
+        headers, shapes: rows,
+      }));
+    }
+
+    const panels = document.querySelectorAll(
+      '[class*="result" i],[id*="result" i],[class*="pricing" i],[class*="quote" i]',
+    );
+    for (const panel of [...panels].slice(0, 12)) {
+      if (!visible(panel) || panel.querySelector('table')) continue;
+      const body = shapeOf((panel.innerText ?? '').replace(/\s+/g, ' ').trim());
+      if (!body || body.length &lt; 12) continue;
+      blocks.push({ kind: 'panel', selector: selectorsFor(panel)[0], shape: trim(body, 600) });
+    }
+
+    store.results = blocks;
+    render();
+    say(blocks.length ? `${blocks.length} result blocks read (numbers masked)`
+      : 'No results on screen yet — press Quote first.');
+    return blocks;
+  }
+
+  /* ================================================================== *
+   * The little box in the corner
+   * ================================================================== */
+
+  const host = document.createElement('div');
+  host.id = '__sam_eq_probe';
+  host.style.cssText = 'all: initial; position: static;';
+  document.documentElement.appendChild(host);
+  const shadow = host.attachShadow({ mode: 'open' });
+
+  shadow.innerHTML = `
+    &lt;style&gt;
+      :host { all: initial; }
+      .box {
+        position: fixed; right: 16px; bottom: 16px; z-index: 2147483647;
+        width: 268px; padding: 14px;
+        font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        color: #fff; background: #1c1c1e;
+        border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.45);
+      }
+      .t { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+      .s { color: #98989f; font-size: 11.5px; margin-bottom: 10px; }
+      .n { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .n small { font-size: 12px; font-weight: 500; color: #98989f; }
+      .list { margin: 8px 0 10px; max-height: 96px; overflow: auto; font-size: 11.5px; color: #c7c7cc; }
+      .list div { padding: 2px 0; border-top: 1px solid #2c2c2e; }
+      button {
+        font: inherit; font-size: 12.5px; font-weight: 600;
+        width: 100%; padding: 9px; margin-top: 6px;
+        border: 0; border-radius: 9px; cursor: pointer;
+        background: #2c2c2e; color: #fff;
+      }
+      button.p { background: #0a84ff; }
+      button.q { background: transparent; color: #98989f; font-weight: 500; padding: 5px; }
+      .ok { color: #30d158; font-size: 11.5px; min-height: 15px; margin-top: 6px; }
+      textarea { width: 100%; height: 90px; margin-top: 8px; font-size: 10px; }
+    &lt;/style&gt;
+    &lt;div class="box"&gt;
+      &lt;div class="t"&gt;S.A.M — mapping Easy Qualifier&lt;/div&gt;
+      &lt;div class="s"&gt;Reads field names only. Nothing you typed, nothing sent anywhere.&lt;/div&gt;
+      &lt;div class="n" data-n&gt;0 &lt;small&gt;screens&lt;/small&gt;&lt;/div&gt;
+      &lt;div class="list" data-list&gt;&lt;/div&gt;
+      &lt;button class="p" data-a="lists"&gt;Read all dropdown lists&lt;/button&gt;
+      &lt;button data-a="results"&gt;Read the results&lt;/button&gt;
+      &lt;button class="p" data-a="copy"&gt;Copy all &amp;amp; finish&lt;/button&gt;
+      &lt;button data-a="capture"&gt;Capture this screen&lt;/button&gt;
+      &lt;button data-a="download"&gt;Save as a file&lt;/button&gt;
+      &lt;div class="ok" data-ok&gt;&lt;/div&gt;
+      &lt;button class="q" data-a="stop"&gt;close&lt;/button&gt;
+    &lt;/div&gt;
+  `;
+
+  const $ = (sel) =&gt; shadow.querySelector(sel);
+
+  function render() {
+    const n = store.screens.length;
+    const fields = store.screens.reduce((sum, s) =&gt; sum + (s.fieldCount ?? 0), 0);
+    $('[data-n]').innerHTML = `${n} &lt;small&gt;screen${n === 1 ? '' : 's'}, ${fields} fields&lt;/small&gt;`;
+    const rows = store.screens
+      .map((s) =&gt; `&lt;div&gt;${s.screen}. ${escapeHtml(s.heading ?? s.path)} — ${s.fieldCount}&lt;/div&gt;`);
+
+    const lists = (store.dropdowns ?? []).filter((d) =&gt; d.options?.length).length;
+    if (lists) rows.push(`&lt;div&gt;${lists} dropdown lists read&lt;/div&gt;`);
+    if (store.results?.length) rows.push(`&lt;div&gt;${store.results.length} result blocks read&lt;/div&gt;`);
+    $('[data-list]').innerHTML = rows.join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&amp;&lt;&gt;]/g, (c) =&gt; ({ '&amp;': '&amp;amp;', '&lt;': '&amp;lt;', '&gt;': '&amp;gt;' }[c]));
+  }
+
+  function say(message, sticky = false) {
+    $('[data-ok]').textContent = message;
+    if (sticky) return;
+    setTimeout(() =&gt; {
+      if ($('[data-ok]').textContent === message) $('[data-ok]').textContent = '';
+    }, 5000);
+  }
+
+  const json = () =&gt; JSON.stringify(store, null, 1);
+
+  async function copyAll() {
+    const payload = json();
+    try {
+      await navigator.clipboard.writeText(payload);
+      say(`Copied ${Math.round(payload.length / 1024)}KB — paste it back to S.A.M.`);
+      return;
+    } catch { /* clipboard blocked; fall through */ }
+
+    const area = document.createElement('textarea');
+    area.value = payload;
+    shadow.querySelector('.box').appendChild(area);
+    area.select();
+    try {
+      document.execCommand('copy');
+      say('Copied — paste it back to S.A.M.');
+      area.remove();
+    } catch {
+      say('Select the text below and copy it by hand.');
+    }
+  }
+
+  function download() {
+    const blob = new Blob([json()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `eq-map-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() =&gt; URL.revokeObjectURL(a.href), 5000);
+    say('Saved to your Downloads folder.');
+  }
+
+  let busy = false;
+
+  shadow.addEventListener('click', (event) =&gt; {
+    const action = event.target?.dataset?.a;
+    if (!action) return;
+    if (action === 'lists') {
+      // One at a time: two passes racing each other would leave a dropdown
+      // hanging open on someone's live scenario.
+      if (busy) return;
+      busy = true;
+      readDropdowns().finally(() =&gt; { busy = false; });
+    }
+    if (action === 'results') readResults();
+    if (action === 'copy') copyAll();
+    if (action === 'download') download();
+    if (action === 'capture') {
+      const r = capture(true);
+      say(r.captured ? `Captured ${r.captured} fields.` : `Nothing new here (${r.skipped}).`);
+    }
+    if (action === 'stop') stop();
+  });
+
+  /* ================================================================== *
+   * Follow the wizard
+   * ================================================================== */
+
+  let timer = null;
+  const observer = new MutationObserver(() =&gt; {
+    clearTimeout(timer);
+    timer = setTimeout(() =&gt; capture(false), 900);
+  });
+  // Attributes as well as children: a wizard that shows a step by toggling a
+  // class never touches the DOM tree, and watching only childList meant the
+  // second screen of the test fixture was never seen.
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'hidden', 'aria-expanded', 'aria-hidden'],
+  });
+
+  // A belt to go with those braces. Some portals render inside a canvas of
+  // custom elements where neither kind of mutation reaches us; a cheap poll
+  // costs nothing, because an unchanged signature returns immediately.
+  const poll = setInterval(() =&gt; capture(false), 2500);
+
+  function stop() {
+    observer.disconnect();
+    clearInterval(poll);
+    clearTimeout(timer);
+    host.remove();
+    delete window.__samEqProbe;
+    console.log('%cS.A.M probe stopped.', 'color:#98989f');
+  }
+
+  window.__samEqProbe = {
+    store,
+    capture: () =&gt; capture(true),
+    dropdowns: readDropdowns,
+    results: readResults,
+    copy: copyAll,
+    json,
+    stop,
+    show: () =&gt; { host.style.display = ''; },
+  };
+
+  capture(true);
+  render();
+  console.log(
+    '%cS.A.M probe running.%c Click through Easy Qualifier as normal — every screen '
+    + 'is captured automatically. Press "Copy all &amp; finish" when you are done.',
+    'color:#0a84ff;font-weight:700', 'color:inherit',
+  );
+  console.log(
+    'Then press "Read all dropdown lists" — it opens each one, reads it, and '
+    + 'presses Escape without choosing anything.',
+  );
+})();
+</textarea>
+    <p class="grab-ft">Nothing to install. This goes into the browser console — step 3.</p>
+  </section>
+
+  <section>
+    <h2>The steps</h2>
+    <ol class="steps">
+
+      <li>
+        <h3>Open Easy Qualifier</h3>
+        <p>
+          Log into UWM as normal and start a scenario. Made-up numbers are fine —
+          a $400,000 house with a $270,000 payoff, VA, cash-out. It never has to
+          be real and you never have to submit it.
+        </p>
+      </li>
+
+      <li>
+        <h3>Open the console</h3>
+        <p>
+          Press <kbd>F12</kbd>. On a Mac, hold <kbd>Cmd</kbd> + <kbd>Option</kbd>
+          + <kbd>I</kbd>. A panel opens on the right or along the bottom. Click
+          the tab marked <strong>Console</strong>.
+        </p>
+      </li>
+
+      <li>
+        <h3>Paste the script in</h3>
+        <p>
+          Press <strong>Copy script</strong> at the top of this page. Click the
+          empty space next to the <code>&gt;</code> symbol in the console, paste,
+          and press <kbd>Enter</kbd>.
+        </p>
+        <div class="gotcha">
+          <span class="mark">!</span>
+          <span>
+            <b>If it says "Allow pasting"</b> — or warns you not to paste code you
+            don't understand — that's Chrome protecting you, and it stops most
+            people on their first try. Type the words <code>allow pasting</code>,
+            press <kbd>Enter</kbd>, then paste the script again. You only ever
+            do this once.
+          </span>
+        </div>
+      </li>
+
+      <li>
+        <h3>Look for the black box</h3>
+        <p>
+          It appears in the bottom-right corner of the page and looks like this.
+          That means it's working — leave it alone.
+        </p>
+        <div class="probe" aria-hidden="true">
+          <div class="t">S.A.M — mapping Easy Qualifier</div>
+          <div class="s">Reads field names only. Nothing you typed, nothing sent anywhere.</div>
+          <div class="n">1 <em>screen, 24 fields</em></div>
+          <div class="btn">Copy all &amp; finish</div>
+        </div>
+      </li>
+
+      <li>
+        <h3>Click through the form once</h3>
+        <p>
+          Fill in your scenario and let every field appear. Some of EQ's boxes
+          only exist once a program is chosen — the VA Use Type box shows up
+          when VA is selected, and the funding-fee box with it — so a form
+          that has been filled in shows more than an empty one.
+        </p>
+      </li>
+
+      <li>
+        <h3>Press "Read all dropdown lists"</h3>
+        <p>
+          This is the important one. It opens each dropdown, reads what's
+          inside, and presses Escape — about fifteen seconds, and you'll see
+          them blink open and shut. It <strong>picks nothing</strong>, and it
+          checks each field before and after to prove your selection didn't
+          move. If one ever did, the box says so instead of carrying on.
+        </p>
+        <div class="gotcha">
+          <span class="mark">!</span>
+          <span>
+            This is the only part of the script that touches the page at all.
+            Everything else just looks. If you'd rather not have it clicking
+            around a real scenario, put a made-up one in first.
+          </span>
+        </div>
+      </li>
+
+      <li>
+        <h3>Get a quote, then press "Read the results"</h3>
+        <p>
+          Press whatever button EQ uses to price it, and once the rates are on
+          screen press <strong>Read the results</strong>. It records the column
+          headings and replaces every digit with a <code>#</code> — so I learn
+          where the rate and payment come out without carrying your pricing
+          anywhere.
+        </p>
+      </li>
+
+      <li>
+        <h3>Press "Copy all &amp; finish"</h3>
+        <p>It'll say something like <code>Copied 61KB</code>.</p>
+      </li>
+
+      <li>
+        <h3>Paste it back to me</h3>
+        <p>
+          Straight into our chat. It'll be a wall of text — that's exactly what
+          it should look like. If it's too big to paste, press <strong>Save as
+          a file</strong> instead and send me the <code>.json</code>.
+        </p>
+      </li>
+
+      <li>
+        <h3>Close it down</h3>
+        <p>
+          Click <strong>close</strong> at the bottom of the black box, then press
+          <kbd>F12</kbd> again to shut the console. Nothing is left behind.
+        </p>
+      </li>
+
+    </ol>
+  </section>
+
+  <section>
+    <h2>What it reads, and what it doesn't</h2>
+    <div class="ledger">
+      <div class="yes">
+        <h3>It reads</h3>
+        <ul>
+          <li><span class="m">+</span><span>The names of the fields on screen</span></li>
+          <li><span class="m">+</span><span>What's inside every dropdown — loan types, occupancy, property type. This is the map.</span></li>
+          <li><span class="m">+</span><span>Whether a box is required, greyed out, or formats what you type</span></li>
+          <li><span class="m">+</span><span>Whether a box is empty or has something in it — and nothing more than that</span></li>
+        </ul>
+      </div>
+      <div class="no">
+        <h3>It never reads</h3>
+        <ul>
+          <li><span class="m">&minus;</span><span>Anything you typed. Not a borrower name, not an income figure, not a rate.</span></li>
+          <li><span class="m">&minus;</span><span>Passwords. Those boxes are skipped outright.</span></li>
+          <li><span class="m">&minus;</span><span>Cookies, tokens, or anything else that stands in for your login</span></li>
+          <li><span class="m">&minus;</span><span>Rates, fees or prices. Result figures have every digit replaced with a <code>#</code>.</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="assur">
+      It also makes no network calls at all — there isn't a single one in the
+      file. What it collects sits in that one browser tab until you press Copy,
+      and dies when you close the tab. That isn't a promise: the test suite
+      plants a fake session cookie and access token, drives the whole flow, and
+      fails if either reaches the output or if any request leaves the page. It
+      never fills in a field, chooses an option, or submits anything.
+    </p>
+    <p class="assur">
+      One button is the exception, and it says so on its face. <b>Read all
+      dropdown lists</b> clicks each dropdown open, reads it, and presses
+      Escape. That is the only way to see inside them — a React dropdown holds
+      nothing at all until it is opened. It selects nothing, and it reads each
+      field before and after to prove the selection did not move; a test drives
+      the whole pass and fails if any value on the form changes.
+    </p>
+  </section>
+
+  <section>
+    <h2>If something goes wrong</h2>
+    <dl class="trouble">
+      <dt>Nothing happened when I pressed Enter.</dt>
+      <dd>Look for red text in the console and send me a photo of it.</dd>
+
+      <dt>The black box never appeared.</dt>
+      <dd>
+        You're probably inside a frame. Just above the console input is a
+        dropdown that usually reads <code>top</code> — click it, pick the entry
+        that looks like the Easy Qualifier page, and paste the script again.
+      </dd>
+
+      <dt>It says 1 screen and never goes up.</dt>
+      <dd>
+        Click <strong>Capture this screen</strong> by hand on each screen
+        instead. Same result, just manual.
+      </dd>
+
+      <dt>The fields look wrong to me.</dt>
+      <dd>
+        Send it anyway. I can tell from the output whether it read the page
+        properly, and a bad map is far more useful than no map for working out
+        what to fix.
+      </dd>
+    </dl>
+  </section>
+
+  <footer>
+    <p>
+      <b>What happens next.</b> I turn what you send into a mapping file, and
+      S.A.M gets a <b>To UWM</b> button: it takes the application you already
+      filled in on the call and drops it into Easy Qualifier's fields in one go.
+      You check it and press Quote yourself.
+    </p>
+    <p>
+      It stops there, exactly as your spec says. No auto-submit, no handling your
+      credentials, no background requests to UWM. If UWM changes the page and the
+      map stops matching, the button tells you so and falls back to copying the
+      scenario to your clipboard rather than filling in the wrong boxes.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var button = document.getElementById('copy');
+    var area = document.getElementById('script');
+    var idle = button.textContent;
+    var timer = null;
+
+    function settle(message, ok) {
+      button.textContent = message;
+      button.classList.toggle('done', !!ok);
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        button.textContent = idle;
+        button.classList.remove('done');
+      }, 2600);
+    }
+
+    function fallback() {
+      area.focus();
+      area.select();
+      try {
+        return document.execCommand('copy') ? settle('Copied', true)
+          : settle('Press Ctrl+C', false);
+      } catch (e) {
+        return settle('Press Ctrl+C', false);
+      }
+    }
+
+    button.addEventListener('click', function () {
+      // The clipboard API is the clean path; a selected textarea is the one
+      // that still works when the page is sandboxed out of it.
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(area.value)
+          .then(function () { settle('Copied', true); })
+          .catch(fallback);
+      } else {
+        fallback();
+      }
+    });
+  }());
+</script>

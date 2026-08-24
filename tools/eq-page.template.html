@@ -1,0 +1,717 @@
+<title>Easy Qualifier Probe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;1,400&display=swap" />
+
+<style>
+  /* ------------------------------------------------------------------
+     Palette lifted from S.A.M's own panel, on purpose: the black box the
+     agent is told to look for in step 4 is #1c1c1e with an #0a84ff button,
+     and this page shows it in exactly those colours so "look for this"
+     needs no further explanation.
+     ------------------------------------------------------------------ */
+  :root {
+    --paper:    #f1f3f6;
+    --card:     #ffffff;
+    --ink:      #16181c;
+    --body:     #33383f;
+    --muted:    #6c737d;
+    --hair:     #dfe3e9;
+    --accent:   #0a5fd6;
+    --accent-2: #e8effb;
+    --good:     #1c7f3c;
+    --good-2:   #e4f4e9;
+    --warn:     #8a5300;
+    --warn-2:   #fdf1de;
+
+    /* The console facsimile keeps one look in both themes — it is a picture
+       of a fixed thing, not a surface of this page. */
+    --probe-bg:  #1c1c1e;
+    --probe-fg:  #ffffff;
+    --probe-dim: #98989f;
+    --probe-rule:#2c2c2e;
+    --probe-key: #0a84ff;
+    --probe-ok:  #30d158;
+
+    --measure: 68ch;
+    --r: 10px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:    #101216;
+      --card:     #191c21;
+      --ink:      #f2f4f7;
+      --body:     #c8cdd4;
+      --muted:    #8b939d;
+      --hair:     #282d34;
+      --accent:   #64a6ff;
+      --accent-2: #17273c;
+      --good:     #5cd07d;
+      --good-2:   #16301f;
+      --warn:     #f0b45c;
+      --warn-2:   #33260f;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:    #101216;
+    --card:     #191c21;
+    --ink:      #f2f4f7;
+    --body:     #c8cdd4;
+    --muted:    #8b939d;
+    --hair:     #282d34;
+    --accent:   #64a6ff;
+    --accent-2: #17273c;
+    --good:     #5cd07d;
+    --good-2:   #16301f;
+    --warn:     #f0b45c;
+    --warn-2:   #33260f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--body);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+  }
+
+  /* --- header ---------------------------------------------------------- */
+
+  header { display: flex; flex-direction: column; gap: 14px; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(30px, 5.4vw, 42px);
+    line-height: 1.1;
+    letter-spacing: -0.022em;
+    font-weight: 600;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-family: "IBM Plex Serif", Georgia, serif;
+    font-size: 17.5px;
+    line-height: 1.6;
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--body);
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin-top: 4px;
+  }
+  .facts span {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--hair);
+    color: var(--muted);
+  }
+
+  /* --- the console card, which is the whole point of the page ---------- */
+
+  .grab {
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--probe-bg);
+    /* A hairline as well as a shadow: on a dark ground the shadow alone does
+       not separate a dark card from the page behind it. */
+    border: 1px solid var(--probe-rule);
+    box-shadow: 0 14px 40px rgba(10, 15, 25, 0.22);
+  }
+
+  .grab-hd {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--probe-rule);
+  }
+  .dots { display: flex; gap: 6px; }
+  .dots i {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--probe-rule);
+  }
+  .fname {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--probe-dim);
+    flex: 1;
+  }
+
+  #copy {
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--probe-key);
+    border: 0;
+    border-radius: 8px;
+    padding: 9px 18px;
+    cursor: pointer;
+    transition: background 140ms ease, transform 90ms ease;
+  }
+  #copy:hover { background: #2b95ff; }
+  #copy:active { transform: translateY(1px); }
+  #copy:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  #copy.done { background: var(--probe-ok); color: #08210f; }
+
+  #script {
+    display: block;
+    width: 100%;
+    height: 340px;
+    resize: vertical;
+    border: 0;
+    padding: 16px 18px;
+    background: transparent;
+    color: #d7dae0;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    line-height: 1.65;
+    white-space: pre;
+    overflow: auto;
+    tab-size: 2;
+  }
+  #script:focus-visible { outline: 2px solid var(--probe-key); outline-offset: -2px; }
+
+  .grab-ft {
+    padding: 11px 16px 14px;
+    border-top: 1px solid var(--probe-rule);
+    font-size: 12.5px;
+    color: var(--probe-dim);
+    margin: 0;
+  }
+
+  /* --- steps ----------------------------------------------------------- */
+
+  h2 {
+    margin: 0 0 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  ol.steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    counter-reset: step;
+  }
+  ol.steps > li {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 0 16px;
+    align-items: start;
+    counter-increment: step;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    grid-column: 1;
+    grid-row: 1;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 34px;
+    text-align: center;
+    height: 34px;
+    border-radius: 9px;
+    color: var(--accent);
+    background: var(--accent-2);
+    font-variant-numeric: tabular-nums;
+  }
+  ol.steps h3 {
+    margin: 5px 0 6px;
+    font-size: 17.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  ol.steps p { margin: 0 0 10px; max-width: var(--measure); }
+  ol.steps p:last-child { margin-bottom: 0; }
+  /* Pseudo-elements are not matched by the child selector, so this puts every
+     real child in the text column and leaves ::before alone in the gutter. */
+  ol.steps > li > * { grid-column: 2; }
+  ol.steps ul {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    max-width: var(--measure);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  ol.steps li li::marker { color: var(--muted); }
+
+  kbd {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--card);
+    border: 1px solid var(--hair);
+    border-bottom-width: 2px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.88em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--accent-2);
+    color: var(--accent);
+  }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  .gotcha {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    margin: 12px 0 0;
+    padding: 13px 15px;
+    border-radius: var(--r);
+    background: var(--warn-2);
+    color: var(--warn);
+    font-size: 14.5px;
+    line-height: 1.5;
+    max-width: var(--measure);
+  }
+  .gotcha b { font-weight: 600; }
+  .gotcha .mark {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 500;
+  }
+
+  /* A picture of the box they are told to look for, in its own colours. */
+  .probe {
+    margin: 14px 0 0;
+    width: 258px;
+    max-width: 100%;
+    padding: 13px;
+    border-radius: 13px;
+    background: var(--probe-bg);
+    color: var(--probe-fg);
+    border: 1px solid var(--probe-rule);
+    box-shadow: 0 10px 30px rgba(10, 15, 25, 0.24);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .probe .t { font-weight: 600; font-size: 13.5px; }
+  .probe .s { color: var(--probe-dim); font-size: 11px; margin-top: 2px; }
+  .probe .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 23px; font-weight: 500; margin-top: 9px;
+    font-variant-numeric: tabular-nums;
+  }
+  .probe .n em { font-style: normal; font-size: 11.5px; color: var(--probe-dim); }
+  .probe .btn {
+    margin-top: 10px; padding: 8px; border-radius: 8px;
+    background: var(--probe-key); text-align: center;
+    font-size: 12.5px; font-weight: 600;
+  }
+
+  /* --- what it reads / never reads ------------------------------------- */
+
+  .ledger {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px 36px;
+  }
+  .ledger h3 {
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--hair);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+  .ledger .yes h3 { color: var(--good); }
+  .ledger .no h3 { color: var(--muted); }
+  .ledger ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    font-size: 15px;
+  }
+  .ledger li {
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    gap: 9px;
+  }
+  .ledger .m {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .ledger .yes .m { color: var(--good); }
+  .ledger .no .m { color: var(--muted); }
+
+  .assur {
+    margin: 26px 0 0;
+    padding: 16px 18px;
+    border-radius: var(--r);
+    background: var(--card);
+    border: 1px solid var(--hair);
+    font-family: "IBM Plex Serif", Georgia, serif;
+    font-size: 15.5px;
+    line-height: 1.6;
+    max-width: var(--measure);
+  }
+
+  /* --- troubleshooting -------------------------------------------------- */
+
+  dl.trouble { margin: 0; display: flex; flex-direction: column; gap: 18px; }
+  dl.trouble dt {
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 15.5px;
+  }
+  dl.trouble dd {
+    margin: 4px 0 0;
+    max-width: var(--measure);
+    font-size: 15px;
+  }
+
+  footer {
+    border-top: 1px solid var(--hair);
+    padding-top: 22px;
+    font-size: 14.5px;
+    color: var(--muted);
+    max-width: var(--measure);
+  }
+  footer b { color: var(--ink); font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  @media (max-width: 520px) {
+    .page { padding: 40px 18px 72px; gap: 36px; }
+    ol.steps > li { grid-template-columns: 28px 1fr; gap: 0 12px; }
+    ol.steps > li::before { height: 28px; line-height: 28px; font-size: 12px; }
+  }
+</style>
+
+<div class="page">
+
+  <header>
+    <div class="eyebrow">S.A.M · field mapping</div>
+    <h1>Map Easy Qualifier</h1>
+    <p class="lede">
+      I can't see Easy Qualifier — it sits behind your broker login — so I have
+      no way to learn what its fields are called. This script reads the
+      <em>names</em> of the boxes on screen and hands them back to me. Then S.A.M
+      can drop a finished application straight into EQ.
+    </p>
+    <p class="lede">
+      Your first run brought back all seventy fields. What it missed was what's
+      <em>inside</em> the dropdowns, because a dropdown holds nothing until it's
+      opened — so there's a button for that now, and the run takes half as long.
+    </p>
+    <div class="facts">
+      <span>~5 minutes</span>
+      <span>no code knowledge</span>
+      <span>one paste back to me</span>
+    </div>
+  </header>
+
+  <section class="grab">
+    <div class="grab-hd">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="fname">eq-probe.js</span>
+      <button id="copy" type="button">Copy script</button>
+    </div>
+    <textarea id="script" readonly spellcheck="false" aria-label="The probe script">__SCRIPT__</textarea>
+    <p class="grab-ft">Nothing to install. This goes into the browser console — step 3.</p>
+  </section>
+
+  <section>
+    <h2>The steps</h2>
+    <ol class="steps">
+
+      <li>
+        <h3>Open Easy Qualifier</h3>
+        <p>
+          Log into UWM as normal and start a scenario. Made-up numbers are fine —
+          a $400,000 house with a $270,000 payoff, VA, cash-out. It never has to
+          be real and you never have to submit it.
+        </p>
+      </li>
+
+      <li>
+        <h3>Open the console</h3>
+        <p>
+          Press <kbd>F12</kbd>. On a Mac, hold <kbd>Cmd</kbd> + <kbd>Option</kbd>
+          + <kbd>I</kbd>. A panel opens on the right or along the bottom. Click
+          the tab marked <strong>Console</strong>.
+        </p>
+      </li>
+
+      <li>
+        <h3>Paste the script in</h3>
+        <p>
+          Press <strong>Copy script</strong> at the top of this page. Click the
+          empty space next to the <code>&gt;</code> symbol in the console, paste,
+          and press <kbd>Enter</kbd>.
+        </p>
+        <div class="gotcha">
+          <span class="mark">!</span>
+          <span>
+            <b>If it says "Allow pasting"</b> — or warns you not to paste code you
+            don't understand — that's Chrome protecting you, and it stops most
+            people on their first try. Type the words <code>allow pasting</code>,
+            press <kbd>Enter</kbd>, then paste the script again. You only ever
+            do this once.
+          </span>
+        </div>
+      </li>
+
+      <li>
+        <h3>Look for the black box</h3>
+        <p>
+          It appears in the bottom-right corner of the page and looks like this.
+          That means it's working — leave it alone.
+        </p>
+        <div class="probe" aria-hidden="true">
+          <div class="t">S.A.M — mapping Easy Qualifier</div>
+          <div class="s">Reads field names only. Nothing you typed, nothing sent anywhere.</div>
+          <div class="n">1 <em>screen, 24 fields</em></div>
+          <div class="btn">Copy all &amp; finish</div>
+        </div>
+      </li>
+
+      <li>
+        <h3>Click through the form once</h3>
+        <p>
+          Fill in your scenario and let every field appear. Some of EQ's boxes
+          only exist once a program is chosen — the VA Use Type box shows up
+          when VA is selected, and the funding-fee box with it — so a form
+          that has been filled in shows more than an empty one.
+        </p>
+      </li>
+
+      <li>
+        <h3>Press "Read all dropdown lists"</h3>
+        <p>
+          This is the important one. It opens each dropdown, reads what's
+          inside, and presses Escape — about fifteen seconds, and you'll see
+          them blink open and shut. It <strong>picks nothing</strong>, and it
+          checks each field before and after to prove your selection didn't
+          move. If one ever did, the box says so instead of carrying on.
+        </p>
+        <div class="gotcha">
+          <span class="mark">!</span>
+          <span>
+            This is the only part of the script that touches the page at all.
+            Everything else just looks. If you'd rather not have it clicking
+            around a real scenario, put a made-up one in first.
+          </span>
+        </div>
+      </li>
+
+      <li>
+        <h3>Get a quote, then press "Read the results"</h3>
+        <p>
+          Press whatever button EQ uses to price it, and once the rates are on
+          screen press <strong>Read the results</strong>. It records the column
+          headings and replaces every digit with a <code>#</code> — so I learn
+          where the rate and payment come out without carrying your pricing
+          anywhere.
+        </p>
+      </li>
+
+      <li>
+        <h3>Press "Copy all &amp; finish"</h3>
+        <p>It'll say something like <code>Copied 61KB</code>.</p>
+      </li>
+
+      <li>
+        <h3>Paste it back to me</h3>
+        <p>
+          Straight into our chat. It'll be a wall of text — that's exactly what
+          it should look like. If it's too big to paste, press <strong>Save as
+          a file</strong> instead and send me the <code>.json</code>.
+        </p>
+      </li>
+
+      <li>
+        <h3>Close it down</h3>
+        <p>
+          Click <strong>close</strong> at the bottom of the black box, then press
+          <kbd>F12</kbd> again to shut the console. Nothing is left behind.
+        </p>
+      </li>
+
+    </ol>
+  </section>
+
+  <section>
+    <h2>What it reads, and what it doesn't</h2>
+    <div class="ledger">
+      <div class="yes">
+        <h3>It reads</h3>
+        <ul>
+          <li><span class="m">+</span><span>The names of the fields on screen</span></li>
+          <li><span class="m">+</span><span>What's inside every dropdown — loan types, occupancy, property type. This is the map.</span></li>
+          <li><span class="m">+</span><span>Whether a box is required, greyed out, or formats what you type</span></li>
+          <li><span class="m">+</span><span>Whether a box is empty or has something in it — and nothing more than that</span></li>
+        </ul>
+      </div>
+      <div class="no">
+        <h3>It never reads</h3>
+        <ul>
+          <li><span class="m">&minus;</span><span>Anything you typed. Not a borrower name, not an income figure, not a rate.</span></li>
+          <li><span class="m">&minus;</span><span>Passwords. Those boxes are skipped outright.</span></li>
+          <li><span class="m">&minus;</span><span>Cookies, tokens, or anything else that stands in for your login</span></li>
+          <li><span class="m">&minus;</span><span>Rates, fees or prices. Result figures have every digit replaced with a <code>#</code>.</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="assur">
+      It also makes no network calls at all — there isn't a single one in the
+      file. What it collects sits in that one browser tab until you press Copy,
+      and dies when you close the tab. That isn't a promise: the test suite
+      plants a fake session cookie and access token, drives the whole flow, and
+      fails if either reaches the output or if any request leaves the page. It
+      never fills in a field, chooses an option, or submits anything.
+    </p>
+    <p class="assur">
+      One button is the exception, and it says so on its face. <b>Read all
+      dropdown lists</b> clicks each dropdown open, reads it, and presses
+      Escape. That is the only way to see inside them — a React dropdown holds
+      nothing at all until it is opened. It selects nothing, and it reads each
+      field before and after to prove the selection did not move; a test drives
+      the whole pass and fails if any value on the form changes.
+    </p>
+  </section>
+
+  <section>
+    <h2>If something goes wrong</h2>
+    <dl class="trouble">
+      <dt>Nothing happened when I pressed Enter.</dt>
+      <dd>Look for red text in the console and send me a photo of it.</dd>
+
+      <dt>The black box never appeared.</dt>
+      <dd>
+        You're probably inside a frame. Just above the console input is a
+        dropdown that usually reads <code>top</code> — click it, pick the entry
+        that looks like the Easy Qualifier page, and paste the script again.
+      </dd>
+
+      <dt>It says 1 screen and never goes up.</dt>
+      <dd>
+        Click <strong>Capture this screen</strong> by hand on each screen
+        instead. Same result, just manual.
+      </dd>
+
+      <dt>The fields look wrong to me.</dt>
+      <dd>
+        Send it anyway. I can tell from the output whether it read the page
+        properly, and a bad map is far more useful than no map for working out
+        what to fix.
+      </dd>
+    </dl>
+  </section>
+
+  <footer>
+    <p>
+      <b>What happens next.</b> I turn what you send into a mapping file, and
+      S.A.M gets a <b>To UWM</b> button: it takes the application you already
+      filled in on the call and drops it into Easy Qualifier's fields in one go.
+      You check it and press Quote yourself.
+    </p>
+    <p>
+      It stops there, exactly as your spec says. No auto-submit, no handling your
+      credentials, no background requests to UWM. If UWM changes the page and the
+      map stops matching, the button tells you so and falls back to copying the
+      scenario to your clipboard rather than filling in the wrong boxes.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var button = document.getElementById('copy');
+    var area = document.getElementById('script');
+    var idle = button.textContent;
+    var timer = null;
+
+    function settle(message, ok) {
+      button.textContent = message;
+      button.classList.toggle('done', !!ok);
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        button.textContent = idle;
+        button.classList.remove('done');
+      }, 2600);
+    }
+
+    function fallback() {
+      area.focus();
+      area.select();
+      try {
+        return document.execCommand('copy') ? settle('Copied', true)
+          : settle('Press Ctrl+C', false);
+      } catch (e) {
+        return settle('Press Ctrl+C', false);
+      }
+    }
+
+    button.addEventListener('click', function () {
+      // The clipboard API is the clean path; a selected textarea is the one
+      // that still works when the page is sandboxed out of it.
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(area.value)
+          .then(function () { settle('Copied', true); })
+          .catch(fallback);
+      } else {
+        fallback();
+      }
+    });
+  }());
+</script>

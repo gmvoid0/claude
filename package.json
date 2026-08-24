@@ -1,0 +1,17 @@
+{
+  "name": "sam-mortgage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser extension that reads property value and lien balances off the page and computes LTV, max loan and cash-out for VA / FHA / Conventional in real time.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test 'test/*.test.mjs'",
+    "test:unit": "node --test 'test/equity.test.mjs' 'test/money.test.mjs' 'test/detect.test.mjs'",
+    "test:dom": "node --test 'test/dom.test.mjs'",
+    "icons": "python3 tools/make-icons.py"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

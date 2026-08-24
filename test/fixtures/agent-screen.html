@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Agent screen fixture</title>
+  <style>
+    body { font: 13px Arial, sans-serif; background: #d4d0c8; margin: 8px; }
+    table { border-collapse: collapse; }
+    td { padding: 2px 4px; }
+    td.lbl { text-align: right; white-space: nowrap; }
+    input, select { font: 13px Arial; border: 1px solid #7f9db9; background: #fff; }
+    .status { background: #c0c0c0; padding: 2px 4px; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<!--
+  Replica of a dialer agent screen.
+
+  Two things are deliberate:
+
+  1. The `name` attributes are the platform's originals and do NOT match the
+     visible labels — the field displayed as "Mortgage Balance" is really
+     `vendor_lead_code`, and "Mortgage Payment" is really `address2`. Detection
+     must go by the rendered label, not the name.
+
+  2. "STATUS", "Address3" and "Lead Code" are present as decoys.
+-->
+
+<div class="status">STATUS: Incoming: (302)423-9504 &nbsp; UID: V8111009050014787812</div>
+<div>RECORD ID: 7164344</div>
+<div>Customer Time: AUG 11 10:09:57 AM &nbsp; Channel: SIP/tipmark-00000cf4</div>
+
+<table>
+  <tr>
+    <td class="lbl">FICO:</td>
+    <td><input type="text" name="security_phrase" size="6" value="" /></td>
+    <td class="lbl">First:</td>
+    <td><input type="text" name="first_name" value="RANDY D" /></td>
+    <td class="lbl">MI:</td>
+    <td><input type="text" name="middle_initial" size="2" value="" /></td>
+    <td class="lbl">Last :</td>
+    <td><input type="text" name="last_name" value="ROLLINS" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Address1:</td>
+    <td colspan="7"><input type="text" name="address1" size="40" value="189 LEDGERWOOD LN" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Mortgage Payment:</td>
+    <td><input type="text" name="address2" value="6.06" /></td>
+    <td class="lbl">Address3:</td>
+    <td colspan="5"><input type="text" name="address3" value="" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">City:</td>
+    <td><input type="text" name="city" value="ROCKWOOD" /></td>
+    <td class="lbl">State:</td>
+    <td><input type="text" name="state" size="4" value="TN" /></td>
+    <td class="lbl">PostCode:</td>
+    <td colspan="3"><input type="text" name="postal_code" size="8" value="37854" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Mortgage Balance:</td>
+    <td><input type="text" name="vendor_lead_code" value="270900" /></td>
+    <td class="lbl">Lead Code:</td>
+    <td><input type="text" name="lead_code" value="" /></td>
+    <td class="lbl">Gender:</td>
+    <td colspan="3">
+      <select name="gender">
+        <option value="U" selected>U - Undefined</option>
+        <option value="M">M - Male</option>
+      </select>
+    </td>
+  </tr>
+  <tr>
+    <td class="lbl">Phone:</td>
+    <td>3024239504</td>
+    <td class="lbl">DialCode:</td>
+    <td><input type="text" name="dial_code" size="3" value="1" /></td>
+    <td class="lbl">Alt. Phone:</td>
+    <td colspan="3"><input type="text" name="alt_phone" value="" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Interest Rate:</td>
+    <td><input type="text" name="email" value="" /></td>
+    <td class="lbl">Loan Type:</td>
+    <td colspan="5"><input type="text" name="comments_b" value="VA" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Call Notes:</td>
+    <td colspan="7"><textarea name="comments" rows="2" cols="50">ROCKET MORTGAGE LLC</textarea></td>
+  </tr>
+</table>
+
+<script>
+  // Stand-in for the dialer loading the next call: assigns straight to
+  // `.value`, which fires no events and mutates no attributes.
+  window.loadNextRecord = (record) => {
+    document.querySelector('[name=first_name]').value = record.first;
+    document.querySelector('[name=last_name]').value = record.last;
+    document.querySelector('[name=address1]').value = record.address;
+    document.querySelector('[name=city]').value = record.city;
+    document.querySelector('[name=state]').value = record.state;
+    document.querySelector('[name=postal_code]').value = record.zip;
+    document.querySelector('[name=vendor_lead_code]').value = record.balance;
+    document.querySelector('[name=comments_b]').value = record.loanType;
+    document.body.querySelector('div:nth-of-type(2)').textContent =
+      `RECORD ID: ${record.id}`;
+  };
+</script>
+</body>
+</html>

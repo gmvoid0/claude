@@ -1,0 +1,394 @@
+<title>S.A.M for Easy Qualifier</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;1,400&display=swap" />
+
+<style>
+  /* S.A.M's own panel palette, so the page and the tool look like one thing. */
+  :root {
+    --paper:  #f1f3f6;
+    --card:   #ffffff;
+    --ink:    #16181c;
+    --body:   #33383f;
+    --muted:  #6c737d;
+    --faint:  #9aa1aa;
+    --hair:   #dfe3e9;
+    --accent: #0a5fd6;
+    --tint:   #e8effb;
+    --good:   #1c7f3c;
+    --goodbg: #e4f4e9;
+    --bad:    #b3261e;
+    --badbg:  #fdeceb;
+    --warn:   #8a5300;
+    --warnbg: #fdf1de;
+    --measure: 68ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #101216; --card: #191c21; --ink: #f2f4f7; --body: #c8cdd4;
+      --muted: #8b939d; --faint: #6d757f; --hair: #282d34;
+      --accent: #64a6ff; --tint: #17273c;
+      --good: #5cd07d; --goodbg: #16301f;
+      --bad: #ff8078; --badbg: #33191a;
+      --warn: #f0b45c; --warnbg: #33260f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #101216; --card: #191c21; --ink: #f2f4f7; --body: #c8cdd4;
+    --muted: #8b939d; --faint: #6d757f; --hair: #282d34;
+    --accent: #64a6ff; --tint: #17273c;
+    --good: #5cd07d; --goodbg: #16301f;
+    --bad: #ff8078; --badbg: #33191a;
+    --warn: #f0b45c; --warnbg: #33260f;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--body);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 800px; margin: 0 auto; padding: 56px 24px 96px;
+    display: flex; flex-direction: column; gap: 46px;
+  }
+
+  header { display: flex; flex-direction: column; gap: 14px; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    margin: 0; font-size: clamp(32px, 5.6vw, 46px); line-height: 1.06;
+    letter-spacing: -.024em; font-weight: 600; color: var(--ink);
+    text-wrap: balance;
+  }
+  .lede {
+    font-family: "IBM Plex Serif", Georgia, serif;
+    font-size: 17.5px; line-height: 1.6; max-width: var(--measure); margin: 0;
+  }
+
+  h2 {
+    margin: 0 0 18px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px; font-weight: 600; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  h3 {
+    margin: 0 0 6px; font-size: 17px; font-weight: 600;
+    color: var(--ink); letter-spacing: -.01em;
+  }
+  p { max-width: var(--measure); }
+  strong { color: var(--ink); font-weight: 600; }
+
+  /* --- the answer, shown the way the panel shows it --- */
+  .answer {
+    background: var(--card); border: 1px solid var(--hair);
+    border-radius: 14px; padding: 22px 24px;
+  }
+  .answer .cap {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .answer .big {
+    font-size: clamp(38px, 7vw, 54px); font-weight: 700; line-height: 1.05;
+    letter-spacing: -.03em; color: var(--good);
+    font-variant-numeric: tabular-nums; margin: 4px 0 2px;
+  }
+  .answer .sub { font-size: 13.5px; color: var(--muted); }
+
+  .ledger { margin-top: 20px; border-top: 1px solid var(--hair); padding-top: 14px; }
+  .row {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px;
+    font-size: 14px; padding: 5px 0;
+  }
+  .row span { flex: 1 1 auto; min-width: 0; }
+  .row b { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+  /* The working sits on its own line under the figure. flex-basis rather
+     than width, so the row's gap is not added on top of a full-width child
+     and pushed past the edge. */
+  .row .why {
+    flex: 0 0 100%; order: 3;
+    font-size: 11.5px; color: var(--faint); margin-top: 2px;
+  }
+  .row.sum { border-top: 1px solid var(--hair); margin-top: 8px; padding-top: 10px; }
+  .row.tot b, .row.tot span { color: var(--good); font-weight: 700; }
+
+  /* --- steps --- */
+  ol.steps {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 22px; counter-reset: s;
+  }
+  ol.steps > li {
+    display: grid; grid-template-columns: 34px 1fr; gap: 0 16px;
+    align-items: start; counter-increment: s;
+  }
+  ol.steps > li::before {
+    content: counter(s); grid-column: 1; grid-row: 1;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px; font-weight: 500; line-height: 34px; text-align: center;
+    height: 34px; border-radius: 9px;
+    color: var(--accent); background: var(--tint);
+    font-variant-numeric: tabular-nums;
+  }
+  ol.steps > li > * { grid-column: 2; }
+  ol.steps p { margin: 0; }
+
+  kbd, code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .86em; padding: 2px 6px; border-radius: 5px;
+    background: var(--tint); color: var(--accent);
+  }
+
+  /* --- tables --- */
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 14px 9px 0; border-bottom: 1px solid var(--hair); }
+  th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; font-weight: 500; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  td b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  td.n { font-variant-numeric: tabular-nums; }
+
+  .note {
+    padding: 14px 16px; border-radius: 10px; max-width: var(--measure);
+    font-size: 14.5px; line-height: 1.5;
+  }
+  .note.warn { background: var(--warnbg); color: var(--warn); }
+  .note.bad  { background: var(--badbg);  color: var(--bad); }
+  .note.good { background: var(--goodbg); color: var(--good); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px 28px; }
+  .cards p { margin: 0; font-size: 14.5px; }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  footer {
+    border-top: 1px solid var(--hair); padding-top: 22px;
+    font-size: 14.5px; color: var(--muted); max-width: var(--measure);
+  }
+  @media (max-width: 520px) {
+    .page { padding: 40px 18px 72px; gap: 36px; }
+    ol.steps > li { grid-template-columns: 28px 1fr; gap: 0 12px; }
+    ol.steps > li::before { height: 28px; line-height: 28px; font-size: 12px; }
+  }
+</style>
+
+<div class="page">
+
+  <header>
+    <div class="eyebrow">Chrome &amp; Edge extension · v0.1.0</div>
+    <h1>S.A.M for Easy Qualifier</h1>
+    <p class="lede">
+      It reads the dialer screen, takes the application while you talk, and
+      works out the one number you need: the loan amount to type into Easy
+      Qualifier. Then EQ hands back a payment, that payment comes back here,
+      and it tells you whether the borrower can carry it.
+    </p>
+  </header>
+
+  <section class="answer">
+    <div class="cap">Easy Qualifier — Loan Amount</div>
+    <div class="big">$385,503</div>
+    <div class="sub">$400,000 home · $270,900 payoff · $96,000 cash out · VA</div>
+    <div class="ledger">
+      <div class="row"><span>Monthly escrow payment</span><b>$228</b>
+        <span class="why">$1,733 tax from Zillow + $1,000 insurance, over 12 months · 6 collected at closing</span></div>
+      <div class="row"><span>Front-end DTI</span><b>32.66%</b>
+        <span class="why">$2,417 payment from Easy Qualifier ÷ $7,400 monthly income · under VA's 35%</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Installing it</h2>
+    <ol class="steps">
+      <li>
+        <h3>Unzip the file</h3>
+        <p>
+          <code>sam-extension.zip</code>, sent alongside this page. Put the
+          folder somewhere it can stay — Chrome loads it from where it sits,
+          so deleting the folder uninstalls the extension.
+        </p>
+      </li>
+      <li>
+        <h3>Open your extensions page</h3>
+        <p>
+          Type <code>chrome://extensions</code> into the address bar
+          (<code>edge://extensions</code> on Edge) and press <kbd>Enter</kbd>.
+        </p>
+      </li>
+      <li>
+        <h3>Turn on Developer mode</h3>
+        <p>Top-right corner of that page.</p>
+      </li>
+      <li>
+        <h3>Load unpacked</h3>
+        <p>
+          A button appears top-left. Click it and pick the folder you unzipped
+          — the one with <code>manifest.json</code> in it, not its parent.
+        </p>
+      </li>
+      <li>
+        <h3>Switch it on for your dialer</h3>
+        <p>
+          Open VICIdial, click the S.A.M icon in the toolbar, and turn it on
+          for that site. It stays off everywhere you have not switched it on.
+        </p>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>How the loan amount is worked out</h2>
+    <p>
+      Six lines, added, then grossed up. Every figure below is editable in
+      Settings — they are this floor's numbers, not the law.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Line</th><th>Where it comes from</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Escrows</b></td><td>Most recent year's property tax off the Zillow page, plus $1,000 for insurance, halved — six months</td></tr>
+          <tr><td><b>Title fees</b></td><td>$1,500 flat</td></tr>
+          <tr><td><b>Mortgage payoff</b></td><td>The application</td></tr>
+          <tr><td><b>Cash to borrower</b></td><td>The application</td></tr>
+          <tr><td><b>Appraisal</b></td><td>$700 — waived on a VA IRRRL, which reuses the existing valuation</td></tr>
+          <tr><td><b>Underwriting</b></td><td>$2,000 flat</td></tr>
+          <tr><td><b>Gross-up</b></td><td>The total × 1.035</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note warn" style="margin-top:20px">
+      If any line is missing, there is no loan amount at all — the box shows a
+      dash and names what it is waiting on. A figure quietly missing its
+      escrows goes into Easy Qualifier and prices a loan that cannot close,
+      which is worse than an empty box.
+    </p>
+    <p style="margin-top:20px">
+      Seven fields on the application decide the answer — <strong>full name,
+      mortgage balance, FICO, cash-out, value, monthly income and loan
+      type</strong> — and they sit on a darker ground so a blank among them
+      is visible at a glance. The rest is worth having and none of it stops
+      a quote.
+    </p>
+    <p style="margin-top:16px">
+      The panel shows three things: the loan amount, the monthly escrow, and
+      the debt ratio. The six charges above are all still added and grossed
+      up behind that figure — reading them back every call was six rows
+      saying what Settings already said once. The full working, and every
+      Easy Qualifier field, go on the clipboard with <strong>Copy</strong>.
+    </p>
+    <p class="note good" style="margin-top:20px">
+      These are the same four charges that separate the advertised figure
+      from the take-home figure at the top of the panel. One set of numbers,
+      edited in one place, so the two halves cannot quote different fees on
+      the same screen.
+    </p>
+  </section>
+
+  <section>
+    <h2>Front-end DTI</h2>
+    <p>
+      Type the PITI Easy Qualifier came back with and the ratio appears
+      against the limit for that programme. A failure comes with the payment
+      that would have cleared it, because <em>over 32%</em> ends a call and
+      <em>needs a payment under $2,368</em> is the next sentence of one.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Programme</th><th>Front-end limit</th><th>Refinance purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>VA</b></td><td class="n">35%</td><td>VA cash-out – type II, or VA IRRRL with no cash</td></tr>
+          <tr><td><b>FHA</b></td><td class="n">35%</td><td>Cash Out / Rate–Term</td></tr>
+          <tr><td><b>Conventional</b></td><td class="n">32%</td><td>Cash Out / Rate–Term</td></tr>
+          <tr><td><b>USDA</b></td><td class="n">29%</td><td>Cash Out / Rate–Term</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>What it assumes without asking</h2>
+    <p>
+      Three standing assumptions, marked on the panel with an amber dot so
+      you can see they were not read off anything. Correct them in Easy
+      Qualifier on the files where they are wrong.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Assumed</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Occupancy</b></td><td>Primary Residence</td><td>This floor refinances people in the house they live in</td></tr>
+          <tr><td><b>Property Type</b></td><td>Single family residence</td><td>Same reason</td></tr>
+          <tr><td><b>VA Use Type</b></td><td>Subsequent use</td><td>Worth 1.15 points of funding fee — 2.15% first use against 3.30% after. Assuming the cheaper one under-quotes every file it gets wrong, so the equity figures use the subsequent tier too.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Things it refuses to do quietly</h2>
+    <div class="cards">
+      <div>
+        <h3>Quote a loan that cannot be written</h3>
+        <p>
+          The loan is sized from what the borrower needs and never looks at
+          the house. If that lands past the programme's LTV cap, it says so
+          in red with the gap — the two halves of the panel are computed
+          independently and you should not be the one who spots the
+          disagreement.
+        </p>
+      </div>
+      <div>
+        <h3>Treat blank as zero</h3>
+        <p>
+          An empty cash-out box is an unanswered question, not a rate-and-term
+          refinance. An empty tax figure means no loan amount, not free
+          escrows.
+        </p>
+      </div>
+      <div>
+        <h3>Believe a yearly income</h3>
+        <p>
+          $88,800 typed where $7,400 belongs makes every ratio look twelve
+          times better. Under 8% front-end at a real payment gets flagged.
+        </p>
+      </div>
+      <div>
+        <h3>Read a tax figure that is not there</h3>
+        <p>
+          The property tax comes out of Zillow's payload, in both the plain
+          and the escaped spelling the live page actually uses. No figure
+          means no escrow line and no loan amount — never a silent zero.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      Estimate only. Not a quote, an offer, or a commitment to lend, and every
+      figure on the panel is a working number for a phone call rather than a
+      Loan Estimate.
+    </p>
+    <p>
+      Source and full history:
+      <a href="https://github.com/gmvoid0/claude/pull/2">github.com/gmvoid0/claude/pull/2</a>
+      · 316 tests.
+    </p>
+  </footer>
+
+</div>

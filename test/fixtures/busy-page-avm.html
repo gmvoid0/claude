@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Busy agent screen with an injected AVM panel</title>
+  <style>
+    body { font: 12px Arial, sans-serif; margin: 8px; }
+    td { padding: 1px 3px; }
+    td.lbl { text-align: right; white-space: nowrap; }
+    #filler span { display: inline-block; margin: 1px 3px; }
+  </style>
+</head>
+<body>
+
+<!--
+  The condition the small fixtures miss.
+
+  A real dialer screen is not a dozen text nodes: it carries a softphone
+  dialpad, a call log, script text and status chrome, easily thousands of
+  short text nodes. The AVM panel injected by another extension is tiny by
+  comparison and lives in a shadow root.
+
+  If the host document is allowed to consume the whole traversal budget
+  before shadow roots are reached, the one element that actually carries the
+  home value is never looked at — and the failure is invisible on any small
+  test page.
+-->
+
+<div>RECORD ID: 7167687</div>
+
+<table>
+  <tr>
+    <td class="lbl">Address1:</td>
+    <td><input type="text" name="address1" size="30" value="550 SAFSTROM DR" /></td>
+    <td class="lbl">City:</td>
+    <td><input type="text" name="city" value="IDAHO FALLS" /></td>
+    <td class="lbl">State:</td>
+    <td><input type="text" name="state" size="4" value="ID" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Mortgage Balance:</td>
+    <td><input type="text" name="vendor_lead_code" value="200000" /></td>
+    <td class="lbl">Loan Type:</td>
+    <td><input type="text" name="comments_b" value="VA" /></td>
+    <td class="lbl">PostCode:</td>
+    <td><input type="text" name="postal_code" value="83401" /></td>
+  </tr>
+</table>
+
+<!-- Softphone, call log and script chrome: a lot of short text nodes. -->
+<div id="filler"></div>
+
+<div id="assistant-host"></div>
+
+<script>
+  // ~2,500 short text nodes, comfortably past any modest traversal cap.
+  const filler = document.getElementById('filler');
+  const words = ['Queue', 'Agent', 'Ready', 'Paused', 'Dial', 'Log', 'Script',
+                 'Line', 'Hold', 'Xfer', 'Mute', 'Rec', 'Note', 'Status'];
+  let html = '';
+  for (let i = 0; i < 2500; i++) {
+    html += `<span>${words[i % words.length]} ${i}</span>`;
+  }
+  filler.innerHTML = html;
+
+  // The other extension's AVM card, in an open shadow root, mounted last.
+  const shadow = document.getElementById('assistant-host').attachShadow({ mode: 'open' });
+  shadow.innerHTML = `
+    <style>
+      .card { position: fixed; right: 20px; top: 60px; width: 300px;
+              background: #fff; border: 1px solid #ccc; padding: 14px;
+              font: 13px Arial, sans-serif; }
+      .brand { font-size: 12px; color: #555; }
+      .price { font-size: 26px; font-weight: 800; }
+    </style>
+    <div class="card">
+      <div class="brand">Zestimate&reg;</div>
+      <div class="price">$412,700</div>
+      <div>3 beds 2 baths 1,780 sqft</div>
+      <div>550 Safstrom Dr, Idaho Falls, ID 83401</div>
+    </div>
+  `;
+</script>
+</body>
+</html>

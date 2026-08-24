@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VICIdial agent screen — live capture</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 13px; margin: 8px; }
+    table { border-collapse: collapse; }
+    td { padding: 2px 4px; white-space: nowrap; }
+    td.lbl { text-align: right; }
+    input { font-size: 13px; }
+  </style>
+</head>
+<body>
+<!--
+  Taken from a live 2.14 agent screen where the borrower's name was the one
+  thing S.A.M failed to read while every other field on the same form came
+  through. The name row is reproduced with its labels sitting in a cell that
+  spans the pair, so the label resolver hands the First box the text of the
+  field beside it instead of its own — which is the failure this fixture
+  exists to hold in place. The inputs still carry `first_name` / `last_name`,
+  and that is what detection has to fall back on.
+-->
+<div>STATUS: Called: (202)808-6360 &nbsp; UID: M8171651560015306408</div>
+<div>Customer Time: AUG 17 4:54:05 PM &nbsp; Channel: SIP/tip1-00008ea9</div>
+<div>RECORD ID: 7218363</div>
+
+<table>
+  <tr>
+    <td class="lbl">FICO:</td>
+    <td><input type="text" name="fico_score" value="655" /></td>
+    <td class="lbl" colspan="2">First: &nbsp; MI: &nbsp; Last :</td>
+    <td><input type="text" name="first_name" value="SAMIR" /></td>
+    <td><input type="text" name="middle_initial" value="" size="3" /></td>
+    <td><input type="text" name="last_name" value="GEORGE" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Address1:</td>
+    <td colspan="6"><input type="text" name="address1" value="51 YOUNG HARRIS DR" size="40" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Mortgage Payment:</td>
+    <td><input type="text" name="address2" value="1043" /></td>
+    <td class="lbl">Address3:</td>
+    <td colspan="4"><input type="text" name="address3" value="" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">City:</td>
+    <td><input type="text" name="city" value="SIMPSONVILLE" /></td>
+    <td class="lbl">State:</td>
+    <td><input type="text" name="state" value="SC" size="4" /></td>
+    <td class="lbl">PostCode:</td>
+    <td colspan="2"><input type="text" name="postal_code" value="29681" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Mortgage Balance:</td>
+    <td><input type="text" name="vendor_lead_code" value="131853" /></td>
+    <td class="lbl">Lead Code:</td>
+    <td><input type="text" name="lead_code" value="" /></td>
+    <td class="lbl">Gender:</td>
+    <td colspan="2">
+      <select name="gender"><option>U - Undefined</option></select>
+    </td>
+  </tr>
+  <tr>
+    <td class="lbl">Phone:</td>
+    <td>2028086360</td>
+    <td class="lbl">DialCode:</td>
+    <td><input type="text" name="dial_code" value="1" size="4" /></td>
+    <td class="lbl">Alt. Phone:</td>
+    <td colspan="2"><input type="text" name="alt_phone" value="" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Interest Rate:</td>
+    <td><input type="text" name="security_phrase" value="" /></td>
+    <td class="lbl">Loan Type:</td>
+    <td colspan="4"><input type="text" name="comments" value="Personal Loans" size="30" /></td>
+  </tr>
+  <tr>
+    <td class="lbl">Best Call Time:</td>
+    <td colspan="6"></td>
+  </tr>
+  <tr>
+    <td class="lbl">Call Notes:</td>
+    <td colspan="6"><textarea name="call_notes" rows="2" cols="40"></textarea></td>
+  </tr>
+</table>
+</body>
+</html>
